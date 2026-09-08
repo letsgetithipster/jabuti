@@ -1,20 +1,27 @@
-"""Parser único de frontmatter YAML. Toda leitura de frontmatter do motor passa aqui."""
+r"""Parser único de frontmatter YAML. Toda leitura de frontmatter do motor passa aqui."""
+import re
+
 import yaml
 
+# Delimitadores tolerantes a CRLF; fechamento exige linha exatamente "---"
+# (com espaços/tabs finais opcionais). Não-greedy: para no PRIMEIRO fechamento,
+# então "---" de régua horizontal mais adiante no corpo não é engolido.
+_DELIMITADO = re.compile(r"---\r?\n(.*?)(?:\r?\n)---[ \t]*(?:\r?\n|$)", re.DOTALL)
 
-def extrair_frontmatter(texto):
-    """Retorna (meta: dict, corpo: str). Sem frontmatter válido: ({}, texto integral)."""
-    if not texto.startswith("---\n"):
+
+def extrair_frontmatter(texto: str) -> tuple[dict, str]:
+    """Retorna (meta: dict, corpo: str). Sem frontmatter válido: ({}, texto integral).
+
+    Tolera CRLF nos delimitadores e dentro do bloco (PyYAML aceita).
+    Data YAML não-aspada vira datetime.date — contrato pinado em teste.
+    """
+    m = _DELIMITADO.match(texto)
+    if not m:
         return {}, texto
-    fim = texto.find("\n---", 4)
-    if fim == -1:
-        return {}, texto
-    bloco = texto[4:fim]
-    corpo = texto[fim + 4:].lstrip("\n")
     try:
-        meta = yaml.safe_load(bloco)
+        meta = yaml.safe_load(m.group(1))
     except yaml.YAMLError:
         return {}, texto
     if not isinstance(meta, dict):
         return {}, texto
-    return meta, corpo
+    return meta, texto[m.end():].lstrip("\r\n")
