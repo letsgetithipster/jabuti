@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pre-commit do motor: workspace-exemplo sempre verde + suite passando. Falha ALTO.
+PY=""
+for c in python3 python py; do
+  if command -v "$c" >/dev/null 2>&1 && "$c" -c "import sys;sys.exit(sys.version_info[0]!=3)" >/dev/null 2>&1; then
+    PY=$c
+    break
+  fi
+done
+if [ -z "$PY" ]; then
+  echo "pre-commit: python3 nao encontrado no PATH." >&2
+  exit 1
+fi
+"$PY" scripts/validar_workspace.py exemplos/workspace-exemplo --errors-only || exit 1
+"$PY" -m pytest -q || exit 1
