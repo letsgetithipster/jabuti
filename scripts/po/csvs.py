@@ -31,6 +31,13 @@ def ler_csv(nome: str, caminho: str | Path) -> tuple[list[dict], list[str]]:
         linhas = list(reader)
     for i, linha in enumerate(linhas, start=2):
         onde = f"{caminho.name}:{i}"
+        extras = linha.pop(None, None)
+        if extras:
+            erros.append(f"{onde}: linha com colunas a mais ({len(extras)} valor(es) além do schema)")
+        faltantes = [c for c in schema if linha[c] is None]
+        if faltantes:
+            erros.append(f"{onde}: linha com colunas a menos (faltam: {', '.join(faltantes)})")
+            continue
         for campo in schema:
             if campo in NUMERICOS and parse_valor(linha[campo]) is None:
                 erros.append(f"{onde}: campo {campo} não numérico: {linha[campo]!r}")

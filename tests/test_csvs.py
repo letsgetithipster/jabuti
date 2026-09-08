@@ -57,3 +57,17 @@ def test_csv_vazio_so_header_ok(tmp_path):
     p = escreve(tmp_path, "eventos", "data,ticker,tipo,razao,confirmado\n")
     linhas, erros = ler_csv("eventos", p)
     assert linhas == [] and erros == []
+
+
+def test_linha_com_coluna_a_menos(tmp_path):
+    p = escreve(tmp_path, "posicoes",
+                "ticker,classe,conta,qty,pm,moeda\nPETR4,acoes-br,corretora-br,100,30.00\n")
+    _, erros = ler_csv("posicoes", p)
+    assert any("a menos" in e for e in erros)
+
+
+def test_linha_com_coluna_a_mais(tmp_path):
+    p = escreve(tmp_path, "posicoes",
+                "ticker,classe,conta,qty,pm,moeda\nPETR4,acoes-br,corretora-br,100,30.00,BRL,EXTRA\n")
+    _, erros = ler_csv("posicoes", p)
+    assert any("a mais" in e for e in erros)
