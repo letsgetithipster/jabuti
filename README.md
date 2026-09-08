@@ -29,6 +29,8 @@ init→macro→micro + compilador multi-LLM (3), skills de rotina (4), IR (5).
 
 ## Começando (nesta fase)
 
+Requisitos: Python 3.11+ e git. (macOS/Linux: troque os caminhos, ex. python3 scripts/criar_workspace.py ~/meu-vault)
+
 ```powershell
 git clone <url> patrimonio-os
 cd patrimonio-os
@@ -58,6 +60,7 @@ Seu workspace é **privado por desenho** — não o publique. Os fluxos de
 Método canônico (rubricas, frameworks, princípios) muda só via issue de
 método com racional. Contribuição aberta e bem-vinda nas bordas: parsers
 de corretora, providers de cotação, pacotes fiscais anuais, testes.
+Num clone novo, ative o hook: git config core.hooksPath .githooks — é ele que mantém o exemplo sempre verde e a suíte passando em todo commit.
 
 ## Licença e aviso
 

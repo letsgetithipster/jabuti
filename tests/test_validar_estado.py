@@ -75,3 +75,12 @@ def test_dados_com_erro_suspende_com_aviso(tmp_path):
     erros, avisos = checar_estado(ws)
     assert erros == []
     assert any("suspenso" in a for a in avisos)
+
+
+def test_estado_nao_utf8_vira_erro(tmp_path):
+    ws = tmp_path / "ws"
+    shutil.copytree(EXEMPLO, ws)
+    (ws / "estado" / "ESTADO.md").write_bytes(
+        "---\ntipo: estado\n---\nTotal investido: R$ 1,00 ação\n".encode("latin-1"))
+    erros, _ = checar_estado(ws)
+    assert any("UTF-8" in e for e in erros)

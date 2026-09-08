@@ -136,3 +136,19 @@ def test_posicao_qty_zero_e_erro(tmp_path):
                 "ticker,classe,conta,qty,pm,moeda\nPETR4,acoes-br,c1,0,30.00,BRL\n")
     _, erros = ler_csv("posicoes", p)
     assert any("positiva" in e for e in erros)
+
+
+def test_csv_nao_utf8_vira_erro(tmp_path):
+    p = tmp_path / "posicoes.csv"
+    p.write_bytes("ticker,classe,conta,qty,pm,moeda\nAÇÃO,acoes-br,c1,1,1.00,BRL\n".encode("latin-1"))
+    linhas, erros = ler_csv("posicoes", p)
+    assert linhas == []
+    assert any("UTF-8" in e for e in erros)
+
+
+def test_csv_utf16_vira_erro(tmp_path):
+    p = tmp_path / "posicoes.csv"
+    p.write_bytes("ticker,classe,conta,qty,pm,moeda\nPETR4,acoes-br,c1,1,1.00,BRL\n".encode("utf-16"))
+    linhas, erros = ler_csv("posicoes", p)
+    assert linhas == []
+    assert erros

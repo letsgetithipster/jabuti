@@ -108,6 +108,12 @@ def test_conta_com_id_nao_string():
     assert sum("sem id" in e for e in erros) == 2
 
 
+def test_carregar_nao_utf8(tmp_path):
+    (tmp_path / "vault.config.yaml").write_bytes("versao: 1  # ação\n".encode("latin-1"))
+    with pytest.raises(ValueError, match="UTF-8"):
+        carregar_config(tmp_path)
+
+
 def test_carregar_harness_dois_pontos_perdido(tmp_path):
     (tmp_path / "vault.config.yaml").write_text(
         "versao: 1\nmoeda_base: BRL\nharness:\n  - claude-code:\n"

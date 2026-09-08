@@ -38,11 +38,16 @@ def ler_csv(nome: str, caminho: str | Path) -> tuple[list[dict], list[str]]:
     opcionais = OPCIONAIS.get(nome, set())
     caminho = Path(caminho)
     erros = []
-    with caminho.open(encoding="utf-8-sig", newline="") as f:
-        reader = csv.DictReader(f)
-        if reader.fieldnames != schema:
-            return [], [f"{caminho.name}: header {reader.fieldnames} difere do schema (esperado: {schema})"]
-        linhas = list(reader)
+    try:
+        with caminho.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            if reader.fieldnames != schema:
+                return [], [f"{caminho.name}: header {reader.fieldnames} difere do schema (esperado: {schema})"]
+            linhas = list(reader)
+    except UnicodeDecodeError:
+        return [], [f"{caminho.name}: não é UTF-8 válido — salve o arquivo como UTF-8"]
+    except csv.Error as e:
+        return [], [f"{caminho.name}: CSV ilegível ({e}) — confira encoding e formato"]
     for i, linha in enumerate(linhas, start=2):
         onde = f"{caminho.name}:{i}"
         extras = linha.pop(None, None)

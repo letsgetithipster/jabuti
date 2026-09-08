@@ -17,7 +17,11 @@ def checar_estado(raiz: str | Path) -> tuple[list[str], list[str]]:
     estado = raiz / "estado" / "ESTADO.md"
     if not estado.exists():
         return ["estado/ESTADO.md ausente"], []
-    m = TOTAL_RE.search(estado.read_text(encoding="utf-8-sig"))
+    try:
+        conteudo = estado.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        return ["estado/ESTADO.md: não é UTF-8 válido — salve o arquivo como UTF-8"], []
+    m = TOTAL_RE.search(conteudo)
     if not m:
         return ["estado/ESTADO.md: linha 'Total investido:' ausente"], []
     total_declarado = parse_valor(m.group(1))

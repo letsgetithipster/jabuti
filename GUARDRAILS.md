@@ -5,6 +5,8 @@ pergunta certa: "por que eu confiaria numa LLM para operar minha carteira?"
 Resposta: você não confia na LLM. Você confia nestas quatro camadas, que
 valem para qualquer skill deste repo, em qualquer LLM.
 
+Este documento é o contrato de TODAS as fases do produto; o que já está construído hoje está listado no README, seção "Estado atual".
+
 ## Camada 1 — Mecânica (script, não modelo)
 
 - O modelo NÃO digita preço. Todo número de mercado entra por script, com

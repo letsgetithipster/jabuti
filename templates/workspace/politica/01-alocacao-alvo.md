@@ -15,7 +15,7 @@ data-revisao: __DATA__
 | Bloco | Mín % | Alvo % | Máx % |
 |---|---|---|---|
 
-(Alvos devem somar 100. O validador confere.)
+(Alvos devem somar 100 — a conferência mecânica chega com o validador de política, na Fase 3.)
 
 ## Caps de concentração
 (cap por ativo individual, caps setoriais/temáticos — declarados no /definir-macro)

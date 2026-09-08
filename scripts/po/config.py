@@ -55,7 +55,12 @@ def carregar_config(raiz: str | Path) -> dict:
     if not caminho.exists():
         raise FileNotFoundError(f"vault.config.yaml não encontrado em {raiz}")
     try:
-        cfg = yaml.safe_load(caminho.read_text(encoding="utf-8"))
+        texto = caminho.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError as e:
+        raise ValueError(
+            "vault.config.yaml não é UTF-8 válido — salve o arquivo como UTF-8") from e
+    try:
+        cfg = yaml.safe_load(texto)
     except yaml.YAMLError as e:
         raise ValueError(f"vault.config.yaml malformado: {e}") from e
     if cfg is None:
