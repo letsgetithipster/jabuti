@@ -1,3 +1,5 @@
-inbox/
+inbox/*
+!inbox/README.md
 planilhas/*.xlsx
 __pycache__/
+.DS_Store

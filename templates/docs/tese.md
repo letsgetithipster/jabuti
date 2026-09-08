@@ -27,7 +27,7 @@ Nota final = média ponderada (conta mostrada, arredondamento declarado).
 ## Riscos (top 5)
 1.
 
-## Gatilhos de revisão (nomeados, com threshold — nunca "se piorar")
+## Gatilhos de revisão (nomeados, com limite numérico — nunca "se piorar")
 -
 
 ## Histórico de revisões

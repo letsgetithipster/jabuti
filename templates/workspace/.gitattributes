@@ -1,0 +1,6 @@
+* text=auto
+pre-commit text eol=lf
+*.py text eol=lf
+*.csv text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
