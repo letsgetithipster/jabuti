@@ -21,7 +21,8 @@ data-revisao: 2026-09-08
 (Alvos devem somar 100. O validador confere.)
 
 ## Caps de concentração
-Cap individual: 10% por ativo. Sem caps setoriais neste exemplo.
+Cap individual de 10% por ativo vale a partir de carteira formada (≥ 10 ativos);
+suspenso na fase inicial de construção. Sem caps setoriais neste exemplo.
 
 ## Histórico de revisões
 | Data | O que mudou | Decisão |

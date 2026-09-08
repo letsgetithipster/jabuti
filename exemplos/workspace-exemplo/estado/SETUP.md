@@ -9,8 +9,10 @@ data-criacao: 2026-09-08
 > fechou e termina indicando a próxima thread a abrir.
 
 - [x] `/init` — perfil e política declarada
-- [x] `/definir-macro` — bandas aprovadas (gera uma linha de micro por classe escolhida)
-- [ ] `/refinar-micro <classe>` — uma thread por classe (linhas adicionadas pelo definir-macro)
-- [ ] `/aprofundar-tese <ticker>` — uma linha por ativo escolhido no micro
+- [x] `/definir-macro` — bandas aprovadas
+  - [x] `/refinar-micro acoes-br`
+  - [ ] `/refinar-micro fiis`
+  - [ ] `/refinar-micro rf-br`
+- [ ] `/aprofundar-tese PETR4`
 
 **Regra do funil:** aporte só flui para ativo com tese validada ou ETF.

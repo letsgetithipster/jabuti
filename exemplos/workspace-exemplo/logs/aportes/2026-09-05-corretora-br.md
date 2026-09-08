@@ -12,6 +12,7 @@ conta: corretora-br
 
 ## Racional
 Aporte mensal direcionado a acoes-br, bloco abaixo do alvo na consulta de aporte.
+Histórico importado: aporte anterior à formalização da política de 2026-09-08 (o funil vale a partir dela).
 
 ## Impacto
-acoes-br permanece dentro da banda (25-45); nenhum cap individual estourado.
+acoes-br permanece dentro da banda (25-45).
