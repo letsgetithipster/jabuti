@@ -95,3 +95,26 @@ def test_carregar_yaml_escalar(tmp_path):
     (tmp_path / "vault.config.yaml").write_text("apenas texto\n", encoding="utf-8")
     with pytest.raises(ValueError, match="mapeamento"):
         carregar_config(tmp_path)
+
+
+def test_harness_com_entrada_nao_string():
+    cfg = dict(CFG_OK, harness=[{"claude-code": None}])
+    assert any("harness" in e for e in validar_config(cfg))
+
+
+def test_conta_com_id_nao_string():
+    cfg = dict(CFG_OK, contas=[{"id": ["a"]}, {"id": {"x": "y"}}])
+    erros = validar_config(cfg)
+    assert sum("sem id" in e for e in erros) == 2
+
+
+def test_carregar_harness_dois_pontos_perdido(tmp_path):
+    (tmp_path / "vault.config.yaml").write_text(
+        "versao: 1\nmoeda_base: BRL\nharness:\n  - claude-code:\n"
+        "cotacoes: {provider: manual}\n"
+        "contas:\n  - id: c1\n    nome: C1\n    moeda: BRL\n"
+        "caminhos: {motor: /x}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="config inválida"):
+        carregar_config(tmp_path)

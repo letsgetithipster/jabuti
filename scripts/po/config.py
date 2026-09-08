@@ -18,7 +18,9 @@ def validar_config(cfg: object) -> list[str]:
     if cfg.get("moeda_base") not in MOEDAS_BASE:
         erros.append(f"moeda_base deve ser uma de {sorted(MOEDAS_BASE)}")
     harness = cfg.get("harness")
-    if not isinstance(harness, list) or not harness or not set(harness) <= HARNESSES:
+    if (not isinstance(harness, list) or not harness
+            or not all(isinstance(h, str) for h in harness)
+            or not set(harness) <= HARNESSES):
         erros.append(f"harness deve ser subconjunto não-vazio de {sorted(HARNESSES)}")
     cotacoes = cfg.get("cotacoes")
     provider = cotacoes.get("provider") if isinstance(cotacoes, dict) else None
@@ -30,7 +32,7 @@ def validar_config(cfg: object) -> list[str]:
     else:
         ids = []
         for i, conta in enumerate(contas, start=1):
-            if not isinstance(conta, dict) or not conta.get("id"):
+            if not isinstance(conta, dict) or not isinstance(conta.get("id"), str) or not conta["id"]:
                 erros.append(f"conta #{i} sem id (cada conta é um mapeamento com id)")
             else:
                 ids.append(conta["id"])
