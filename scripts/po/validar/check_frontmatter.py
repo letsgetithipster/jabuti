@@ -39,6 +39,7 @@ def checar_frontmatter(raiz: str | Path) -> tuple[list[str], list[str]]:
                 erros.append(f"{rel}: chave alias proibida {sorted(usados)} — use data-criacao/data-revisao")
             if tipo == "tese-semente" and meta.get("validada") is not False:
                 erros.append(f"{rel}: tese-semente exige validada: false (para validar, vire tipo: tese)")
-            if tipo == "tese" and not isinstance(meta.get("nota-final"), (int, float)):
+            nota = meta.get("nota-final")
+            if tipo == "tese" and (isinstance(nota, bool) or not isinstance(nota, (int, float))):
                 erros.append(f"{rel}: tese exige nota-final numérica")
     return erros, avisos

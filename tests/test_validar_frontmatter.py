@@ -48,6 +48,17 @@ def test_semente_validada_true_e_erro(tmp_path):
     assert any("validada" in e for e in erros)
 
 
+def test_nota_final_bool_e_erro(tmp_path):
+    doc = tmp_path / "teses"
+    doc.mkdir()
+    (doc / "X.md").write_text(
+        "---\ntipo: tese\nticker: X\nclasse: acoes-br\nstatus: watchlist\n"
+        "nota-final: true\nvalidada: true\ndata-criacao: 2026-09-08\n---\ncorpo",
+        encoding="utf-8")
+    erros, _ = checar_frontmatter(tmp_path)
+    assert any("nota-final" in e for e in erros)
+
+
 def test_readme_e_ignorado(tmp_path):
     doc = tmp_path / "logs"
     doc.mkdir()
