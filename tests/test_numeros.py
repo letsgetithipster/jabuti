@@ -16,11 +16,17 @@ from po.numeros import parse_valor
     ("-3,5%", -3.5),
     ("0,00", 0.0),
     ("12.345.678,90", 12345678.9),
+    ("-1.234,56", -1234.56),
+    ("1 234,56", 1234.56),   # milhar com espaço
+    ("+42", 42.0),
 ])
 def test_parse_valores_validos(texto, esperado):
     assert parse_valor(texto) == pytest.approx(esperado)
 
 
-@pytest.mark.parametrize("texto", ["", "abc", "n/d", "—", None])
+@pytest.mark.parametrize("texto", [
+    "", "abc", "n/d", "—", None,
+    "nan", "inf", "Infinity", "1e5", "1_000", "5.", ".5", "R$1R$2", "12%34%", 42,
+])
 def test_parse_invalido_retorna_none(texto):
     assert parse_valor(texto) is None
