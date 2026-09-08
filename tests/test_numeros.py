@@ -1,6 +1,6 @@
 import pytest
 
-from po.numeros import parse_valor
+from po.numeros import formatar_brl, parse_valor
 
 
 @pytest.mark.parametrize("texto,esperado", [
@@ -30,3 +30,13 @@ def test_parse_valores_validos(texto, esperado):
 ])
 def test_parse_invalido_retorna_none(texto):
     assert parse_valor(texto) is None
+
+
+@pytest.mark.parametrize("valor,esperado", [
+    (12000.0, "12.000,00"),
+    (0.0, "0,00"),
+    (1234567.891, "1.234.567,89"),
+    (-3.5, "-3,50"),
+])
+def test_formatar_brl(valor, esperado):
+    assert formatar_brl(valor) == esperado

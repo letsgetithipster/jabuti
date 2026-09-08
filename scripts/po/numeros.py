@@ -45,3 +45,8 @@ def parse_valor(texto: object) -> float | None:
     if not _NUMERO_FINAL.fullmatch(t):
         return None
     return float(t)
+
+
+def formatar_brl(valor: float) -> str:
+    """Formata em pt-BR: 12345.6 -> '12.345,60'."""
+    return f"{valor:,.2f}".translate(str.maketrans(",.", ".,"))

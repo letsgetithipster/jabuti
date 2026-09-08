@@ -3,9 +3,9 @@ import re
 from pathlib import Path
 
 from po.csvs import ler_csv
-from po.numeros import parse_valor
+from po.numeros import formatar_brl, parse_valor
 
-TOTAL_RE = re.compile(r"Total investido:\s*(.+)")
+TOTAL_RE = re.compile(r"^Total investido:\s*(.+)$", re.MULTILINE)
 TOLERANCIA = 0.05
 
 
@@ -35,13 +35,23 @@ def checar_estado(raiz: str | Path) -> tuple[list[str], list[str]]:
         avisos.append("ESTADO: check do total suspenso — dados/ com erros (ver check de dados)")
         return erros, avisos
 
-    ultima = {}
-    for c in cotacoes:  # arquivo é append-only: a última linha do ticker é a mais recente
-        ultima[c["ticker"]] = c["preco"]
+    melhor = {}
+    for c in cotacoes:  # vence a data mais recente; empate: última linha do arquivo
+        if c["ticker"] not in melhor or c["data"] >= melhor[c["ticker"]]["data"]:
+            melhor[c["ticker"]] = c
+
+    nao_brl = sorted({p["ticker"] for p in posicoes if p["moeda"] != "BRL"} |
+                     {c["ticker"] for c in melhor.values() if c["moeda"] != "BRL"})
+    if nao_brl:
+        avisos.append(
+            f"ESTADO: check do total suspenso — moeda não-BRL em {nao_brl} "
+            "(consolidação multi-moeda chega com o fechar-mes)")
+        return erros, avisos
 
     total, completo = 0.0, True
     for p in posicoes:
-        preco = ultima.get(p["ticker"])
+        linha_cot = melhor.get(p["ticker"])
+        preco = linha_cot["preco"] if linha_cot else None
         if preco is None:
             avisos.append(f"ESTADO: {p['ticker']} sem cotação — check do total suspenso")
             completo = False
@@ -49,6 +59,6 @@ def checar_estado(raiz: str | Path) -> tuple[list[str], list[str]]:
         total += p["qty"] * preco
     if completo and abs(total - total_declarado) > TOLERANCIA:
         erros.append(
-            f"estado/ESTADO.md: Total investido R$ {total_declarado:,.2f} difere do "
-            f"recalculado R$ {total:,.2f} (posicoes × última cotação)")
+            f"estado/ESTADO.md: Total investido {m.group(1).strip()} difere do "
+            f"recalculado R$ {formatar_brl(total)} (posicoes × última cotação)")
     return erros, avisos

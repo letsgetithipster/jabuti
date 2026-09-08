@@ -32,6 +32,40 @@ def test_ticker_sem_cotacao_vira_aviso(tmp_path):
     assert any("HGLG11" in a for a in avisos)   # ...mas avisa
 
 
+def test_ultima_cotacao_por_data_nao_por_linha(tmp_path):
+    ws = tmp_path / "ws"
+    shutil.copytree(EXEMPLO, ws)
+    cot = ws / "dados" / "cotacoes.csv"
+    cot.write_text(cot.read_text(encoding="utf-8") +
+                   "2026-09-01,18:00,PETR4,10.00,BRL,manual\n", encoding="utf-8")
+    erros, _ = checar_estado(ws)
+    assert erros == []  # linha velha appendada depois não vence a data mais nova
+
+
+def test_moeda_nao_brl_suspende(tmp_path):
+    ws = tmp_path / "ws"
+    shutil.copytree(EXEMPLO, ws)
+    pos = ws / "dados" / "posicoes.csv"
+    pos.write_text(pos.read_text(encoding="utf-8") +
+                   "VOO,rv-int,corretora-br,2,500.00,USD\n", encoding="utf-8")
+    cot = ws / "dados" / "cotacoes.csv"
+    cot.write_text(cot.read_text(encoding="utf-8") +
+                   "2026-09-08,18:00,VOO,510.00,USD,manual\n", encoding="utf-8")
+    erros, avisos = checar_estado(ws)
+    assert erros == []
+    assert any("BRL" in a for a in avisos)
+
+
+def test_mensagem_de_divergencia_em_ptbr(tmp_path):
+    ws = tmp_path / "ws"
+    shutil.copytree(EXEMPLO, ws)
+    estado = ws / "estado" / "ESTADO.md"
+    estado.write_text(estado.read_text(encoding="utf-8").replace("R$ 12.000,00", "R$ 9.000,00"),
+                      encoding="utf-8")
+    erros, _ = checar_estado(ws)
+    assert any("R$ 9.000,00" in e and "12.000,00" in e for e in erros)
+
+
 def test_dados_com_erro_suspende_com_aviso(tmp_path):
     ws = tmp_path / "ws"
     shutil.copytree(EXEMPLO, ws)
