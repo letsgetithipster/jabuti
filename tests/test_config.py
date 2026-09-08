@@ -57,3 +57,41 @@ def test_carregar_de_arquivo(tmp_path):
 def test_carregar_sem_arquivo(tmp_path):
     with pytest.raises(FileNotFoundError):
         carregar_config(tmp_path)
+
+
+def test_moeda_base_invalida():
+    cfg = dict(CFG_OK, moeda_base="USD")
+    assert any("moeda_base" in e for e in validar_config(cfg))
+
+
+def test_harness_invalido():
+    cfg = dict(CFG_OK, harness=["gemini-cli"])
+    assert any("harness" in e for e in validar_config(cfg))
+
+
+def test_config_nao_dict():
+    assert any("mapeamento" in e for e in validar_config("apenas texto"))
+
+
+def test_conta_sem_id():
+    cfg = dict(CFG_OK, contas=[{"nome": "X"}, "corretora"])
+    erros = validar_config(cfg)
+    assert sum("sem id" in e for e in erros) == 2
+
+
+def test_carregar_invalida_levanta_value_error(tmp_path):
+    (tmp_path / "vault.config.yaml").write_text("versao: 2\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="config inválida"):
+        carregar_config(tmp_path)
+
+
+def test_carregar_yaml_malformado(tmp_path):
+    (tmp_path / "vault.config.yaml").write_text("versao: [1\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="malformado"):
+        carregar_config(tmp_path)
+
+
+def test_carregar_yaml_escalar(tmp_path):
+    (tmp_path / "vault.config.yaml").write_text("apenas texto\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="mapeamento"):
+        carregar_config(tmp_path)
