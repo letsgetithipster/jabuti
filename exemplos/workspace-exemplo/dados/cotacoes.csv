@@ -1,0 +1,4 @@
+data,hora,ticker,preco,moeda,fonte
+2026-09-01,18:00,PETR4,38.00,BRL,manual
+2026-09-08,18:00,PETR4,40.00,BRL,manual
+2026-09-08,18:00,HGLG11,160.00,BRL,manual

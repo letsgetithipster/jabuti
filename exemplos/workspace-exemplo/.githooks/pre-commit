@@ -1,0 +1,19 @@
+#!/bin/sh
+# PatrimonioOS — validador obrigatório. Falha ALTO, nunca passa em silêncio.
+PY=""
+for c in python3 python py; do
+  if command -v "$c" >/dev/null 2>&1 && "$c" -c "import sys;sys.exit(sys.version_info[0]!=3)" >/dev/null 2>&1; then
+    PY=$c
+    break
+  fi
+done
+if [ -z "$PY" ]; then
+  echo "pre-commit: python3 nao encontrado no PATH — validacao obrigatoria nao rodou." >&2
+  exit 1
+fi
+if ! "$PY" -c "import yaml" >/dev/null 2>&1; then
+  echo "pre-commit: PyYAML ausente — rode: pip install -r <caminho-do-motor>/requirements.txt" >&2
+  exit 1
+fi
+MOTOR=$("$PY" -c "import yaml;print(yaml.safe_load(open('vault.config.yaml',encoding='utf-8'))['caminhos']['motor'],end='')") || exit 1
+"$PY" "$MOTOR/scripts/validar_workspace.py" . --errors-only || exit 1

@@ -1,0 +1,3 @@
+data,ticker,tipo,qty,preco,taxa,conta,moeda
+2026-08-05,PETR4,compra,60,29.50,0,corretora-br,BRL
+2026-09-05,PETR4,compra,40,30.75,0,corretora-br,BRL
