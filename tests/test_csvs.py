@@ -122,3 +122,17 @@ def test_espaco_nas_bordas(tmp_path):
                 "ticker,classe,conta,qty,pm,moeda\n PETR4 ,acoes-br,c1,100,30.00,BRL\n")
     _, erros = ler_csv("posicoes", p)
     assert any("bordas" in e for e in erros)
+
+
+def test_fill_qty_negativa_e_erro(tmp_path):
+    p = escreve(tmp_path, "fills",
+                "data,ticker,tipo,qty,preco,taxa,conta,moeda\n2026-09-08,PETR4,venda,-40,30.00,0,c1,BRL\n")
+    _, erros = ler_csv("fills", p)
+    assert any("positiva" in e for e in erros)
+
+
+def test_posicao_qty_zero_e_erro(tmp_path):
+    p = escreve(tmp_path, "posicoes",
+                "ticker,classe,conta,qty,pm,moeda\nPETR4,acoes-br,c1,0,30.00,BRL\n")
+    _, erros = ler_csv("posicoes", p)
+    assert any("positiva" in e for e in erros)

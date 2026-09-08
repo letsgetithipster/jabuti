@@ -79,4 +79,8 @@ def ler_csv(nome: str, caminho: str | Path) -> tuple[list[dict], list[str]]:
             erros.append(f"{onde}: classe {linha['classe']!r} fora do vocabulário {sorted(CLASSES)}")
         if nome == "fills" and linha["tipo"] not in TIPOS_FILL:
             erros.append(f"{onde}: tipo {linha['tipo']!r} deve ser um de {sorted(TIPOS_FILL)}")
+        if nome == "fills" and isinstance(linha["qty"], float) and linha["qty"] <= 0:
+            erros.append(f"{onde}: qty de fill deve ser positiva (venda usa tipo=venda, não sinal)")
+        if nome == "posicoes" and isinstance(linha["qty"], float) and linha["qty"] <= 0:
+            erros.append(f"{onde}: qty de posição deve ser positiva (v1 não admite short)")
     return linhas, erros
