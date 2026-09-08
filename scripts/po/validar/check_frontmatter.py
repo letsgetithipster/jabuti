@@ -1,4 +1,4 @@
-"""Checa frontmatter dos .md do workspace: vocabulário fechado, datas, aliases."""
+"""Checa frontmatter dos .md do workspace: vocabulário fechado de tipos, aliases proibidos e regras por tipo (tese-semente, nota-final)."""
 from pathlib import Path
 
 from po.frontmatter import extrair_frontmatter
@@ -27,12 +27,19 @@ def checar_frontmatter(raiz: str | Path) -> tuple[list[str], list[str]]:
             if md.name in IGNORADOS:
                 continue
             rel = md.relative_to(raiz).as_posix()
-            meta, _ = extrair_frontmatter(md.read_text(encoding="utf-8"))
+            try:
+                texto = md.read_text(encoding="utf-8-sig")
+            except UnicodeDecodeError:
+                erros.append(f"{rel}: não é UTF-8 válido — salve o arquivo como UTF-8")
+                continue
+            meta, _ = extrair_frontmatter(texto)
             if not meta:
                 erros.append(f"{rel}: sem frontmatter válido")
                 continue
             tipo = meta.get("tipo")
-            if tipo not in TIPOS:
+            if "tipo" not in meta:
+                erros.append(f"{rel}: sem chave tipo no frontmatter")
+            elif tipo not in TIPOS:
                 erros.append(f"{rel}: tipo {tipo!r} fora do vocabulário")
             usados = ALIASES_PROIBIDOS & set(meta)
             if usados:

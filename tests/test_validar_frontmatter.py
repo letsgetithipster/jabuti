@@ -65,3 +65,28 @@ def test_readme_e_ignorado(tmp_path):
     (doc / "README.md").write_text("# sem frontmatter, e tudo bem", encoding="utf-8")
     erros, _ = checar_frontmatter(tmp_path)
     assert erros == []
+
+
+def test_arquivo_nao_utf8_vira_erro(tmp_path):
+    doc = tmp_path / "politica"
+    doc.mkdir()
+    (doc / "x.md").write_bytes("---\ntipo: perfil\n---\ncoração".encode("latin-1"))
+    erros, _ = checar_frontmatter(tmp_path)
+    assert any("UTF-8" in e for e in erros)
+
+
+def test_bom_e_tolerado(tmp_path):
+    doc = tmp_path / "politica"
+    doc.mkdir()
+    (doc / "x.md").write_bytes(
+        b"\xef\xbb\xbf" + "---\ntipo: perfil\ndata-criacao: 2026-09-08\n---\ncorpo".encode("utf-8"))
+    erros, _ = checar_frontmatter(tmp_path)
+    assert erros == []
+
+
+def test_sem_chave_tipo_mensagem_clara(tmp_path):
+    doc = tmp_path / "politica"
+    doc.mkdir()
+    (doc / "x.md").write_text("---\ndata-criacao: 2026-09-08\n---\ncorpo", encoding="utf-8")
+    erros, _ = checar_frontmatter(tmp_path)
+    assert any("sem chave tipo" in e for e in erros)
