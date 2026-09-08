@@ -1,0 +1,8 @@
+#!/bin/sh
+# PatrimonioOS — validador obrigatório. Falha ALTO se python ausente (nunca passa em silêncio).
+if ! command -v python >/dev/null 2>&1; then
+  echo "pre-commit: python nao encontrado no PATH — validacao obrigatoria nao rodou." >&2
+  exit 1
+fi
+MOTOR=$(python -c "import yaml;print(yaml.safe_load(open('vault.config.yaml',encoding='utf-8'))['caminhos']['motor'])") || exit 1
+python "$MOTOR/scripts/validar_workspace.py" . --errors-only || exit 1
