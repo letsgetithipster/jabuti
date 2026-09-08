@@ -1,4 +1,4 @@
-"""Parser determinístico de números em formato pt-BR e US.
+r"""Parser determinístico de números em formato pt-BR e US.
 
 Regras (na ordem):
 1. Remove espaços em qualquer posição (cobre milhar com espaço: "1 234,56"),
