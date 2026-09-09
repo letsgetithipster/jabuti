@@ -1,3 +1,5 @@
+import pytest
+
 from po.csvs import SCHEMAS, anexar_csv, ler_csv, ultimas_cotacoes, validar_linha
 
 
@@ -243,9 +245,61 @@ def test_anexar_csv_cria_e_anexa_em_formato_canonico(tmp_path):
 
 
 def test_anexar_csv_recusa_texto_humano_em_campo_numerico(tmp_path):
-    import pytest
     p = tmp_path / "cotacoes.csv"
     with pytest.raises(ValueError, match="formato canônico"):
         anexar_csv("cotacoes", p, [{"data": "2026-09-08", "hora": "18:00", "ticker": "PETR4",
                                     "preco": "1.234,56", "moeda": "BRL", "fonte": "manual"}])
     assert not p.exists() or p.read_text(encoding="utf-8") == ""
+
+
+def test_anexar_csv_valida_texto_e_vocabulario_antes_de_gravar(tmp_path):
+    p = tmp_path / "cotacoes.csv"
+    base = {"data": "2026-09-08", "ticker": "PETR4", "preco": 40.0, "moeda": "BRL"}
+    with pytest.raises(ValueError, match="hora"):
+        anexar_csv("cotacoes", p, [dict(base, hora="18:00:00", fonte="yahoo")])
+    with pytest.raises(ValueError, match="fonte"):
+        anexar_csv("cotacoes", p, [dict(base, hora="18:00", fonte="chute")])
+    assert not p.exists()
+
+
+def test_anexar_csv_recusa_header_diferente(tmp_path):
+    p = tmp_path / "cotacoes.csv"
+    p.write_text("data,ticker,preco\n2026-09-08,PETR4,40\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="header"):
+        anexar_csv("cotacoes", p, [{"data": "2026-09-08", "hora": "18:00", "ticker": "PETR4",
+                                    "preco": 40.0, "moeda": "BRL", "fonte": "manual"}])
+    assert p.read_text(encoding="utf-8") == "data,ticker,preco\n2026-09-08,PETR4,40\n"
+
+
+def test_anexar_csv_lista_vazia_nao_toca_o_disco(tmp_path):
+    p = tmp_path / "cotacoes.csv"
+    assert anexar_csv("cotacoes", p, []) == 0 and not p.exists()
+
+
+def test_anexar_csv_arquivo_so_com_bom_e_novo(tmp_path):
+    p = tmp_path / "cotacoes.csv"
+    p.write_bytes(b"\xef\xbb\xbf")
+    anexar_csv("cotacoes", p, [{"data": "2026-09-08", "hora": "18:00", "ticker": "PETR4",
+                                "preco": 40.0, "moeda": "BRL", "fonte": "manual"}])
+    linhas, erros = ler_csv("cotacoes", p)
+    assert erros == [] and len(linhas) == 1
+
+
+def test_validar_linha_int_nao_finito_tipo_errado_e_chave_faltando():
+    linha = {"ticker": "PETR4", "classe": "acoes-br", "conta": "c", "qty": 10, "pm": 30, "moeda": "BRL"}
+    assert validar_linha("posicoes", linha, "x") == []
+    assert linha["qty"] == 10.0 and isinstance(linha["qty"], float)
+    linha["qty"] = 0
+    assert any("positiva" in e for e in validar_linha("posicoes", linha, "x"))
+    linha["qty"] = float("nan")
+    assert any("não finito" in e for e in validar_linha("posicoes", linha, "x"))
+    linha = {"ticker": 40.0, "classe": "acoes-br", "conta": "c", "qty": 1.0, "pm": 1.0, "moeda": "BRL"}
+    assert any("ticker" in e and "deve ser texto" in e for e in validar_linha("posicoes", linha, "x"))
+    with pytest.raises(ValueError, match="sem os campos"):
+        validar_linha("posicoes", {"ticker": "PETR4"}, "x")
+
+
+def test_indices_fonte_no_vocabulario(tmp_path):
+    p = _csv(tmp_path, "indices", "data,indice,valor,fonte\n2026-08-31,ibov,140000,chute\n")
+    _, erros = ler_csv("indices", p)
+    assert any("fonte" in e and "vocabulário" in e for e in erros)

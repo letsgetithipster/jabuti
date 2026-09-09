@@ -12,6 +12,7 @@ ingestão a aplica ao que vem de parser, antes de gravar.
 """
 import csv
 import datetime
+import math
 import re
 from pathlib import Path
 
@@ -42,6 +43,7 @@ VOCABULARIOS = {
     ("eventos", "tipo"): TIPOS_EVENTO,
     ("eventos", "confirmado"): CONFIRMADO,
     ("indices", "indice"): INDICES,
+    ("indices", "fonte"): FONTES_COTACAO,
     ("cotacoes", "fonte"): FONTES_COTACAO,
 }
 DATA_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -56,16 +58,27 @@ OPCIONAIS = {
 
 def validar_linha(nome: str, linha: dict, onde: str) -> list[str]:
     """Valida UMA linha (dict com todos os campos do schema). NUMERICOS em string
-    canônica são convertidos in-place para float; float já convertido passa direto."""
+    canônica são convertidos in-place para float; int/float passam (int vira float),
+    não-finito é erro; campo de texto exige str. Chaves extras (ex.: '_linha') são ignoradas."""
     schema = SCHEMAS[nome]
+    faltam = [c for c in schema if c not in linha]
+    if faltam:
+        raise ValueError(f"{onde}: linha sem os campos {faltam} do schema de {nome}")
     opcionais = OPCIONAIS.get(nome, set())
     erros = []
     for campo in schema:
         valor = linha[campo]
-        if isinstance(valor, float):
+        if campo in NUMERICOS and isinstance(valor, (int, float)) and not isinstance(valor, bool):
+            if not math.isfinite(valor):
+                erros.append(f"{onde}: campo {campo} não finito ({valor!r})")
+            else:
+                linha[campo] = float(valor)
             continue
         if valor is None:
             valor = ""
+        if not isinstance(valor, str):
+            erros.append(f"{onde}: campo {campo} deve ser texto, veio {type(valor).__name__}")
+            continue
         if valor != valor.strip():
             erros.append(f"{onde}: campo {campo} com espaço nas bordas: {valor!r}")
         if not valor:
@@ -132,7 +145,8 @@ def ler_csv(nome: str, caminho: str | Path) -> tuple[list[dict], list[str]]:
 
 
 def ultimas_cotacoes(cotacoes: list[dict]) -> dict[str, dict]:
-    """Cotação vencedora por ticker: a de DATA mais recente; empate, a última linha do arquivo."""
+    """Cotação vencedora por ticker: a de DATA mais recente; empate, a última linha do arquivo.
+    Pré-condição: linhas saídas de ler_csv sem erros (comparação de data é textual, exige ISO)."""
     melhor = {}
     for c in cotacoes:
         if c["ticker"] not in melhor or c["data"] >= melhor[c["ticker"]]["data"]:
@@ -154,18 +168,34 @@ def _celula(campo: str, valor) -> str:
 
 
 def anexar_csv(nome: str, caminho: str | Path, linhas: list[dict]) -> int:
-    """Anexa linhas (dict com todos os campos do schema; número float ou str canônica).
-    Cria o arquivo com header se não existir. Nunca reescreve o que já está lá.
-    Formata TODAS as células antes de abrir o arquivo: erro de formato não deixa arquivo pela metade."""
+    """Anexa linhas (dict com todos os campos do schema; número float/int ou str canônica).
+    Único writer dos CSVs canônicos: valida cada linha (validar_linha, em cópia), formata TODAS
+    as células e confere o header do arquivo existente ANTES de abrir para escrita — erro nunca
+    deixa arquivo pela metade. Cria com header se não existir (ou só tem BOM). Lista vazia não
+    toca o disco. Nunca reescreve o que já está lá."""
     schema = SCHEMAS[nome]
     caminho = Path(caminho)
+    if not linhas:
+        return 0
+    erros = []
+    for i, linha in enumerate(linhas, start=1):
+        erros.extend(validar_linha(nome, dict(linha), f"{caminho.name}: linha nova {i}"))
+    if erros:
+        raise ValueError("nada gravado — " + "; ".join(erros))
     prontas = [[_celula(campo, linha[campo]) for campo in schema] for linha in linhas]
-    novo = not caminho.exists() or caminho.stat().st_size == 0
-    precisa_quebra = False
-    if not novo:
-        with caminho.open("rb") as f:
-            f.seek(-1, 2)
-            precisa_quebra = f.read(1) != b"\n"
+    novo, precisa_quebra = True, False
+    if caminho.exists():
+        with caminho.open(encoding="utf-8-sig", newline="") as f:
+            primeira = f.readline()
+        if primeira.strip():
+            novo = False
+            header = next(csv.reader([primeira]))
+            if header != schema:
+                raise ValueError(f"{caminho.name}: header {header} difere do schema (esperado: {schema}) "
+                                 "— não é o CSV canônico esperado, nada gravado")
+            with caminho.open("rb") as f:
+                f.seek(-1, 2)
+                precisa_quebra = f.read(1) != b"\n"
     with caminho.open("a", encoding="utf-8", newline="") as f:
         if precisa_quebra:
             f.write("\n")
