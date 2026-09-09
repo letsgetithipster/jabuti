@@ -13,6 +13,11 @@ CAMBIO_PADRAO = "bcb-sgs"
 PLANILHAS_PADRAO = "planilhas"
 
 
+def _em(valor, vocabulario) -> bool:
+    """Pertinência segura: valor não-string (lista, dict, None) nunca levanta, só reprova."""
+    return isinstance(valor, str) and valor in vocabulario
+
+
 def validar_config(cfg: object) -> list[str]:
     """Retorna lista de erros (vazia = config válida). Nunca levanta: shape ruim vira erro."""
     if not isinstance(cfg, dict):
@@ -20,7 +25,7 @@ def validar_config(cfg: object) -> list[str]:
     erros = []
     if cfg.get("versao") != 1:
         erros.append("versao deve ser 1")
-    if cfg.get("moeda_base") not in MOEDAS_BASE:
+    if not _em(cfg.get("moeda_base"), MOEDAS_BASE):
         erros.append(f"moeda_base deve ser uma de {sorted(MOEDAS_BASE)}")
     harness = cfg.get("harness")
     if (not isinstance(harness, list) or not harness
@@ -29,10 +34,10 @@ def validar_config(cfg: object) -> list[str]:
         erros.append(f"harness deve ser subconjunto não-vazio de {sorted(HARNESSES)}")
     cotacoes = cfg.get("cotacoes")
     provider = cotacoes.get("provider") if isinstance(cotacoes, dict) else None
-    if provider not in PROVIDERS_COTACOES:
+    if not _em(provider, PROVIDERS_COTACOES):
         erros.append(f"cotacoes.provider deve ser um de {sorted(PROVIDERS_COTACOES)}")
     cambio = cotacoes.get("cambio", CAMBIO_PADRAO) if isinstance(cotacoes, dict) else CAMBIO_PADRAO
-    if cambio not in PROVIDERS_CAMBIO:
+    if not _em(cambio, PROVIDERS_CAMBIO):
         erros.append(f"cotacoes.cambio deve ser um de {sorted(PROVIDERS_CAMBIO)}")
     contas = cfg.get("contas")
     if not isinstance(contas, list) or not contas:
@@ -44,7 +49,7 @@ def validar_config(cfg: object) -> list[str]:
                 erros.append(f"conta #{i} sem id (cada conta é um mapeamento com id)")
                 continue
             ids.append(conta["id"])
-            if conta.get("moeda") not in MOEDAS:
+            if not _em(conta.get("moeda"), MOEDAS):
                 erros.append(f"conta {conta['id']!r} sem moeda válida (uma de {sorted(MOEDAS)})")
         if len(ids) != len(set(ids)):
             erros.append("ids de conta duplicados")
@@ -64,9 +69,10 @@ def provider_cambio(cfg: dict) -> str:
 
 
 def caminho_planilhas(raiz: str | Path, cfg: dict) -> Path:
-    """Pasta onde o cockpit xlsx é gerado: relativa à raiz do workspace, ou absoluta."""
+    """Pasta onde o cockpit xlsx é gerado: relativa à raiz do workspace, ou absoluta.
+    `~` é expandido; caminho relativo a drive do Windows (C:pasta) não é suportado."""
     valor = (cfg.get("caminhos") or {}).get("planilhas", PLANILHAS_PADRAO)
-    p = Path(valor)
+    p = Path(valor).expanduser()
     return p if p.is_absolute() else Path(raiz) / p
 
 

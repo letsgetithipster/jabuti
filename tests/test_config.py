@@ -157,12 +157,23 @@ def test_cambio_invalido_e_erro():
 def test_defaults_de_cambio_e_planilhas(tmp_path):
     assert provider_cambio(CFG_OK) == "bcb-sgs"
     assert caminho_planilhas(tmp_path, CFG_OK) == tmp_path / "planilhas"
+    absoluto = tmp_path / "onedrive" / "cockpit"
     cfg = dict(CFG_OK, cotacoes={"provider": "yahoo", "cambio": "yahoo"},
-               caminhos={"motor": "x", "planilhas": "C:/OneDrive/cockpit"})
+               caminhos={"motor": "x", "planilhas": str(absoluto)})
     assert provider_cambio(cfg) == "yahoo"
-    assert caminho_planilhas(tmp_path, cfg) == Path("C:/OneDrive/cockpit")
+    assert caminho_planilhas(tmp_path, cfg) == absoluto
+    assert caminho_planilhas(tmp_path, dict(CFG_OK, caminhos={"motor": "x", "planilhas": "~/cockpit"})) == Path.home() / "cockpit"
 
 
 def test_moedas_por_conta():
     cfg = dict(CFG_OK, contas=[{"id": "br", "moeda": "BRL"}, {"id": "us", "moeda": "USD"}])
     assert moedas_por_conta(cfg) == {"br": "BRL", "us": "USD"}
+
+
+def test_valores_em_lista_nao_levantam_so_reprovam():
+    cfg = dict(CFG_OK, cotacoes={"provider": ["manual"], "cambio": ["bcb-sgs"]},
+               contas=[{"id": "a", "moeda": ["BRL"]}, {"id": "b", "moeda": {"x": 1}}], moeda_base=["BRL"])
+    erros = validar_config(cfg)
+    assert any("provider" in e for e in erros) and any("cambio" in e for e in erros)
+    assert any("'a'" in e and "moeda" in e for e in erros) and any("'b'" in e and "moeda" in e for e in erros)
+    assert any("moeda_base" in e for e in erros)
