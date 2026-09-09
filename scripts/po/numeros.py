@@ -65,6 +65,8 @@ def formatar_canonico(valor: float, casas: int = 8) -> str:
     sempre satisfaz csvs.NUMERO_CANONICO. 8 casas cobrem satoshi e fator diário de CDI.
     Nunca zera em silêncio: valor não-nulo que arredonda a zero é ValueError, assim como
     nan/inf (cotação ausente se pula, não se grava).
+    Quem calcula arredonda antes (`round(v, casas)`); este writer não arredonda por você,
+    então poeira aritmética (ex.: 0.3-0.1-0.2) levanta ValueError de propósito.
     """
     if not math.isfinite(valor):
         raise ValueError(f"formatar_canonico: valor não finito ({valor!r}) — cotação ausente se pula, não se grava")

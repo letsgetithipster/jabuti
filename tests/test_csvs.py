@@ -1,4 +1,4 @@
-from po.csvs import SCHEMAS, ler_csv
+from po.csvs import SCHEMAS, anexar_csv, ler_csv, ultimas_cotacoes, validar_linha
 
 
 def escreve(tmp_path, nome, conteudo):
@@ -152,3 +152,100 @@ def test_csv_utf16_vira_erro(tmp_path):
     linhas, erros = ler_csv("posicoes", p)
     assert linhas == []
     assert erros
+
+
+def _csv(tmp_path, nome, conteudo):
+    p = tmp_path / f"{nome}.csv"
+    p.write_text(conteudo, encoding="utf-8")
+    return p
+
+
+def test_saldo_inicial_e_tipo_de_fill_valido(tmp_path):
+    p = _csv(tmp_path, "fills", "data,ticker,tipo,qty,preco,taxa,conta,moeda\n"
+             "2026-08-01,HGLG11,saldo-inicial,50,155.00,0,corretora-br,BRL\n")
+    linhas, erros = ler_csv("fills", p)
+    assert erros == [] and linhas[0]["tipo"] == "saldo-inicial"
+
+
+def test_provento_tipo_fora_do_vocabulario(tmp_path):
+    p = _csv(tmp_path, "proventos", "data,ticker,cnpj,tipo,valor_bruto,valor_liquido,conta,moeda\n"
+             "2026-09-05,HGLG11,,bonus,55.00,55.00,corretora-br,BRL\n")
+    _, erros = ler_csv("proventos", p)
+    assert any("tipo" in e and "vocabulário" in e for e in erros)
+
+
+def test_evento_tipo_e_confirmado(tmp_path):
+    p = _csv(tmp_path, "eventos", "data,ticker,tipo,razao,confirmado\n"
+             "2026-09-05,PETR4,desdobramento,2:1,sim\n"
+             "2026-09-06,PETR4,split,2:1,talvez\n")
+    _, erros = ler_csv("eventos", p)
+    assert any("eventos.csv:2" in e and "tipo" in e for e in erros)
+    assert any("eventos.csv:3" in e and "confirmado" in e for e in erros)
+
+
+def test_indice_fora_do_vocabulario(tmp_path):
+    p = _csv(tmp_path, "indices", "data,indice,valor,fonte\n2026-08-31,dow,40000,manual\n")
+    _, erros = ler_csv("indices", p)
+    assert any("indice" in e and "vocabulário" in e for e in erros)
+
+
+def test_fonte_de_cotacao_fora_do_vocabulario(tmp_path):
+    p = _csv(tmp_path, "cotacoes", "data,hora,ticker,preco,moeda,fonte\n"
+             "2026-09-08,18:00,PETR4,40.00,BRL,chute\n")
+    _, erros = ler_csv("cotacoes", p)
+    assert any("fonte" in e and "vocabulário" in e for e in erros)
+
+
+def test_hora_invalida(tmp_path):
+    p = _csv(tmp_path, "cotacoes", "data,hora,ticker,preco,moeda,fonte\n"
+             "2026-09-08,25:00,PETR4,40.00,BRL,manual\n"
+             "2026-09-08,9h,PETR4,40.00,BRL,manual\n")
+    _, erros = ler_csv("cotacoes", p)
+    assert len([e for e in erros if "hora" in e and "HH:MM" in e]) == 2
+
+
+def test_moeda_fora_do_vocabulario(tmp_path):
+    p = _csv(tmp_path, "posicoes", "ticker,classe,conta,qty,pm,moeda\nPETR4,acoes-br,corretora-br,100,30.00,reais\n")
+    _, erros = ler_csv("posicoes", p)
+    assert any("moeda" in e and "vocabulário" in e for e in erros)
+
+
+def test_validar_linha_aceita_float_ja_convertido():
+    linha = {"ticker": "PETR4", "classe": "acoes-br", "conta": "c", "qty": 10.0, "pm": 30.0, "moeda": "BRL"}
+    assert validar_linha("posicoes", linha, "ingestão:1") == []
+    linha["qty"] = -1.0
+    assert any("positiva" in e for e in validar_linha("posicoes", linha, "ingestão:1"))
+
+
+def test_ultimas_cotacoes_por_data_linha_desempata():
+    cot = [
+        {"data": "2026-09-08", "ticker": "PETR4", "preco": 40.0},
+        {"data": "2026-09-01", "ticker": "PETR4", "preco": 38.0},   # append fora de ordem
+        {"data": "2026-09-08", "ticker": "PETR4", "preco": 41.0},   # mesma data: última linha vence
+        {"data": "2026-09-08", "ticker": "HGLG11", "preco": 160.0},
+    ]
+    u = ultimas_cotacoes(cot)
+    assert u["PETR4"]["preco"] == 41.0 and u["HGLG11"]["preco"] == 160.0
+
+
+def test_anexar_csv_cria_e_anexa_em_formato_canonico(tmp_path):
+    p = tmp_path / "cotacoes.csv"
+    assert anexar_csv("cotacoes", p, [{"data": "2026-09-08", "hora": "18:00", "ticker": "PETR4",
+                                       "preco": 40.0, "moeda": "BRL", "fonte": "manual"}]) == 1
+    assert p.read_text(encoding="utf-8") == ("data,hora,ticker,preco,moeda,fonte\n"
+                                             "2026-09-08,18:00,PETR4,40,BRL,manual\n")
+    # arquivo existente SEM quebra de linha final: anexa sem colar na última linha
+    p.write_text(p.read_text(encoding="utf-8").rstrip("\n"), encoding="utf-8")
+    anexar_csv("cotacoes", p, [{"data": "2026-09-09", "hora": "18:00", "ticker": "PETR4",
+                                "preco": 5.4321, "moeda": "BRL", "fonte": "manual"}])
+    linhas, erros = ler_csv("cotacoes", p)
+    assert erros == [] and [l["preco"] for l in linhas] == [40.0, 5.4321]
+
+
+def test_anexar_csv_recusa_texto_humano_em_campo_numerico(tmp_path):
+    import pytest
+    p = tmp_path / "cotacoes.csv"
+    with pytest.raises(ValueError, match="formato canônico"):
+        anexar_csv("cotacoes", p, [{"data": "2026-09-08", "hora": "18:00", "ticker": "PETR4",
+                                    "preco": "1.234,56", "moeda": "BRL", "fonte": "manual"}])
+    assert not p.exists() or p.read_text(encoding="utf-8") == ""

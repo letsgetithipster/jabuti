@@ -1,16 +1,21 @@
-"""Schemas e leitura validada dos 6 CSVs canônicos do workspace (spec §4).
+"""Schemas, leitura validada e escrita canônica dos 6 CSVs do workspace (spec §4).
 
 Contrato: os CSVs canônicos são escritos por máquina, então número aceita SÓ
 o formato canônico (-?d+(.d+)?, decimal com ponto, sem separador de milhar).
-Formato humano/corretora (1.234,56) é assunto da ingestão (Fase 2), que
-converte ANTES de gravar aqui. Campos NUMERICOS voltam como float nas linhas
-retornadas: a conversão string→número acontece em um lugar só.
+Formato humano/corretora (1.234,56) é assunto da ingestão, que converte ANTES
+de gravar aqui (po.numeros.parse_valor). Campos NUMERICOS voltam como float
+nas linhas retornadas: a conversão string→número acontece em um lugar só.
 Se erros != [], não consuma linhas.
+
+validar_linha é a régua única: ler_csv a aplica ao que vem de arquivo e a
+ingestão a aplica ao que vem de parser, antes de gravar.
 """
 import csv
 import datetime
 import re
 from pathlib import Path
+
+from po.numeros import formatar_canonico
 
 SCHEMAS = {
     "posicoes": ["ticker", "classe", "conta", "qty", "pm", "moeda"],
@@ -22,8 +27,25 @@ SCHEMAS = {
 }
 NUMERICOS = {"qty", "pm", "preco", "taxa", "valor_bruto", "valor_liquido", "valor"}
 CLASSES = {"acoes-br", "fiis", "rv-int", "reits-us", "rf-br", "cripto", "caixa", "commodities"}
-TIPOS_FILL = {"compra", "venda"}
+MOEDAS = {"BRL", "USD", "EUR"}
+TIPOS_FILL = {"compra", "venda", "saldo-inicial"}
+TIPOS_PROVENTO = {"dividendo", "jcp", "rendimento", "juros", "outro"}
+TIPOS_EVENTO = {"split", "grupamento", "bonificacao", "subscricao", "fusao", "cisao",
+                "variacao-anomala", "outro"}
+CONFIRMADO = {"sim", "nao"}
+INDICES = {"ibov", "sp500", "usdbrl", "cdi", "ipca", "selic"}
+FONTES_COTACAO = {"yahoo", "brapi", "bcb-sgs", "manual"}   # registry de providers + manual
+VOCABULARIOS = {
+    ("posicoes", "classe"): CLASSES,
+    ("fills", "tipo"): TIPOS_FILL,
+    ("proventos", "tipo"): TIPOS_PROVENTO,
+    ("eventos", "tipo"): TIPOS_EVENTO,
+    ("eventos", "confirmado"): CONFIRMADO,
+    ("indices", "indice"): INDICES,
+    ("cotacoes", "fonte"): FONTES_COTACAO,
+}
 DATA_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+HORA_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 NUMERO_CANONICO = re.compile(r"^-?\d+(\.\d+)?$")
 # Campos de texto que podem ficar vazios; todo o resto é obrigatório
 OPCIONAIS = {
@@ -32,10 +54,58 @@ OPCIONAIS = {
 }
 
 
+def validar_linha(nome: str, linha: dict, onde: str) -> list[str]:
+    """Valida UMA linha (dict com todos os campos do schema). NUMERICOS em string
+    canônica são convertidos in-place para float; float já convertido passa direto."""
+    schema = SCHEMAS[nome]
+    opcionais = OPCIONAIS.get(nome, set())
+    erros = []
+    for campo in schema:
+        valor = linha[campo]
+        if isinstance(valor, float):
+            continue
+        if valor is None:
+            valor = ""
+        if valor != valor.strip():
+            erros.append(f"{onde}: campo {campo} com espaço nas bordas: {valor!r}")
+        if not valor:
+            if campo not in opcionais:
+                erros.append(f"{onde}: campo {campo} vazio")
+            continue
+        if campo in NUMERICOS:
+            if not NUMERO_CANONICO.match(valor):
+                erros.append(
+                    f"{onde}: campo {campo} fora do formato canônico "
+                    f"(decimal com ponto, sem milhar): {valor!r}")
+            else:
+                linha[campo] = float(valor)
+        elif campo == "data":
+            if not DATA_RE.match(valor):
+                erros.append(f"{onde}: data deve ser YYYY-MM-DD: {valor!r}")
+            else:
+                try:
+                    datetime.date.fromisoformat(valor)
+                except ValueError:
+                    erros.append(f"{onde}: data impossível no calendário: {valor!r}")
+        elif campo == "hora":
+            if not HORA_RE.match(valor):
+                erros.append(f"{onde}: hora deve ser HH:MM (24h): {valor!r}")
+        elif campo == "moeda":
+            if valor not in MOEDAS:
+                erros.append(f"{onde}: moeda {valor!r} fora do vocabulário {sorted(MOEDAS)}")
+        vocab = VOCABULARIOS.get((nome, campo))
+        if vocab is not None and valor not in vocab:
+            erros.append(f"{onde}: {campo} {valor!r} fora do vocabulário {sorted(vocab)}")
+    if nome == "fills" and isinstance(linha["qty"], float) and linha["qty"] <= 0:
+        erros.append(f"{onde}: qty de fill deve ser positiva (venda usa tipo=venda, não sinal)")
+    if nome == "posicoes" and isinstance(linha["qty"], float) and linha["qty"] <= 0:
+        erros.append(f"{onde}: qty de posição deve ser positiva (v1 não admite short)")
+    return erros
+
+
 def ler_csv(nome: str, caminho: str | Path) -> tuple[list[dict], list[str]]:
     """Lê um CSV canônico. Retorna (linhas, erros); NUMERICOS já convertidos a float."""
     schema = SCHEMAS[nome]
-    opcionais = OPCIONAIS.get(nome, set())
     caminho = Path(caminho)
     erros = []
     try:
@@ -57,35 +127,50 @@ def ler_csv(nome: str, caminho: str | Path) -> tuple[list[dict], list[str]]:
         if faltantes:
             erros.append(f"{onde}: linha com colunas a menos (faltam: {', '.join(faltantes)})")
             continue
-        for campo in schema:
-            valor = linha[campo]
-            if valor != valor.strip():
-                erros.append(f"{onde}: campo {campo} com espaço nas bordas: {valor!r}")
-            if not valor:
-                if campo not in opcionais:
-                    erros.append(f"{onde}: campo {campo} vazio")
-                continue
-            if campo in NUMERICOS:
-                if not NUMERO_CANONICO.match(valor):
-                    erros.append(
-                        f"{onde}: campo {campo} fora do formato canônico "
-                        f"(decimal com ponto, sem milhar): {valor!r}")
-                else:
-                    linha[campo] = float(valor)
-            elif campo == "data":
-                if not DATA_RE.match(valor):
-                    erros.append(f"{onde}: data deve ser YYYY-MM-DD: {valor!r}")
-                else:
-                    try:
-                        datetime.date.fromisoformat(valor)
-                    except ValueError:
-                        erros.append(f"{onde}: data impossível no calendário: {valor!r}")
-        if nome == "posicoes" and linha["classe"] not in CLASSES:
-            erros.append(f"{onde}: classe {linha['classe']!r} fora do vocabulário {sorted(CLASSES)}")
-        if nome == "fills" and linha["tipo"] not in TIPOS_FILL:
-            erros.append(f"{onde}: tipo {linha['tipo']!r} deve ser um de {sorted(TIPOS_FILL)}")
-        if nome == "fills" and isinstance(linha["qty"], float) and linha["qty"] <= 0:
-            erros.append(f"{onde}: qty de fill deve ser positiva (venda usa tipo=venda, não sinal)")
-        if nome == "posicoes" and isinstance(linha["qty"], float) and linha["qty"] <= 0:
-            erros.append(f"{onde}: qty de posição deve ser positiva (v1 não admite short)")
+        erros.extend(validar_linha(nome, linha, onde))
     return linhas, erros
+
+
+def ultimas_cotacoes(cotacoes: list[dict]) -> dict[str, dict]:
+    """Cotação vencedora por ticker: a de DATA mais recente; empate, a última linha do arquivo."""
+    melhor = {}
+    for c in cotacoes:
+        if c["ticker"] not in melhor or c["data"] >= melhor[c["ticker"]]["data"]:
+            melhor[c["ticker"]] = c
+    return melhor
+
+
+def _celula(campo: str, valor) -> str:
+    """Célula canônica. Número vai por formatar_canonico; texto em campo numérico só passa se já
+    for canônico (ninguém contorna o 'único caminho' entregando '1.234,56' como string)."""
+    if isinstance(valor, bool):
+        raise ValueError(f"campo {campo}: booleano não é valor canônico")
+    if isinstance(valor, (int, float)):
+        return formatar_canonico(float(valor))
+    texto = "" if valor is None else str(valor)
+    if campo in NUMERICOS and texto and not NUMERO_CANONICO.match(texto):
+        raise ValueError(f"campo {campo}: {texto!r} não está no formato canônico — passe número (float), não texto humano")
+    return texto
+
+
+def anexar_csv(nome: str, caminho: str | Path, linhas: list[dict]) -> int:
+    """Anexa linhas (dict com todos os campos do schema; número float ou str canônica).
+    Cria o arquivo com header se não existir. Nunca reescreve o que já está lá.
+    Formata TODAS as células antes de abrir o arquivo: erro de formato não deixa arquivo pela metade."""
+    schema = SCHEMAS[nome]
+    caminho = Path(caminho)
+    prontas = [[_celula(campo, linha[campo]) for campo in schema] for linha in linhas]
+    novo = not caminho.exists() or caminho.stat().st_size == 0
+    precisa_quebra = False
+    if not novo:
+        with caminho.open("rb") as f:
+            f.seek(-1, 2)
+            precisa_quebra = f.read(1) != b"\n"
+    with caminho.open("a", encoding="utf-8", newline="") as f:
+        if precisa_quebra:
+            f.write("\n")
+        w = csv.writer(f, lineterminator="\n")
+        if novo:
+            w.writerow(schema)
+        w.writerows(prontas)
+    return len(prontas)
