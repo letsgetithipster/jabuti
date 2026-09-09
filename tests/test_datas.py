@@ -26,3 +26,13 @@ def test_invalido_retorna_none():
     assert parse_data(None, ["%d/%m/%Y"]) is None
     assert parse_data("31/02/2026", ["%d/%m/%Y"]) is None
     assert parse_data("x 08/11/2026", ["%m/%d/%Y"], extrair=r"^(\d+/\d+/\d+)") is None
+
+
+def test_extrair_mal_configurado_e_erro_de_configuracao():
+    import pytest
+    with pytest.raises(ValueError, match="um grupo"):
+        parse_data("08/11/2026 x", ["%m/%d/%Y"], extrair=r"^\S+")
+    with pytest.raises(ValueError, match="um grupo"):
+        parse_data("08/11/2026 x", ["%m/%d/%Y"], extrair=r"^(\S+) (\S+)")
+    with pytest.raises(ValueError, match="regex inválida"):
+        parse_data("08/11/2026", ["%m/%d/%Y"], extrair="(")

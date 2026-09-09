@@ -1,6 +1,6 @@
 import pytest
 
-from po.numeros import formatar_brl, parse_valor
+from po.numeros import formatar_brl, formatar_canonico, parse_valor
 
 
 @pytest.mark.parametrize("texto,esperado", [
@@ -56,11 +56,28 @@ def test_mais_com_milhar():
 
 
 def test_formatar_canonico():
-    from po.numeros import formatar_canonico
     assert formatar_canonico(40.0) == "40"
     assert formatar_canonico(30.75) == "30.75"
     assert formatar_canonico(5.4321) == "5.4321"
-    assert formatar_canonico(5.43219) == "5.4322"       # 4 casas por default
-    assert formatar_canonico(-0.0) == "0"
-    assert formatar_canonico(1234567.5) == "1234567.5"  # sem milhar
+    assert formatar_canonico(0.00012345) == "0.00012345"     # qty de cripto sobrevive (8 casas por default)
+    assert formatar_canonico(1.00050788) == "1.00050788"     # fator diário de CDI
+    assert formatar_canonico(5.432191234, casas=4) == "5.4322"
+    assert formatar_canonico(-0.0) == "0" and formatar_canonico(0.0) == "0"
+    assert formatar_canonico(1234567.5) == "1234567.5"       # sem milhar
     assert formatar_canonico(2.5, casas=2) == "2.5"
+
+
+def test_formatar_canonico_nunca_zera_nem_grava_nao_finito():
+    with pytest.raises(ValueError, match="arredondado a zero"):
+        formatar_canonico(0.00004, casas=4)
+    for v in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="não finito"):
+            formatar_canonico(v)
+
+
+@pytest.mark.parametrize("v", [0.00004, 40.0, 30.75, 5.4321, 1234567.5, 1e12, -1.5, 0.0, 123456.789012])
+def test_formatar_canonico_fecha_com_o_leitor_canonico(v):
+    from po.csvs import NUMERO_CANONICO
+    texto = formatar_canonico(v)
+    assert NUMERO_CANONICO.match(texto)
+    assert float(texto) == pytest.approx(v)

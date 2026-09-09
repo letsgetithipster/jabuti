@@ -14,7 +14,11 @@ Regras (na ordem):
    milhar; coluna que precise disso deve tratar no chamador.
 4. Só resultado final estritamente numérico ([+-]?\d+(\.\d+)?) é aceito:
    nan/inf/notação científica/underscore retornam None.
+
+Dois formatadores, públicos diferentes: `formatar_brl` é para humanos (pt-BR);
+`formatar_canonico` é para dados/ (deve satisfazer csvs.NUMERO_CANONICO).
 """
+import math
 import re
 
 _ESPACOS = re.compile(r"[\s ]+")
@@ -54,12 +58,21 @@ def formatar_brl(valor: float) -> str:
     return f"{valor:,.2f}".translate(str.maketrans(",.", ".,"))
 
 
-def formatar_canonico(valor: float, casas: int = 4) -> str:
+def formatar_canonico(valor: float, casas: int = 8) -> str:
     """Número no formato canônico dos CSVs: decimal com ponto, sem milhar, sem zeros à direita.
 
-    Único caminho número→string de quem grava em dados/ (cotações, ingestão).
+    Único caminho número→string de quem grava em dados/ (cotações, ingestão); o resultado
+    sempre satisfaz csvs.NUMERO_CANONICO. 8 casas cobrem satoshi e fator diário de CDI.
+    Nunca zera em silêncio: valor não-nulo que arredonda a zero é ValueError, assim como
+    nan/inf (cotação ausente se pula, não se grava).
     """
+    if not math.isfinite(valor):
+        raise ValueError(f"formatar_canonico: valor não finito ({valor!r}) — cotação ausente se pula, não se grava")
     texto = f"{valor:.{casas}f}"
     if "." in texto:
         texto = texto.rstrip("0").rstrip(".")
-    return "0" if texto in ("", "-0") else texto
+    if texto in ("0", "-0"):
+        if valor != 0:
+            raise ValueError(f"formatar_canonico: {valor!r} arredondado a zero com {casas} casas — aumente casas")
+        return "0"
+    return texto
