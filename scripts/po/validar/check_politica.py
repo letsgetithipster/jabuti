@@ -4,7 +4,7 @@ from pathlib import Path
 from po.csvs import CLASSES
 from po.politica import ler_bandas
 
-TOLERANCIA_SOMA = 0.01
+TOLERANCIA_SOMA = 0.05   # pior caso de arredondamento a 2 casas em até 8 blocos é 0,04; comparação sobre diff arredondado, sem ruído de float
 
 
 def checar_politica(raiz: str | Path) -> tuple[list[str], list[str]]:
@@ -25,6 +25,6 @@ def checar_politica(raiz: str | Path) -> tuple[list[str], list[str]]:
             erros.append(f"politica: {b.bloco} exige 0 ≤ mín ≤ alvo ≤ máx ≤ 100 "
                          f"(lido: {b.minimo:g}/{b.alvo:g}/{b.maximo:g})")
     soma = sum(b.alvo for b in bandas)
-    if abs(soma - 100) > TOLERANCIA_SOMA:
+    if round(abs(soma - 100), 6) > TOLERANCIA_SOMA:
         erros.append(f"politica: alvos somam {soma:g}%, devem somar 100%")
     return erros, []

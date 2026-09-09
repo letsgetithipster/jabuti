@@ -47,11 +47,12 @@ def ler_bandas(raiz: str | Path) -> tuple[list[Banda], list[str]]:
     i = 0
     while i < len(linhas) and not linhas[i].strip():
         i += 1
-    if i + 1 >= len(linhas) or not linhas[i].startswith("|") or not linhas[i + 1].startswith("|"):
+    if (i + 1 >= len(linhas) or not linhas[i].lstrip().startswith("|")
+            or not linhas[i + 1].lstrip().startswith("|")):
         return [], [f"{ARQUIVO}: tabela de bandas ausente logo após a seção (header + separador)"]
     bandas, erros = [], []
     for n, linha in enumerate(linhas[i + 2:], start=1):
-        if not linha.startswith("|"):
+        if not linha.lstrip().startswith("|"):
             break
         celulas = _celulas(linha)
         if len(celulas) != 4:

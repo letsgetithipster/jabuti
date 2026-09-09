@@ -30,3 +30,12 @@ def test_bloco_fora_do_vocabulario_e_duplicado(tmp_path):
     erros, _ = checar_politica(_ws(tmp_path, "| acoes | 0 | 50 | 100 |\n| fiis | 0 | 25 | 100 |\n| fiis | 0 | 25 | 100 |"))
     assert any("'acoes'" in e and "vocabulário" in e for e in erros)
     assert any("'fiis'" in e and "duplicado" in e for e in erros)
+
+
+def test_tolerancia_da_soma_e_deterministica(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir(); b.mkdir()
+    erros, _ = checar_politica(_ws(a, "| acoes-br | 0 | 33,33 | 100 |\n| fiis | 0 | 33,33 | 100 |\n| rf-br | 0 | 33,33 | 100 |"))
+    assert erros == []                                   # 99,99 está dentro da tolerância
+    erros, _ = checar_politica(_ws(b, "| acoes-br | 0 | 33 | 100 |\n| fiis | 0 | 33 | 100 |\n| rf-br | 0 | 33 | 100 |"))
+    assert any("somam 99%" in e for e in erros)

@@ -51,3 +51,8 @@ def test_secao_ausente(tmp_path):
     (tmp_path / "politica" / "01-alocacao-alvo.md").write_text("---\ntipo: alocacao\n---\n# x\n", encoding="utf-8")
     _, erros = ler_bandas(tmp_path)
     assert any("Bandas por bloco" in e for e in erros)
+
+
+def test_linha_com_espaco_a_esquerda_nao_encerra_a_tabela(tmp_path):
+    bandas, erros = ler_bandas(_ws(tmp_path, "  | acoes-br | 25 | 35 | 45 |\n | fiis | 20 | 30 | 40 |"))
+    assert erros == [] and [b.bloco for b in bandas] == ["acoes-br", "fiis"]
