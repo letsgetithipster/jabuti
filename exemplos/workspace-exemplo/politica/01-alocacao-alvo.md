@@ -18,7 +18,7 @@ data-revisao: 2026-09-08
 | fiis | 20 | 30 | 40 |
 | rf-br | 25 | 35 | 45 |
 
-(Alvos devem somar 100 — a conferência mecânica chega com o validador de política, na Fase 3.)
+(Alvos devem somar 100 e cada bloco respeita mín ≤ alvo ≤ máx. O validador confere em todo commit.)
 
 ## Caps de concentração
 Cap individual de 10% por ativo vale a partir de carteira formada (≥ 10 ativos);
