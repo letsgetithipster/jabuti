@@ -1,6 +1,14 @@
+from pathlib import Path
+
 import pytest
 
-from po.config import carregar_config, validar_config
+from po.config import (
+    caminho_planilhas,
+    carregar_config,
+    moedas_por_conta,
+    provider_cambio,
+    validar_config,
+)
 
 CFG_OK = {
     "versao": 1,
@@ -124,3 +132,37 @@ def test_carregar_harness_dois_pontos_perdido(tmp_path):
     )
     with pytest.raises(ValueError, match="config inválida"):
         carregar_config(tmp_path)
+
+
+def test_conta_sem_moeda_e_erro():
+    cfg = dict(CFG_OK, contas=[{"id": "c1", "nome": "C1"}])
+    assert any("c1" in e and "moeda" in e for e in validar_config(cfg))
+
+
+def test_conta_com_moeda_invalida_e_erro():
+    cfg = dict(CFG_OK, contas=[{"id": "c1", "nome": "C1", "moeda": "reais"}])
+    assert any("moeda" in e for e in validar_config(cfg))
+
+
+def test_brapi_e_provider_valido():
+    cfg = dict(CFG_OK, cotacoes={"provider": "brapi"})
+    assert validar_config(cfg) == []
+
+
+def test_cambio_invalido_e_erro():
+    cfg = dict(CFG_OK, cotacoes={"provider": "yahoo", "cambio": "chute"})
+    assert any("cambio" in e for e in validar_config(cfg))
+
+
+def test_defaults_de_cambio_e_planilhas(tmp_path):
+    assert provider_cambio(CFG_OK) == "bcb-sgs"
+    assert caminho_planilhas(tmp_path, CFG_OK) == tmp_path / "planilhas"
+    cfg = dict(CFG_OK, cotacoes={"provider": "yahoo", "cambio": "yahoo"},
+               caminhos={"motor": "x", "planilhas": "C:/OneDrive/cockpit"})
+    assert provider_cambio(cfg) == "yahoo"
+    assert caminho_planilhas(tmp_path, cfg) == Path("C:/OneDrive/cockpit")
+
+
+def test_moedas_por_conta():
+    cfg = dict(CFG_OK, contas=[{"id": "br", "moeda": "BRL"}, {"id": "us", "moeda": "USD"}])
+    assert moedas_por_conta(cfg) == {"br": "BRL", "us": "USD"}

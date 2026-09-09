@@ -4,10 +4,12 @@ idioma: pt-BR
 moeda_base: BRL
 harness: [claude-code]        # alvos de compilação: claude-code, codex, cursor, app-web
 cotacoes:
-  provider: manual            # manual | yahoo (Fase 2 adiciona brapi, bcb-sgs)
+  provider: manual            # manual | yahoo | brapi (brapi lê o token da variável de ambiente BRAPI_TOKEN)
+  cambio: bcb-sgs             # bcb-sgs | yahoo | manual — usado quando há posição fora do BRL
 contas:
   - id: corretora-br
     nome: "Minha corretora"
-    moeda: BRL
+    moeda: BRL                # moeda de TODAS as linhas dessa conta em posicoes/fills/proventos
 caminhos:
   motor: '../..'            # preenchido pelo criar_workspace.py; NÃO editar à mão
+  planilhas: planilhas        # onde o cockpit xlsx é gerado (relativo à raiz, ou absoluto, ex. OneDrive)

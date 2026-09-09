@@ -3,9 +3,14 @@ from pathlib import Path
 
 import yaml
 
+from po.csvs import MOEDAS
+
 MOEDAS_BASE = {"BRL"}
 HARNESSES = {"claude-code", "codex", "cursor", "app-web"}
-PROVIDERS_COTACOES = {"yahoo", "manual"}  # Fase 2 adiciona brapi, bcb-sgs
+PROVIDERS_COTACOES = {"yahoo", "brapi", "manual"}
+PROVIDERS_CAMBIO = {"bcb-sgs", "yahoo", "manual"}
+CAMBIO_PADRAO = "bcb-sgs"
+PLANILHAS_PADRAO = "planilhas"
 
 
 def validar_config(cfg: object) -> list[str]:
@@ -26,6 +31,9 @@ def validar_config(cfg: object) -> list[str]:
     provider = cotacoes.get("provider") if isinstance(cotacoes, dict) else None
     if provider not in PROVIDERS_COTACOES:
         erros.append(f"cotacoes.provider deve ser um de {sorted(PROVIDERS_COTACOES)}")
+    cambio = cotacoes.get("cambio", CAMBIO_PADRAO) if isinstance(cotacoes, dict) else CAMBIO_PADRAO
+    if cambio not in PROVIDERS_CAMBIO:
+        erros.append(f"cotacoes.cambio deve ser um de {sorted(PROVIDERS_CAMBIO)}")
     contas = cfg.get("contas")
     if not isinstance(contas, list) or not contas:
         erros.append("declare ao menos uma conta em contas")
@@ -34,15 +42,37 @@ def validar_config(cfg: object) -> list[str]:
         for i, conta in enumerate(contas, start=1):
             if not isinstance(conta, dict) or not isinstance(conta.get("id"), str) or not conta["id"]:
                 erros.append(f"conta #{i} sem id (cada conta é um mapeamento com id)")
-            else:
-                ids.append(conta["id"])
+                continue
+            ids.append(conta["id"])
+            if conta.get("moeda") not in MOEDAS:
+                erros.append(f"conta {conta['id']!r} sem moeda válida (uma de {sorted(MOEDAS)})")
         if len(ids) != len(set(ids)):
             erros.append("ids de conta duplicados")
     caminhos = cfg.get("caminhos")
     motor = caminhos.get("motor") if isinstance(caminhos, dict) else None
     if not motor:
         erros.append("caminhos.motor ausente (preenchido pelo criar_workspace)")
+    planilhas = caminhos.get("planilhas", PLANILHAS_PADRAO) if isinstance(caminhos, dict) else PLANILHAS_PADRAO
+    if not isinstance(planilhas, str) or not planilhas:
+        erros.append("caminhos.planilhas deve ser um caminho (string não-vazia)")
     return erros
+
+
+def provider_cambio(cfg: dict) -> str:
+    """Provider usado para câmbio quando há posição fora do BRL (default bcb-sgs)."""
+    return (cfg.get("cotacoes") or {}).get("cambio", CAMBIO_PADRAO)
+
+
+def caminho_planilhas(raiz: str | Path, cfg: dict) -> Path:
+    """Pasta onde o cockpit xlsx é gerado: relativa à raiz do workspace, ou absoluta."""
+    valor = (cfg.get("caminhos") or {}).get("planilhas", PLANILHAS_PADRAO)
+    p = Path(valor)
+    return p if p.is_absolute() else Path(raiz) / p
+
+
+def moedas_por_conta(cfg: dict) -> dict[str, str]:
+    """{id da conta: moeda}. Config já validada."""
+    return {c["id"]: c["moeda"] for c in cfg["contas"]}
 
 
 def carregar_config(raiz: str | Path) -> dict:
