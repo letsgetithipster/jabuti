@@ -1,9 +1,14 @@
 """Checa a config, os 6 CSVs canônicos e a coerência entre eles.
 
 v2: conta e moeda da linha × conta; ledger cronológico (qty E pm contra
-posicoes.csv; venda acima do saldo); posição sem cotação = ERRO; cotação
-anexada fora de ordem = aviso; provento sem posição = aviso; eventos
-confirmados coerentes. Vocabulários e formatos de campo são do ler_csv.
+posicoes.csv; venda acima do saldo; abertura única via saldo-inicial); quando
+o ledger já aponta erro numa chave (venda sem saldo, duplicata em
+posicoes.csv, abertura inválida), a comparação de qty/pm daquela chave fica
+suspensa — não soma erro derivado em cima de erro de origem; posição sem
+cotação, ou cotação em moeda diferente da posição, = ERRO; cotação anexada
+fora de ordem = aviso; provento sem posição = aviso; eventos confirmados
+coerentes. Tolerância de PM combina piso absoluto (BRL) e relativa (domina em
+PM alto, ex. cripto). Vocabulários e formatos de campo são do ler_csv.
 """
 from pathlib import Path
 
@@ -11,7 +16,8 @@ from po.config import carregar_config, moedas_por_conta
 from po.csvs import SCHEMAS, ler_csv, ultimas_cotacoes
 from po.ledger import TOLERANCIA_QTY, calcular_saldos
 
-TOLERANCIA_PM = 0.01
+TOLERANCIA_PM = 0.01          # piso absoluto em BRL
+TOLERANCIA_PM_RELATIVA = 1e-7  # domina em PM alto (cripto); o piso domina em PM baixo
 
 
 def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
@@ -72,20 +78,24 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
 
     # Ledger: fills → qty e PM por (ticker, conta). Só com leitura limpa (contrato do ler_csv).
     if limpos("posicoes", "fills"):
-        qty_posicao, pm_posicao = {}, {}
+        qty_posicao, pm_posicao, duplicadas = {}, {}, set()
         for p in posicoes:
             chave = (p["ticker"], p["conta"])
             if chave in qty_posicao:
                 erros.append(
                     f"posicoes.csv: linha duplicada para {p['ticker']} na conta {p['conta']} — "
                     "uma linha por (ticker, conta)")
+                duplicadas.add(chave)
             else:
                 qty_posicao[chave] = p["qty"]
                 pm_posicao[chave] = p["pm"]
-        saldos, errs = calcular_saldos(fills)
+        saldos, errs, suspeitas = calcular_saldos(fills)
         erros.extend(errs)
+        suspensas = suspeitas | duplicadas   # já há erro na origem: não somar erro derivado
         for (ticker, conta), s in sorted(saldos.items()):
             chave = (ticker, conta)
+            if chave in suspensas:
+                continue
             if s.qty <= TOLERANCIA_QTY:
                 if chave in qty_posicao:
                     erros.append(f"posicoes.csv: {ticker} ({conta}) tem qty {qty_posicao[chave]:g} "
@@ -98,22 +108,32 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
                 erros.append(
                     f"posicoes.csv: {ticker} ({conta}) qty {qty_posicao[chave]:g} "
                     f"difere do saldo dos fills ({s.qty:g})")
-            elif abs(s.pm - pm_posicao[chave]) > TOLERANCIA_PM:
-                erros.append(
-                    f"posicoes.csv: {ticker} ({conta}) pm {pm_posicao[chave]:.2f} "
-                    f"difere do recalculado {s.pm:.2f} (ledger de fills)")
-        for (ticker, conta) in sorted(qty_posicao):
-            if (ticker, conta) not in saldos:
-                avisos.append(f"posicoes.csv: {ticker} ({conta}) sem fills — PM não verificável "
+            else:
+                tolerancia = max(TOLERANCIA_PM, abs(pm_posicao[chave]) * TOLERANCIA_PM_RELATIVA)
+                if abs(s.pm - pm_posicao[chave]) > tolerancia:
+                    erros.append(
+                        f"posicoes.csv: {ticker} ({conta}) pm {pm_posicao[chave]:g} "
+                        f"difere do recalculado {s.pm:g} (ledger de fills)")
+        for chave in sorted(qty_posicao):
+            if chave not in saldos and chave not in suspensas:
+                avisos.append(f"posicoes.csv: {chave[0]} ({chave[1]}) sem fills — PM não verificável "
                               "(importe posições ou registre um saldo-inicial)")
 
-    # Cotações: toda posição precisa de ao menos uma; append fora de ordem é aviso.
+    # Cotações: toda posição precisa de ao menos uma, na mesma moeda; append fora de ordem é aviso.
     if limpos("posicoes", "cotacoes"):
         ultimas = ultimas_cotacoes(cotacoes)
-        for ticker in sorted({p["ticker"] for p in posicoes}):
-            if ticker not in ultimas:
+        moedas_do_ticker = {}
+        for p in posicoes:
+            moedas_do_ticker.setdefault(p["ticker"], set()).add(p["moeda"])
+        for ticker in sorted(moedas_do_ticker):
+            c = ultimas.get(ticker)
+            if c is None:
                 erros.append(f"cotacoes.csv: {ticker} sem nenhuma cotação — rode "
                              f"scripts/atualizar_cotacoes.py (ou passe --manual {ticker}=PRECO)")
+            elif c["moeda"] not in moedas_do_ticker[ticker]:
+                erros.append(f"cotacoes.csv: {ticker} cotado em {c['moeda']} mas a posição está em "
+                             f"{'/'.join(sorted(moedas_do_ticker[ticker]))} — a valoração multiplicaria "
+                             "moedas diferentes")
         mais_recente = {}
         for i, c in enumerate(cotacoes, start=2):
             ultima = mais_recente.get(c["ticker"])

@@ -49,3 +49,4 @@ def test_cli_errors_only_omite_avisos(tmp_path):
     r = roda(str(ws), "--errors-only")
     assert r.returncode == 0
     assert "aviso " not in r.stdout
+    assert "aviso(s)" in r.stdout  # linha de resumo permanece

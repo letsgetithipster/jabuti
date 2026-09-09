@@ -170,7 +170,7 @@ def test_pm_divergente_e_erro(tmp_path):
     ws = copia_exemplo(tmp_path)
     _troca(ws, "dados/posicoes.csv", "PETR4,acoes-br,corretora-br,100,30.00", "PETR4,acoes-br,corretora-br,100,31.00")
     erros, _ = checar_dados(ws)
-    assert any("PETR4" in e and "pm 31.00" in e and "recalculado 30.00" in e for e in erros)
+    assert any("PETR4" in e and "pm 31 " in e and "recalculado 30 " in e for e in erros)
 
 
 def test_posicao_sem_fills_avisa_pm_nao_verificavel(tmp_path):
@@ -241,3 +241,57 @@ def test_split_confirmado_sem_razao_e_aviso(tmp_path):
     _anexa(ws, "dados/eventos.csv", "2026-09-08,PETR4,split,,sim")
     erros, avisos = checar_dados(ws)
     assert erros == [] and any("split" in a and "sem razão" in a for a in avisos)
+
+
+def test_venda_sem_posicao_nao_gera_erro_derivado(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/posicoes.csv", "VALE3,acoes-br,corretora-br,10,60.00,BRL")
+    _anexa(ws, "dados/cotacoes.csv", "2026-09-08,18:00,VALE3,61.00,BRL,manual")
+    _anexa(ws, "dados/fills.csv", "2026-09-07,VALE3,venda,5,60.00,0,corretora-br,BRL")
+    erros, avisos = checar_dados(ws)
+    assert any("excede o saldo" in e for e in erros)
+    assert not any("zerou a posição" in e for e in erros)      # erro fantasma
+    assert not any("difere do saldo" in e for e in erros)
+
+
+def test_erro_no_ledger_suspende_comparacao_de_qty(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/fills.csv", "2026-09-06,PETR4,venda,500,40.00,0,corretora-br,BRL")
+    erros, _ = checar_dados(ws)
+    assert any("excede o saldo" in e for e in erros)
+    assert not any("difere do saldo dos fills" in e for e in erros)
+
+
+def test_posicao_duplicada_suspende_comparacao(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/posicoes.csv", "PETR4,acoes-br,corretora-br,60,30.00,BRL")
+    erros, _ = checar_dados(ws)
+    assert any("linha duplicada" in e for e in erros)
+    assert not any("difere do saldo dos fills" in e for e in erros)
+
+
+def test_pm_de_cripto_tolera_arredondamento_relativo(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/posicoes.csv", "BTC,cripto,corretora-br,0.5,300000.10,BRL")
+    _anexa(ws, "dados/cotacoes.csv", "2026-09-08,18:00,BTC,400000,BRL,manual")
+    _anexa(ws, "dados/fills.csv", "2026-08-01,BTC,saldo-inicial,0.5,300000.00,0,corretora-br,BRL")
+    erros, _ = checar_dados(ws)
+    assert any("BTC" in e and "pm" in e for e in erros)      # 0,10 em 300 mil > tolerância relativa
+    _troca(ws, "dados/posicoes.csv", "0.5,300000.10", "0.5,300000.0002")
+    erros, _ = checar_dados(ws)
+    assert not any("BTC" in e and "pm" in e for e in erros)  # ruído de arredondamento passa
+
+
+def test_cotacao_em_moeda_diferente_da_posicao_e_erro(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    _troca(ws, "dados/cotacoes.csv", "2026-09-08,18:00,HGLG11,160.00,BRL,manual",
+           "2026-09-08,18:00,HGLG11,160.00,USD,manual")
+    erros, _ = checar_dados(ws)
+    assert any("HGLG11" in e and "cotado em USD" in e for e in erros)
+
+
+def test_moeda_divergente_em_fills_e_proventos(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/proventos.csv", "2026-09-06,HGLG11,,rendimento,10.00,10.00,corretora-br,USD")
+    erros, _ = checar_dados(ws)
+    assert any("proventos.csv" in e and "USD" in e and "conta corretora-br é BRL" in e for e in erros)
