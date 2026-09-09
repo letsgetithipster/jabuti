@@ -2,7 +2,7 @@
 import re
 from pathlib import Path
 
-from po.csvs import ler_csv
+from po.csvs import ler_csv, ultimas_cotacoes
 from po.numeros import formatar_brl, parse_valor
 
 TOTAL_RE = re.compile(r"^Total investido:\s*(.+)$", re.MULTILINE)
@@ -39,10 +39,7 @@ def checar_estado(raiz: str | Path) -> tuple[list[str], list[str]]:
         avisos.append("ESTADO: check do total suspenso — dados/ com erros (ver check de dados)")
         return erros, avisos
 
-    melhor = {}
-    for c in cotacoes:  # vence a data mais recente; empate: última linha do arquivo
-        if c["ticker"] not in melhor or c["data"] >= melhor[c["ticker"]]["data"]:
-            melhor[c["ticker"]] = c
+    melhor = ultimas_cotacoes(cotacoes)
 
     nao_brl = sorted({p["ticker"] for p in posicoes if p["moeda"] != "BRL"} |
                      {c["ticker"] for c in melhor.values() if c["moeda"] != "BRL"})
