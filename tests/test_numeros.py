@@ -40,3 +40,27 @@ def test_parse_invalido_retorna_none(texto):
 ])
 def test_formatar_brl(valor, esperado):
     assert formatar_brl(valor) == esperado
+
+
+def test_sinal_antes_da_moeda():
+    assert parse_valor("-R$ 5,00") == -5.0
+    assert parse_valor("-$1.53") == -1.53
+    assert parse_valor("+US$ 1,234.56") == 1234.56
+    assert parse_valor("R$ -5,00") == -5.0      # sinal depois da moeda continua valendo
+
+
+def test_mais_com_milhar():
+    assert parse_valor("+1.234") == 1234.0
+    assert parse_valor("+1,234") == 1234.0
+    assert parse_valor("+12.345.678") == 12345678.0
+
+
+def test_formatar_canonico():
+    from po.numeros import formatar_canonico
+    assert formatar_canonico(40.0) == "40"
+    assert formatar_canonico(30.75) == "30.75"
+    assert formatar_canonico(5.4321) == "5.4321"
+    assert formatar_canonico(5.43219) == "5.4322"       # 4 casas por default
+    assert formatar_canonico(-0.0) == "0"
+    assert formatar_canonico(1234567.5) == "1234567.5"  # sem milhar
+    assert formatar_canonico(2.5, casas=2) == "2.5"
