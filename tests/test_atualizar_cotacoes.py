@@ -496,3 +496,26 @@ def test_cli_sinaliza_cotacao_que_nao_e_de_hoje(tmp_path, monkeypatch, capsys):
     with pytest.raises(SystemExit):
         cli_mod.main()
     assert "(não é de hoje)" in capsys.readouterr().out
+
+
+def test_cli_sem_rede_exit_2(tmp_path):
+    """O único código documentado que ainda não tinha teste de subprocesso. Não dá para
+    desligar a rede da máquina de teste, então o subprocesso derruba urllib antes de rodar o
+    CLI de verdade (runpy com run_name='__main__'): a falha nasce na única camada de rede do
+    motor, o SemRede sobe pelo provider real e o código de saída é o do CLI."""
+    ws = _ws_yahoo(tmp_path)
+    antes = (ws / "dados" / "cotacoes.csv").read_text(encoding="utf-8")
+    wrapper = tmp_path / "sem_rede.py"
+    wrapper.write_text(
+        "import runpy, sys, urllib.error, urllib.request\n"
+        "def _cai(*a, **k):\n"
+        "    raise urllib.error.URLError('getaddrinfo failed')\n"
+        "urllib.request.urlopen = _cai\n"
+        f"sys.argv = ['atualizar_cotacoes.py', {str(ws)!r}]\n"
+        f"runpy.run_path({str(CLI)!r}, run_name='__main__')\n", encoding="utf-8")
+    r = subprocess.run([sys.executable, str(wrapper)], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "Sem acesso à rede" in r.stdout and "Nada gravado" in r.stdout
+    assert "Traceback" not in r.stderr
+    assert (ws / "dados" / "cotacoes.csv").read_text(encoding="utf-8") == antes

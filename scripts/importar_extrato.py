@@ -7,6 +7,11 @@ Divisão rígida (GUARDRAILS, camada 1): a LLM escreve o mapeamento e o mostra a
 este script executa o parse e confere a aritmética do próprio documento. Não bateu,
 nada entra em dados/. Sem --mapeamento, tenta detectar pelo cabeçalho entre os
 mapeamentos do workspace (mapeamentos/) e do motor.
+
+Códigos de saída: 0 importou (ou --dry-run/--conferir sem divergência)
+· 1 erro que impediu a rodada: config, mapeamento, leitura, conciliação ou gravação (nada gravado)
+· 2 uso inválido da linha de comando (argparse)
+· 3 --conferir achou divergência entre o documento e dados/ (nada gravado; não é erro de execução)
 """
 import argparse
 import sys
@@ -108,6 +113,14 @@ def main():
     for linha in _descrever(mapa, caminho_mapa):
         print(linha)
     res = executar(mapa, tabela, conta=conta, data_padrao=args.data)
+    if res.linhas_lidas == 0:
+        # sem isto o usuário via "0 lidas · 0 classificadas", a conciliação passava vazia e a
+        # rodada terminava dizendo que nada havia a gravar — como se o documento estivesse em dia
+        print(f"\nerro: nenhuma linha de dados abaixo do cabeçalho em {arquivo.name} — nada a importar. "
+              "Costuma ser aba errada, cabeçalho que o mapeamento não encontrou, ou export salvo "
+              f"em branco. Rode: python scripts/inspecionar_extrato.py {arquivo} para ver as abas, "
+              "o cabeçalho e as primeiras linhas do arquivo.")
+        sys.exit(1)
     erros, descricao = list(res.erros), ""
     if not erros:
         errs, descricao = conciliar(mapa, tabela, res, total)
@@ -117,6 +130,11 @@ def main():
         if regs:
             print(f"  {nome}: {len(regs)}")
     if args.dry_run:
+        # Só aqui: --dry-run é o momento de calibrar um mapeamento novo. Um mapa real tem uma
+        # regra por tipo de evento e um mês aciona duas ou três, então o aviso em toda rodada
+        # dispararia sempre e treinaria o usuário a ignorá-lo. Na gravação real a informação
+        # não some: o log de importação registra a contagem por regra. E o sintoma forte,
+        # coluna renomeada, já para a importação — linha sem regra é ERRO, não aviso.
         sem_uso = [i for i, c in res.acertos.items() if c == 0]
         if sem_uso:
             print(f"  aviso: regra(s) {sem_uso} de 'linhas' nunca casaram com nenhuma linha do documento")
@@ -129,14 +147,21 @@ def main():
     if args.conferir:
         print("\nConferência contra dados/ (nada gravado):")
         try:
-            for linha in conferir(raiz, res):
-                print(linha)
+            linhas, divergiu = conferir(raiz, res)
         except ValueError as e:
             print(f"erro: {e}")
             sys.exit(1)
         except OSError as e:
             print(_mensagem_os(e, raiz))
             sys.exit(1)
+        for linha in linhas:
+            print(linha)
+        if divergiu:
+            # divergência não é erro de execução: a rodada fez o que foi pedida. O código
+            # separado existe para quem chama ramificar sem parsear texto.
+            print("\nDivergência entre o documento e dados/ — nada gravado. Resolva antes de importar.")
+            sys.exit(3)
+        print("\nSem divergência: o documento bate com dados/.")
         return
     if args.dry_run:
         print("\n--dry-run: nada gravado.")
