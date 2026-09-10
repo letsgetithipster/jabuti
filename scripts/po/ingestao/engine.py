@@ -109,6 +109,7 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
         return res
     extrair = {ap: re.compile(rx) for ap, rx in (mapa.get("extrair") or {}).items()}
     regras = [(regra, {ap: re.compile(rx) for ap, rx in regra["quando"].items()}) for regra in mapa["linhas"]]
+    res.acertos = {i: 0 for i in range(1, len(regras) + 1)}
     ajustes = []
 
     for i, linha in enumerate(tabela.linhas):
@@ -222,7 +223,7 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
     com_erro = {int(m.group(1)) for e in res.erros
                 if (m := re.match(r"linha (\d+):", e))}
     contadas = res.classificadas + len(res.ignoradas) + len(ajustes) + len(com_erro - _linhas_de_ajuste(ajustes))
-    if not res.erros and contadas != res.linhas_lidas:
+    if contadas != res.linhas_lidas:
         res.erros.append(f"erro interno da ingestão: {res.linhas_lidas} linhas lidas mas "
                          f"{contadas} classificadas — alguma linha se perdeu, não grave nada")
     return res

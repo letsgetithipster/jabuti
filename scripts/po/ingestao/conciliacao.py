@@ -78,6 +78,8 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
             pares += 1
         extra = f", {ancoras} âncora(s) sem valor" if ancoras else ""
         if pares == 0:
+            if res.linhas_lidas == 0:
+                return erros, "saldo-corrente: documento sem linhas — nada a conciliar (no-op)"
             erros.append(f"saldo-corrente não conferiu par nenhum ({len(pontos)} linha(s) com saldo"
                          f"{extra}) — o documento não provou a própria aritmética")
         return erros, f"saldo-corrente: {pares} par(es) de linhas conferidos{extra}"

@@ -206,6 +206,33 @@ def test_acertos_contam_linhas_por_regra():
     assert r.acertos == {1: 1, 2: 1}
 
 
+def test_acertos_comeca_zerado_para_regra_que_nunca_casa():
+    """Regra 2 nunca casa nesse documento: acertos tem que declarar 0, não omitir a chave."""
+    t = _tab([["20/08/2026", "RENDIMENTO HGLG11", "99,00", "1.300,00"]])
+    r = executar(MAPA_OK, t)
+    assert r.acertos == {1: 1, 2: 0}
+
+
+def test_contagem_de_linhas_tambem_vale_no_caminho_de_erro():
+    """A conta 'nenhuma linha some em silêncio' rodava só quando res.erros já estava vazio,
+    verificando exatamente o caso que menos precisa: o run limpo. Com erro, tem que continuar
+    batendo (linha com erro nunca vira registro em tabela nenhuma) e não pode acrescentar um
+    'erro interno da ingestão' espúrio por cima do erro real."""
+    t = _tab([["20/08/2026", "RENDIMENTO HGLG11", "abc", "1,00"],
+              ["19/08/2026", "TED SAIDA", "-500,00", "1.201,00"]])
+    r = executar(MAPA_OK, t)
+    assert any("valor_bruto não numérico" in e for e in r.erros)
+    assert not any("erro interno da ingestão" in e for e in r.erros)
+
+
+def test_saldo_corrente_documento_vazio_e_no_op():
+    t = _tab([])
+    r = executar(MAPA_OK, t)
+    assert r.erros == [] and r.linhas_lidas == 0
+    erros, desc = conciliar(MAPA_OK, t, r)
+    assert erros == [] and "no-op" in desc
+
+
 def test_total_declarado_de_linha_do_documento():
     mapa = dict(MAPA_OK, colunas={"ticker": "Ativo", "classe": "Classe", "qty": "Qtd", "pm": "PM", "total": "Investido"},
                 linhas=[{"quando": {"ticker": "^Total$"}, "destino": "ignorar", "motivo": "linha de total"},

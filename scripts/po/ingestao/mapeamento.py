@@ -208,9 +208,12 @@ def validar_mapeamento(mapa: object) -> list[str]:
     if isinstance(conc, dict):
         erros.extend(_desconhecidas(conc, CHAVES_CONCILIACAO, "conciliacao"))
         tolerancia = conc.get("tolerancia")
-        if tolerancia is not None and (isinstance(tolerancia, bool)
-                                        or not isinstance(tolerancia, (int, float)) or tolerancia <= 0):
-            erros.append(f"conciliacao.tolerancia deve ser um número positivo (veio {tolerancia!r})")
+        if tolerancia is not None:
+            if isinstance(tolerancia, bool) or not isinstance(tolerancia, (int, float)) or tolerancia <= 0:
+                erros.append(f"conciliacao.tolerancia deve ser um número positivo (veio {tolerancia!r})")
+            if conc.get("tipo") != "total-declarado":
+                erros.append("conciliacao.tolerancia só vale com conciliacao.tipo total-declarado "
+                             "(é onde ela é honrada — ver po.ingestao.conciliacao)")
     if not isinstance(conc, dict) or not em_vocabulario(conc.get("tipo"), CONCILIACOES):
         erros.append(f"conciliacao.tipo deve ser um de {sorted(CONCILIACOES)} — mapeamento sem conciliação é recusado")
     elif conc["tipo"] == "saldo-corrente":

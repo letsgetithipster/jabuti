@@ -79,12 +79,28 @@ def test_total_declarado_exige_origem():
     assert any("origem" in e for e in validar_mapeamento(m))
 
 
+MAPA_TOTAL_DECLARADO = dict(
+    MAPA_OK,
+    colunas={"ticker": "Ativo", "classe": "Classe", "qty": "Qtd", "pm": "PM"},
+    linhas=[{"quando": {"ticker": "^[A-Z0-9]{4,6}$"}, "destino": "posicoes"}],
+    conciliacao={"tipo": "total-declarado", "soma": "qty*pm", "origem": "flag"},
+)
+
+
 def test_conciliacao_tolerancia_declarada_e_valida_ou_erro():
-    m = dict(MAPA_OK, conciliacao=dict(MAPA_OK["conciliacao"], tolerancia=0.5))
+    m = dict(MAPA_TOTAL_DECLARADO, conciliacao=dict(MAPA_TOTAL_DECLARADO["conciliacao"], tolerancia=0.5))
     assert validar_mapeamento(m) == []
     for ruim in (0, -1, "0.5", [0.5], True, False):
-        m = dict(MAPA_OK, conciliacao=dict(MAPA_OK["conciliacao"], tolerancia=ruim))
+        m = dict(MAPA_TOTAL_DECLARADO, conciliacao=dict(MAPA_TOTAL_DECLARADO["conciliacao"], tolerancia=ruim))
         assert any("conciliacao.tolerancia" in e for e in validar_mapeamento(m))
+
+
+def test_tolerancia_fora_de_total_declarado_e_erro():
+    """Probado: {tipo: valor-da-linha, tolerancia: 5.0} validava limpo e uma discrepância de
+    2,00 ainda reprovava a um centavo — chave que valida e não faz nada."""
+    m = dict(MAPA_OK, conciliacao=dict(MAPA_OK["conciliacao"], tolerancia=5.0))
+    assert MAPA_OK["conciliacao"]["tipo"] == "saldo-corrente"
+    assert any("conciliacao.tolerancia" in e and "total-declarado" in e for e in validar_mapeamento(m))
 
 
 def test_datas_extrair_exige_um_grupo():
