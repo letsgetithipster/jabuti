@@ -33,9 +33,13 @@ def falha_nao_negociado(ticker: str, classe: str) -> str:
     return f"{ticker}: não é papel negociado ({classe}) — passe --manual {ticker}=VALOR"
 
 
-def falha_preco(ticker: str, fonte: str, preco) -> str:
-    return (f"{ticker}: {fonte} devolveu preço inválido ({preco!r}) — "
-            "ativo suspenso ou deslistado? confira o ticker")
+# Existem para manter a FORMA uniforme entre providers; a dica é a parte que cada fonte sobrescreve.
+def falha_preco(ticker: str, fonte: str, preco, alvo: str = "",
+                dica: str = "ativo suspenso ou deslistado? confira o ticker") -> str:
+    """Shape uniforme entre providers; a DICA é a parte que cada fonte sobrescreve."""
+    return (f"{ticker}: {fonte} devolveu preço inválido ({preco!r})"
+            + (f" para {alvo}" if alvo else "")
+            + (f" — {dica}" if dica else ""))
 
 
 def falha_moeda(ticker: str, fonte: str, obtida: str, esperada: str) -> str:

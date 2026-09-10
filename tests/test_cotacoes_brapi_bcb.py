@@ -58,6 +58,13 @@ def test_brapi_http_erro_sugere_token():
     assert any("BRAPI_TOKEN" in f for f in falhas)
 
 
+def test_brapi_404_com_401_no_corpo_nao_sugere_token():
+    def nega(url, timeout=15.0, headers=None):
+        raise RespostaInvalida("HTTP 404: id 401 nao encontrado")   # corpo cita 401, mas nao e o codigo
+    _, falhas = BrapiProvider(buscar=nega, token="segredo", pausa=0).cotar([Pedido("PETR4", "acoes-br", "BRL")])
+    assert falhas and not any("BRAPI_TOKEN" in f for f in falhas)
+
+
 def test_brapi_nao_e_papel_negociado():
     cot, falhas = BrapiProvider(buscar=buscar_brapi, token="segredo", pausa=0).cotar(
         [Pedido("CDB-X", "rf-br", "BRL"), Pedido("CAIXA", "caixa", "BRL")])

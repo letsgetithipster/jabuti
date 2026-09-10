@@ -77,7 +77,7 @@ class YahooProvider:
                               f"({type(e).__name__}: {e})")
                 continue
             if not math.isfinite(preco) or preco <= 0:
-                falhas.append(falha_preco(p.ticker, "yahoo", preco))
+                falhas.append(falha_preco(p.ticker, "yahoo", preco, alvo=simbolo))
                 continue
             if moeda != p.moeda:
                 falhas.append(falha_moeda(p.ticker, "yahoo", moeda, p.moeda))

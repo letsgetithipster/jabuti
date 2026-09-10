@@ -51,7 +51,8 @@ class BcbSgsProvider:
                 falhas.append(f"{p.ticker}: bcb-sgs não devolveu PTAX ({e})")
                 continue
             if valor <= 0:
-                falhas.append(falha_preco(p.ticker, "bcb-sgs", valor))
+                falhas.append(falha_preco(p.ticker, "bcb-sgs", valor,
+                                          dica="a fonte publicou um valor que não serve como taxa"))
                 continue
             cotacoes.append(Cotacao(data, "00:00", p.ticker, valor, p.moeda, "bcb-sgs"))
         return cotacoes, falhas

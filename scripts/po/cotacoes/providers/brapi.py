@@ -43,7 +43,7 @@ class BrapiProvider:
                 d = self._buscar(URL.format(ticker=urllib.parse.quote(p.ticker), token=self._token))
             except RespostaInvalida as e:
                 dica = (" — token ausente ou inválido? defina a variável de ambiente BRAPI_TOKEN"
-                        if not self._token or "401" in str(e) or "403" in str(e) else "")
+                        if not self._token or str(e).startswith(("HTTP 401", "HTTP 403")) else "")
                 falhas.append(f"{p.ticker}: brapi não devolveu cotação ({e}){dica}")
                 continue
             try:
