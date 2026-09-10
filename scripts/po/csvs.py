@@ -44,6 +44,8 @@ VOCABULARIOS = {
     ("eventos", "tipo"): TIPOS_EVENTO,
     ("eventos", "confirmado"): CONFIRMADO,
     ("indices", "indice"): INDICES,
+    # Compartilha o vocabulário de cotacoes.fonte por conveniência; "definicao" não tem
+    # sentido aqui (nenhum índice é definicional), só ainda não vale a pena um set separado.
     ("indices", "fonte"): FONTES_COTACAO,
     ("cotacoes", "fonte"): FONTES_COTACAO,
 }

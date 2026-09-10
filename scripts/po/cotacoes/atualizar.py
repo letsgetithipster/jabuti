@@ -36,6 +36,8 @@ class Relatorio:
     propostas: list[dict] = field(default_factory=list)                # linhas propostas em eventos.csv
     propostas_nao_gravadas: tuple[str, list[dict]] | None = None       # (motivo, linhas) — cole à mão
     sinteticas: list[str] = field(default_factory=list)                # tickers precificados por definição (saldo)
+    ja_atualizadas: list[str] = field(default_factory=list)            # já tinham cotação de hoje: nada a buscar
+    pedidos: int = 0                                                   # quantos ativos a carteira pediu
     gravadas: int = 0
     dry_run: bool = False
     hoje: str = ""
@@ -75,6 +77,7 @@ def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_r
     eventos = _ler_limpo("eventos", raiz)
     rel = Relatorio(dry_run=dry_run, hoje=hoje)
     pedidos = pedidos_de_posicoes(posicoes)
+    rel.pedidos = len(pedidos)
     if not pedidos:
         return rel
 
@@ -98,6 +101,7 @@ def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_r
         ja_sintetizado_hoje = (existente and existente["data"] == hoje
                                and existente["fonte"] == "definicao" and existente["preco"] == 1.0)
         if ja_sintetizado_hoje:
+            rel.ja_atualizadas.append(p.ticker)   # nada a buscar, mas não é silêncio
             continue   # append-only: não empilha uma linha idêntica por rodada
         rel.obtidas.append(Cotacao(hoje, "00:00", p.ticker, 1.0, p.moeda, "definicao"))
         rel.sinteticas.append(p.ticker)

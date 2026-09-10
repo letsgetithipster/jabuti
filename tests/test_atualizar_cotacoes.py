@@ -209,11 +209,49 @@ def test_saldo_ja_sintetizado_hoje_nao_duplica(tmp_path):
     fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,CAIXA,saldo-inicial,5000,1.00,0,corretora-br,BRL\n", encoding="utf-8")
     agora = datetime.datetime(2026, 9, 9, 12, 0)
     rel1 = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0}), agora=agora)
-    assert rel1.sinteticas == ["CAIXA"]
+    assert rel1.sinteticas == ["CAIXA"] and rel1.ja_atualizadas == []
     rel2 = atualizar(ws, provider=ProviderFalso({"PETR4": 41.0, "HGLG11": 161.0}), agora=agora)
     assert rel2.sinteticas == [] and "CAIXA" not in {c.ticker for c in rel2.obtidas}
+    assert rel2.ja_atualizadas == ["CAIXA"]   # não é silêncio: o relatório registra o skip
     linhas, _ = ler_csv("cotacoes", ws / "dados" / "cotacoes.csv")
     assert sum(1 for l in linhas if l["ticker"] == "CAIXA") == 1   # append-only, sem duplicar
+
+
+def test_carteira_so_caixa_no_segundo_dia_nao_diz_que_nao_tem_posicoes(tmp_path):
+    """Achado 3 do revisor: carteira só de caixa, na segunda rodada do dia, tinha obtidas=[] e
+    falhas=[] — igual a posicoes.csv vazio — e o CLI mentia 'não tem posições ainda'."""
+    ws = copia_exemplo(tmp_path)
+    pos = ws / "dados" / "posicoes.csv"
+    pos.write_text("ticker,classe,conta,qty,pm,moeda\nCAIXA,caixa,corretora-br,5000,1.00,BRL\n", encoding="utf-8")
+    fills = ws / "dados" / "fills.csv"
+    fills.write_text("data,ticker,tipo,qty,preco,taxa,conta,moeda\n"
+                     "2026-08-01,CAIXA,saldo-inicial,5000,1.00,0,corretora-br,BRL\n", encoding="utf-8")
+    agora = datetime.datetime(2026, 9, 9, 12, 0)
+    rel1 = atualizar(ws, agora=agora)
+    assert rel1.pedidos == 1 and rel1.sinteticas == ["CAIXA"]
+    rel2 = atualizar(ws, agora=agora)
+    assert rel2.pedidos == 1 and rel2.obtidas == [] and rel2.falhas == [] and rel2.ja_atualizadas == ["CAIXA"]
+
+
+def test_cli_carteira_so_caixa_segundo_dia_diz_nada_novo_a_buscar(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    cfg = ws / "vault.config.yaml"
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace("provider: manual", "provider: yahoo"),
+                   encoding="utf-8")
+    pos = ws / "dados" / "posicoes.csv"
+    pos.write_text("ticker,classe,conta,qty,pm,moeda\nCAIXA,caixa,corretora-br,5000,1.00,BRL\n", encoding="utf-8")
+    fills = ws / "dados" / "fills.csv"
+    fills.write_text("data,ticker,tipo,qty,preco,taxa,conta,moeda\n"
+                     "2026-08-01,CAIXA,saldo-inicial,5000,1.00,0,corretora-br,BRL\n", encoding="utf-8")
+    r1 = subprocess.run([sys.executable, str(CLI), str(ws)], capture_output=True, text=True,
+                        encoding="utf-8", errors="replace")
+    assert r1.returncode == 0 and "CAIXA: 1,00 já definida hoje" not in r1.stdout
+    r2 = subprocess.run([sys.executable, str(CLI), str(ws)], capture_output=True, text=True,
+                        encoding="utf-8", errors="replace")
+    assert r2.returncode == 0, r2.stdout + r2.stderr
+    assert "CAIXA: 1,00 já definida hoje" in r2.stdout
+    assert "nada novo a buscar" in r2.stdout
+    assert "não tem posições ainda" not in r2.stdout   # a carteira TEM posição, só não tinha o que buscar
 
 
 def test_saldo_em_conta_moeda_estrangeira(tmp_path):
@@ -331,12 +369,47 @@ def test_cli_parcial_exit_3(tmp_path):
 
 
 def test_cli_manual_valor_ambiguo_rejeitado(tmp_path):
+    """Correção fina da sugestão (a leitura decimal sugerida tem que ser lida como decimal por
+    quem recusou) é coberta por test_a_sugestao_da_recusa_e_aceita_por_quem_recusou, unitário.
+    No nível de CLI, o que importa é: recusa, sai não-zero, não grava nada."""
     ws = copia_exemplo(tmp_path)
+    antes = (ws / "dados" / "cotacoes.csv").read_text(encoding="utf-8")
     r = subprocess.run([sys.executable, str(CLI), str(ws), "--manual", "PETR4=1.500"],
                        capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert r.returncode != 0
     assert "ambíguo" in r.stderr
-    assert "1,500" in r.stderr and "1500" in r.stderr   # as duas leituras oferecidas
+    assert (ws / "dados" / "cotacoes.csv").read_text(encoding="utf-8") == antes
+
+
+@pytest.mark.parametrize("digitado,esperado", [
+    ("5,432", 5.432), ("1500", 1500.0), ("1.234,56", 1234.56), ("R$ 41,50", 41.5),
+    ("0,00012345", 0.00012345), ("US$1,5", 1.5),
+])
+def test_preco_digitado_em_ptbr(digitado, esperado):
+    assert cli_mod._preco_digitado(digitado) == pytest.approx(esperado)
+
+
+@pytest.mark.parametrize("ambiguo", ["5.432", "R$ 5.432", "1.500", "-1.500"])
+def test_a_sugestao_da_recusa_e_aceita_por_quem_recusou(ambiguo):
+    """A recusa só serve se a forma que ela manda digitar for lida do jeito que ela promete."""
+    with pytest.raises(SystemExit) as exc:
+        cli_mod._preco_digitado(ambiguo)
+    msg = str(exc.value)
+    # não usar msg.split("ou ")[1]: "ou" aparece duas vezes ("milhar ou decimal" e
+    # "para decimal, ou 5432") e pegaria o pedaço errado — ancorar no separador completo.
+    resto = msg.split("Escreva ", 1)[1]
+    decimal, resto = resto.split(" para decimal, ou ", 1)
+    milhar = resto.split(" para milhar")[0]
+    assert cli_mod._preco_digitado(decimal) == pytest.approx(float(decimal.replace(",", ".")))
+    assert cli_mod._preco_digitado(milhar) == pytest.approx(float(milhar))
+
+
+def test_manual_com_prefixo_de_moeda_nao_furta_a_checagem_de_ambiguidade(tmp_path):
+    """Achado 2 do revisor: 'R$ 5.432' passava batido porque _TRES_CASAS via o argumento cru
+    (com o prefixo) enquanto parse_valor lia o corpo já sem prefixo — aqui o prefixo é
+    removido ANTES da checagem, então a ambiguidade é vista do mesmo jeito com ou sem R$."""
+    with pytest.raises(SystemExit, match="ambíguo"):
+        cli_mod._preco_digitado("R$ 5.432")
 
 
 def test_cli_dry_run_relata_quantidade_de_propostas(tmp_path):
@@ -389,6 +462,23 @@ def test_cli_proposta_nao_gravada_imprime_linha_para_colar_e_sai_parcial(tmp_pat
     assert "," in campos[3]   # a vírgula sobreviveu DENTRO do campo razão, não virou coluna extra
     # a linha de resumo não pode contradizer o aviso acima alegando que a proposta foi gravada
     assert "proposta(s) para confirmar" not in r.stdout
+
+
+def test_cli_diretorio_no_lugar_do_csv_vira_mensagem_nao_traceback(tmp_path):
+    """Achado do revisor: qualquer SO levanta OSError ao tentar abrir um diretório como
+    arquivo — PermissionError no Windows, IsADirectoryError no POSIX — sem depender de chmod,
+    que só derruba permissão de escrita, não de leitura."""
+    ws = _ws_yahoo(tmp_path)
+    cot = ws / "dados" / "cotacoes.csv"
+    cot.unlink()
+    cot.mkdir()
+    r = subprocess.run([sys.executable, str(CLI), str(ws), "--manual", "PETR4=41,00", "HGLG11=160,00"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "Traceback" not in r.stderr and "Traceback" not in r.stdout
+    assert "erro:" in r.stdout
+    assert "dados/cotacoes.csv" in r.stdout
+    assert "Excel" in r.stdout or "OneDrive" in r.stdout
 
 
 def test_cli_sinaliza_cotacao_que_nao_e_de_hoje(tmp_path, monkeypatch, capsys):

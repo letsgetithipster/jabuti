@@ -7,11 +7,13 @@ Variação > 30% contra a última cotação grava a cotação E propõe linha em
 (variacao-anomala, confirmado nao) para você confirmar.
 
 Códigos de saída: 0 tudo obtido e gravado · 1 erro que impediu a rodada (nada gravado)
-· 2 sem rede (nada gravado) · 3 parcial: algo foi gravado E houve falha ou proposta não gravada
+· 2 sem rede (nada gravado)
+· 3 resultado parcial: parte obtida e parte falhou (inclui --dry-run com falha; o texto diz o que foi gravado)
 """
 import argparse
 import csv
 import io
+import math
 import re
 import sys
 from pathlib import Path
@@ -24,9 +26,33 @@ if hasattr(sys.stderr, "reconfigure"):
 from po.cotacoes.atualizar import atualizar  # noqa: E402
 from po.cotacoes.tipos import SemRede  # noqa: E402
 from po.csvs import SCHEMAS  # noqa: E402
-from po.numeros import formatar_brl, formatar_canonico, parse_valor  # noqa: E402
+from po.numeros import formatar_brl, formatar_canonico  # noqa: E402
 
-_TRES_CASAS = re.compile(r"^\s*[+-]?\d{1,3}\.\d{3}\s*$")
+_ESPACO = re.compile(r"\s+")
+_COM_MOEDA = re.compile(r"^([+-]?)(?:r\$|us\$|\$)?(.*)$", re.IGNORECASE)
+_TRES_CASAS = re.compile(r"[+-]?\d{1,3}\.\d{3}")
+
+
+def _preco_digitado(texto: str) -> float:
+    """Preço que o USUÁRIO digita, em pt-BR estrito: vírgula é decimal, ponto é milhar.
+
+    Não usa parse_valor de propósito: aquele parser lê export de corretora, onde milhar com
+    vírgula existe, e leria '5,432' como 5432 — ou seja, leria errado justamente a forma que
+    esta função sugere quando recusa uma entrada ambígua. Aqui a vírgula é sempre decimal, e
+    por isso toda sugestão dada numa recusa é aceita por esta mesma função.
+    """
+    sinal, corpo = _COM_MOEDA.match(_ESPACO.sub("", texto)).groups()
+    if _TRES_CASAS.fullmatch(corpo):   # 5.432 pode ser milhar (pt-BR) ou decimal (en-US)
+        raise SystemExit(
+            f"erro: --manual {texto.strip()!r} é ambíguo: '{corpo}' pode ser milhar ou decimal. "
+            f"Escreva {corpo.replace('.', ',')} para decimal, ou {corpo.replace('.', '')} para milhar.")
+    corpo = corpo.replace(".", "").replace(",", ".")
+    if not re.fullmatch(r"\d+(\.\d+)?", corpo):
+        raise SystemExit(f"erro: preço inválido em --manual {texto.strip()!r}")
+    valor = float(sinal + corpo)
+    if not math.isfinite(valor) or valor <= 0:
+        raise SystemExit(f"erro: preço tem que ser positivo em --manual {texto.strip()!r}")
+    return valor
 
 
 def _manual(itens: list[str]) -> dict[str, float]:
@@ -35,19 +61,25 @@ def _manual(itens: list[str]) -> dict[str, float]:
         if "=" not in item:
             raise SystemExit(f"erro: --manual espera TICKER=PRECO, recebi {item!r}")
         ticker, preco = item.split("=", 1)
-        if _TRES_CASAS.match(preco):
-            raise SystemExit(f"erro: --manual {item!r} é ambíguo: '{preco.strip()}' pode ser milhar ou decimal. "
-                             f"Escreva {preco.strip().replace('.', ',')} para decimal, "
-                             f"ou {preco.strip().replace('.', '')} para milhar.")
-        valor = parse_valor(preco)
-        if valor is None or valor <= 0:
-            raise SystemExit(f"erro: preço inválido em --manual {item!r}")
-        out[ticker.strip().upper()] = valor
+        out[ticker.strip().upper()] = _preco_digitado(preco)
     return out
 
 
 def _pct(fracao: float | None) -> str:
     return "primeira cotação" if fracao is None else f"{fracao * 100:+.1f}%".replace(".", ",")
+
+
+def _mensagem_os(e: OSError, raiz: str | Path) -> str:
+    """PermissionError/IsADirectoryError etc. viram frase acionável, com caminho relativo ao
+    workspace quando possível — não um repr de exceção nem um traceback."""
+    caminho = e.filename or str(e)
+    try:
+        caminho = Path(caminho).resolve().relative_to(Path(raiz).resolve()).as_posix()
+    except (ValueError, TypeError, OSError):
+        pass
+    motivo = e.strerror or str(e)
+    return (f"erro: não consegui ler/gravar {caminho} ({motivo}). "
+           "O arquivo está aberto no Excel ou o OneDrive está sincronizando?")
 
 
 def main():
@@ -63,7 +95,10 @@ def main():
         print(f"Sem acesso à rede ({e}). Nada gravado — não uso preço de memória. "
               "Tente de novo com conexão ou passe --manual TICKER=PRECO.")
         sys.exit(2)
-    except (OSError, ValueError) as e:
+    except OSError as e:
+        print(_mensagem_os(e, args.raiz))
+        sys.exit(1)
+    except ValueError as e:
         print(f"erro: {e}")
         sys.exit(1)
     for c in rel.obtidas:
@@ -73,6 +108,8 @@ def main():
         preco_txt = formatar_brl(c.preco) if c.preco >= 0.01 else formatar_canonico(c.preco)
         print(f"  {c.ticker:<10} {preco_txt:>12} {c.moeda}  {c.fonte:<8} {c.data} {c.hora}  "
               f"{_pct(rel.variacoes.get(c.ticker))}{marca}")
+    for t in rel.ja_atualizadas:
+        print(f"  {t}: 1,00 já definida hoje")
     for f in rel.falhas:
         print(f"  FALHA  {f}")
     if rel.anomalias:
@@ -103,7 +140,10 @@ def main():
             extra = ""
         print(f"\nGravado: dados/cotacoes.csv +{rel.gravadas}{extra}")
     elif not rel.obtidas and not rel.falhas:
-        print("\nNada gravado: dados/posicoes.csv não tem posições ainda.")
+        if rel.pedidos == 0:
+            print("\nNada gravado: dados/posicoes.csv não tem posições ainda.")
+        else:
+            print("\nNada gravado: nada novo a buscar.")
     else:
         print("\nNada gravado: nenhuma cotação obtida.")
     parcial = bool(rel.falhas or rel.propostas_nao_gravadas) and bool(rel.gravadas or (rel.dry_run and rel.obtidas))

@@ -52,6 +52,25 @@ def test_cli_sobrevive_a_console_cp1252(tmp_path):
     assert "alvo" in r.stdout and "acoes-br" in r.stdout
 
 
+def test_cli_diretorio_no_lugar_do_csv_vira_mensagem_nao_traceback(tmp_path):
+    """Guarda do OSError em validar_workspace.py estava inteiramente sem cobertura. Diretório
+    no lugar de um CSV força OSError em qualquer SO (sem depender de chmod, que só derruba
+    escrita, não leitura)."""
+    ws = tmp_path / "ws"
+    shutil.copytree(EXEMPLO, ws)
+    cfg = ws / "vault.config.yaml"
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace("motor: '../..'", f"motor: '{MOTOR.as_posix()}'"),
+                   encoding="utf-8")
+    cot = ws / "dados" / "cotacoes.csv"
+    cot.unlink()
+    cot.mkdir()
+    r = roda(str(ws))
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "Traceback" not in r.stderr and "Traceback" not in r.stdout
+    assert "erro:" in r.stdout
+    assert "dados/cotacoes.csv" in r.stdout
+
+
 def test_cli_errors_only_omite_avisos(tmp_path):
     ws = tmp_path / "ws"
     shutil.copytree(EXEMPLO, ws)

@@ -11,6 +11,19 @@ if hasattr(sys.stderr, "reconfigure"):
 from po.validar import validar  # noqa: E402
 
 
+def _mensagem_os(e: OSError, raiz: str | Path) -> str:
+    """PermissionError/IsADirectoryError etc. viram frase acionável, com caminho relativo ao
+    workspace quando possível — não um repr de exceção nem um traceback."""
+    caminho = e.filename or str(e)
+    try:
+        caminho = Path(caminho).resolve().relative_to(Path(raiz).resolve()).as_posix()
+    except (ValueError, TypeError, OSError):
+        pass
+    motivo = e.strerror or str(e)
+    return (f"erro: não consegui ler/gravar {caminho} ({motivo}). "
+           "O arquivo está aberto no Excel ou o OneDrive está sincronizando?")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("raiz", nargs="?", default=".", help="raiz do workspace (default: .)")
@@ -19,7 +32,7 @@ def main():
     try:
         erros, avisos = validar(args.raiz)
     except OSError as e:
-        print(f"erro: {e}")
+        print(_mensagem_os(e, args.raiz))
         sys.exit(1)
     for e in erros:
         print(f"ERRO  {e}")
