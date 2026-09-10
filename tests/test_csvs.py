@@ -303,3 +303,41 @@ def test_indices_fonte_no_vocabulario(tmp_path):
     p = _csv(tmp_path, "indices", "data,indice,valor,fonte\n2026-08-31,ibov,140000,chute\n")
     _, erros = ler_csv("indices", p)
     assert any("fonte" in e and "vocabulário" in e for e in erros)
+
+
+def _provento(bruto, liquido):
+    return {"data": "2026-08-20", "ticker": "WELL", "cnpj": "", "tipo": "dividendo",
+            "valor_bruto": bruto, "valor_liquido": liquido, "conta": "corretora-us", "moeda": "USD"}
+
+
+def test_provento_liquido_de_sinal_oposto_ao_bruto_e_erro():
+    """Retenção não inverte o sinal de um provento. Sem esta régua, um ajuste de imposto com um
+    dígito a mais (-15,30 no lugar de -1,53 sobre dividendo de 5,10) gravava líquido NEGATIVO, e
+    a conciliação declarava a linha conferida porque compara valor_bruto com a célula de onde ele
+    saiu — valor_liquido, o campo que o ajuste move, não era conferido por nada."""
+    erros = validar_linha("proventos", _provento(5.10, -10.20), "linha 2")
+    assert any("sinal oposto" in e and "linha 2" in e for e in erros)
+
+
+def test_provento_liquido_maior_que_bruto_em_modulo_e_erro():
+    assert any("maior que valor_bruto" in e
+               for e in validar_linha("proventos", _provento(5.10, 7.00), "linha 2"))
+    assert any("maior que valor_bruto" in e
+               for e in validar_linha("proventos", _provento(-5.10, -7.00), "linha 2"))
+
+
+@pytest.mark.parametrize("bruto,liquido,porque", [
+    (5.10, 3.57, "caso normal do NRA tax adj da Schwab"),
+    (-5.10, -5.10, "estorno: os dois negativos, mesmo módulo"),
+    (5.10, 0.0, "retenção levou tudo"),
+    (5.10, 5.10, "sem retenção: líquido igual ao bruto"),
+])
+def test_provento_com_retencao_plausivel_passa(bruto, liquido, porque):
+    assert validar_linha("proventos", _provento(bruto, liquido), "linha 2") == [], porque
+
+
+def test_provento_invariante_tambem_vale_lendo_do_csv(tmp_path):
+    p = _csv(tmp_path, "proventos", "data,ticker,cnpj,tipo,valor_bruto,valor_liquido,conta,moeda\n"
+             "2026-08-20,WELL,,dividendo,5.10,-10.20,corretora-us,USD\n")
+    _, erros = ler_csv("proventos", p)
+    assert any("sinal oposto" in e for e in erros)

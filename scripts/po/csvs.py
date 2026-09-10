@@ -128,6 +128,20 @@ def validar_linha(nome: str, linha: dict, onde: str) -> list[str]:
         erros.append(f"{onde}: qty de fill deve ser positiva (venda usa tipo=venda, não sinal)")
     if nome == "posicoes" and isinstance(linha["qty"], float) and linha["qty"] <= 0:
         erros.append(f"{onde}: qty de posição deve ser positiva (v1 não admite short)")
+    if nome == "proventos":
+        bruto, liquido = linha["valor_bruto"], linha["valor_liquido"]
+        if isinstance(bruto, float) and isinstance(liquido, float):
+            # Líquido é bruto menos retenção: mesmo sinal e nunca maior em módulo. Sem isto, um
+            # ajuste de imposto com um dígito a mais (-15,30 no lugar de -1,53 sobre um dividendo
+            # de 5,10) grava provento líquido NEGATIVO e a conciliação declara a linha conferida,
+            # porque ela compara valor_bruto com a mesma célula de onde valor_bruto saiu.
+            if bruto * liquido < 0:
+                erros.append(f"{onde}: valor_liquido {liquido:g} tem sinal oposto ao valor_bruto "
+                             f"{bruto:g} — retenção não inverte o sinal de um provento; confira o "
+                             "ajuste de imposto do documento")
+            elif abs(liquido) > abs(bruto) + 1e-9:
+                erros.append(f"{onde}: valor_liquido {liquido:g} maior que valor_bruto {bruto:g} "
+                             "em módulo — líquido é bruto menos retenção, nunca mais")
     return erros
 
 

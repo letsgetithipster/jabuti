@@ -59,7 +59,8 @@ colunas:                       # apelido -> nome EXATO no cabeçalho
   valor: Valor
 extrair:                       # opcional: regex por apelido, aplicada ao VALOR daquela coluna
   produto: "^(?P<ticker>[A-Z0-9]{4,6}) - "   # grupos viram apelidos; nome de grupo não pode
-                                             # repetir apelido de colunas (sobrescreveria a coluna)
+                                             # repetir apelido de colunas (sobrescreveria a coluna
+                                             # na linha inteira). Vale igual nos grupos de `quando`.
 linhas:                        # primeira regra que casa vence; nenhuma casa = ERRO
   - quando: {descricao: "^RENDIMENTO (?P<ticker>[A-Z0-9]{4,6})$"}   # todos os regex da regra precisam casar
     destino: proventos         # posicoes | fills | proventos | eventos | ignorar | ajuste
@@ -67,6 +68,10 @@ linhas:                        # primeira regra que casa vence; nenhuma casa = E
   - quando: {descricao: "^TED"}
     destino: ignorar
     motivo: caixa
+  - quando: {descricao: "^SALDO DISPONIVEL$"}
+    destino: ignorar         # rodapé de saldo DENTRO da tabela: não vira registro e, com
+    motivo: rodapé de saldo  # fora-da-cadeia, também não entra na aritmética do saldo-corrente
+    fora-da-cadeia: true     # só vale em `ignorar`
   - quando: {descricao: "^IMPOSTO (?P<ticker>[A-Z0-9]+)$"}
     destino: ajuste            # soma {valor} no campo da linha principal com a mesma chave
     aplica-em: proventos
@@ -94,7 +99,17 @@ pt-BR e US (`1.234,56`, `$1,234.56`, `-R$ 5,00`); data segue `datas.formatos`.
 
 Numa cadeia de `saldo-corrente`, linha com saldo e sem valor é **âncora**: só a
 primeira da cadeia abre saldo; da segunda em diante ela tem que repetir o saldo
-anterior, senão é salto sem lançamento que o explique.
+anterior, senão é salto sem lançamento que o explique. `ignorar` significa "não
+vira registro", não "não conta na aritmética": um rodapé de saldo disponível ou
+bloqueado dentro da tabela precisa de `fora-da-cadeia: true` na regra, senão ele
+continua na cadeia e a quebra.
+
+Em `valor-da-linha`, provento cujo campo conciliado é literalmente `"{valor}"`
+não é conferência: os dois lados da comparação saem da mesma célula. Essas linhas
+aparecem no resumo como **apenas transcritas** e não contam como conferidas. Se
+forem tudo o que o documento tinha a oferecer à conciliação, a importação para —
+declare `saldo-corrente` ou aponte `proventos:` para um campo que o documento
+calcule (`valor_liquido`, quando há coluna de imposto).
 
 Sem `tolerancia` declarada, cada tipo usa o seu default: um centavo em
 `saldo-corrente` e `valor-da-linha`, e em `total-declarado` sobre `campo*campo`

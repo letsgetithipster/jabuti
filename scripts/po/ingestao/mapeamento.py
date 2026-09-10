@@ -15,7 +15,8 @@ erro de validação, não é ignorada em silêncio — ver _desconhecidas):
                                                    # grupo não pode ter o nome de um apelido de colunas
   linhas: [ {quando: {apelido: regex}, destino: posicoes|fills|proventos|eventos|ignorar|ajuste,
              campos: {campo do schema: literal | "{apelido}" | "{apelido|padrão}"},
-             motivo (ignorar) | aplica-em, campo, chave, valor (ajuste)} ]
+             motivo (ignorar) | aplica-em, campo, chave, valor (ajuste),
+             fora-da-cadeia: bool (só em ignorar; tira a linha da cadeia de saldo-corrente)} ]
   conciliacao: {tipo: saldo-corrente (valor, saldo, ordem)
                     | valor-da-linha (proventos: valor_bruto|valor_liquido)
                     | total-declarado (soma: campo | campo*campo; origem: flag | {linha-contem, coluna: apelido});
@@ -26,7 +27,17 @@ Regras: primeira que casa vence; linha que não casa nenhuma é ERRO no engine. 
 de um apelido é AND (todos têm que casar). As regex de `quando`/`extrair`/`detectar` rodam com
 `search`, não `fullmatch`: "^TED" ancora no início, mas "TED" solto casa em qualquer posição.
 Grupos nomeados das regex (?P<ticker>...) viram apelidos disponíveis nos templates, só dentro
-da regra onde aparecem (não vazam para outras regras — ver escopo de `apelidos` por regra).
+da regra onde aparecem (não vazam para outras regras — ver escopo de `apelidos` por regra). Em
+`quando` e em `extrair`, o grupo NÃO pode ter o nome de um apelido de colunas: o engine faz
+ctx.update com o groupdict, então um grupo `valor` sobrescreveria a coluna Valor em toda linha
+que casa, e a conciliação leria o mesmo contexto envenenado dos dois lados da igualdade.
+
+`fora-da-cadeia: true` (só em `destino: ignorar`) tira a linha da aritmética de `saldo-corrente`,
+além de não virar registro. É para rodapé de saldo dentro da tabela (saldo disponível, saldo
+bloqueado), que mostra um saldo que não pertence à cadeia de lançamentos. Sem ela, a única saída
+era subir a tolerância até engolir o salto, o que desliga a conferência do documento inteiro.
+Linha que vira registro move saldo e fica na cadeia, por isso a chave é recusada nos outros
+destinos. O elo entre a regra e a linha é o `motivo`.
 
 Preenchimento de `campos` (regra "destino não consegue preencher"): todo campo do schema do
 destino tem que estar coberto por um de — chave em `campos`; apelido de mesmo nome (colunas ou
@@ -58,7 +69,8 @@ CHAVES_TOPO = {"nome", "versao", "descricao", "observacoes", "verificado-contra-
                "conciliacao"}
 CHAVES_ARQUIVO = {"formato", "aba", "encoding", "delimitador", "cabecalho-contem", "fim-em-vazio"}
 CHAVES_DATAS = {"formatos", "extrair"}
-CHAVES_REGRA = {"quando", "destino", "campos", "motivo", "aplica-em", "campo", "chave", "valor"}
+CHAVES_REGRA = {"quando", "destino", "campos", "motivo", "aplica-em", "campo", "chave", "valor",
+                "fora-da-cadeia"}
 CHAVES_CONCILIACAO = {"tipo", "valor", "saldo", "ordem", "proventos", "soma", "origem", "tolerancia"}
 PREENCHIDOS_PELO_MAPA = {"conta", "moeda"}
 DESTINOS = DESTINOS_TABELA | {"ignorar", "ajuste"}
@@ -173,9 +185,27 @@ def validar_mapeamento(mapa: object) -> list[str]:
                 if apelido not in colunas:
                     erros.append(f"{onde}: quando.{apelido} não é um apelido de colunas")
                 try:
-                    apelidos |= _grupos(regex)
+                    grupos = _grupos(regex)
                 except (re.error, TypeError) as e:
                     erros.append(f"{onde}: regex inválida em quando.{apelido} ({e})")
+                    continue
+                # A MESMA colisão de `extrair`, no caminho mais usado dos dois: o engine faz
+                # ctx.update com o groupdict aqui também. Um grupo chamado `valor` numa regra de
+                # `quando` substitui o valor da coluna `valor` em toda linha que casa, e a
+                # conciliação não pega porque ela lê o mesmo contexto já envenenado — os dois
+                # lados da igualdade viram o número errado. Noventa reais viram nove, sem um erro.
+                colidem = sorted(grupos & set(colunas))
+                if colidem:
+                    erros.append(f"{onde}: quando.{apelido} tem grupo(s) {colidem} com o nome de "
+                                 "apelido(s) de colunas e sobrescreveriam a coluna na linha "
+                                 "inteira — renomeie o grupo")
+                apelidos |= grupos
+        fora = regra.get("fora-da-cadeia", False)
+        if not isinstance(fora, bool):
+            erros.append(f"{onde}: fora-da-cadeia deve ser true ou false, veio {fora!r}")
+        elif fora and regra.get("destino") != "ignorar":
+            erros.append(f"{onde}: fora-da-cadeia só vale em destino: ignorar — linha que vira "
+                         "registro move saldo e tem que ficar na cadeia")
         destino = regra.get("destino")
         if not em_vocabulario(destino, DESTINOS):
             erros.append(f"{onde}: destino {destino!r} fora de {sorted(DESTINOS)}")

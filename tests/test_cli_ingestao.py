@@ -1,4 +1,4 @@
-"""Contrato de linha de comando do importar_extrato.py, por subprocesso de verdade.
+"""Contrato de linha de comando dos CLIs de ingestão, por subprocesso de verdade.
 
 A Task 15 transforma este output em contrato de skill: quem chama precisa ramificar pelo
 código de saída, sem parsear texto. Por isso cada código documentado tem um teste aqui.
@@ -13,6 +13,7 @@ from test_validar_dados import copia_exemplo
 
 RAIZ = Path(__file__).resolve().parent.parent
 CLI = RAIZ / "scripts" / "importar_extrato.py"
+CLI_INSPECAO = RAIZ / "scripts" / "inspecionar_extrato.py"
 
 MAPA_EXTRATO = """\
 nome: teste-extrato
@@ -260,3 +261,62 @@ def test_gravacao_parcial_nomeia_o_que_entrou_e_a_rodada_seguinte_completa(tmp_p
     fills = (ws / "dados" / "fills.csv").read_text(encoding="utf-8").splitlines()
     abertura = [linha for linha in fills if ",VALE3," in linha]                # e a abertura nasceu
     assert abertura == ["2026-09-08,VALE3,saldo-inicial,10,60,0,corretora-br,BRL"]
+
+
+def test_provento_com_liquido_negativo_sai_1_e_nada_entra_em_dados(tmp_path):
+    """C2 pelo CLI, com o mapeamento real da Schwab e a fixture adulterada no ajuste de imposto
+    (-$15.30 no lugar de -$1.53). Antes, dividendo líquido negativo entrava em dados/ com a
+    rodada declarando "4 linha(s) conferidas"."""
+    ws = copia_exemplo(tmp_path)
+    cfg = ws / "vault.config.yaml"
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace(
+        "    moeda: BRL", "    moeda: BRL\n  - id: corretora-us\n    nome: \"Schwab\"\n    moeda: USD", 1),
+        encoding="utf-8")
+    (ws / "mapeamentos").mkdir(exist_ok=True)
+    mapa = ws / "mapeamentos" / "teste.yaml"
+    mapa.write_text((RAIZ / "mapeamentos" / "schwab-transacoes.yaml").read_text(encoding="utf-8"),
+                    encoding="utf-8")
+    doc = ws / "inbox" / "s.csv"
+    fixture = RAIZ / "tests" / "fixtures" / "extratos" / "schwab-transacoes.csv"
+    doc.write_text(fixture.read_text(encoding="utf-8").replace("-$1.53", "-$15.30"), encoding="utf-8")
+    antes = instantaneo(ws)
+    r = roda(ws, doc)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "depois do ajuste" in r.stdout and "sinal oposto" in r.stdout
+    assert "Traceback" not in r.stderr
+    assert instantaneo(ws) == antes
+
+
+def _inspeciona(*args):
+    return subprocess.run([sys.executable, str(CLI_INSPECAO), *[str(a) for a in args]],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+
+def test_inspecionar_arquivo_inexistente_sai_1_com_frase(tmp_path):
+    """Erro que sai 0 é silêncio para quem encadeia comandos: a inspeção devolvia a frase
+    "arquivo não encontrado" como resultado normal, e o CLI a imprimia e saía 0."""
+    r = _inspeciona(tmp_path / "nao-existe.csv")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "arquivo não encontrado" in r.stdout and "confira o caminho" in r.stdout
+    assert "Traceback" not in r.stderr
+
+
+def test_inspecionar_diretorio_sai_1_dizendo_que_e_diretorio(tmp_path):
+    (tmp_path / "umdir").mkdir()
+    r = _inspeciona(tmp_path / "umdir")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "é um diretório" in r.stdout and "Traceback" not in r.stderr
+
+
+def test_inspecionar_arquivo_de_verdade_sai_0(tmp_path):
+    """Controle: o código de saída tem que separar erro de sucesso, não reprovar tudo."""
+    doc = tmp_path / "x.csv"
+    doc.write_text("Ativo,Preco\nPETR4,30.00\n", encoding="utf-8")
+    r = _inspeciona(doc)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "PETR4" in r.stdout
+
+
+def test_inspecionar_sem_argumento_sai_2():
+    r = _inspeciona()
+    assert r.returncode == 2, r.stdout + r.stderr

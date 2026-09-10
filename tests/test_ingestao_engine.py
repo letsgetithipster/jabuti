@@ -77,7 +77,7 @@ def test_template_com_padrao_e_ajuste_por_chave():
     f = r.registros["fills"][0]
     assert (f["data"], f["tipo"], f["qty"], f["preco"], f["taxa"], f["ticker"]) == ("2026-08-05", "compra", 2.0, 230.5, 0.0, "AAPL")
     erros, desc = conciliar(mapa, t, r)
-    assert erros == [] and "2 linha(s)" in desc
+    assert erros == [] and "1 linha(s) conferidas" in desc and "1 provento(s) apenas transcrito" in desc
 
 
 def test_ajuste_sem_principal_e_erro():
@@ -204,6 +204,18 @@ def test_tolerancia_declarada_vale_em_saldo_corrente_e_valor_da_linha():
     erros, desc = conciliar(m, t, executar(m, t))
     assert erros == [] and "tolerância 1 (declarada no mapeamento)" in desc
 
+    # E em valor-da-linha, que o nome deste teste promete e que antes ele não tocava. A compra
+    # declara 461,50 e o produto dá 461,00: reprova no default de um centavo, passa com 1,00.
+    linhas = [{"quando": {"descricao": r"^COMPRA (?P<ticker>[A-Z0-9]+) (?P<qty>\d+) (?P<preco>[\d,\.]+)$"},
+               "destino": "fills", "campos": {"tipo": "compra", "taxa": "0"}}]
+    doc = [["20/08/2026", "COMPRA AAPL 2 230,50", "461,50", "1"]]
+    apertado = dict(MAPA_OK, linhas=linhas, conciliacao={"tipo": "valor-da-linha"})
+    t2 = _tab(doc)
+    assert any("461.00" in e and "461.50" in e for e in conciliar(apertado, t2, executar(apertado, t2))[0])
+    frouxo = dict(apertado, conciliacao={"tipo": "valor-da-linha", "tolerancia": 1.0})
+    erros2, desc2 = conciliar(frouxo, t2, executar(frouxo, t2))
+    assert erros2 == [] and "tolerância 1 (declarada no mapeamento)" in desc2
+
 
 def test_documento_de_uma_linha_nao_passa_vazio():
     t = _tab([["20/08/2026", "RENDIMENTO HGLG11", "99,00", "1.099,00"]])
@@ -269,3 +281,70 @@ def test_total_declarado_de_linha_do_documento():
     r = executar(mapa, t, data_padrao="2026-08-01")
     erros, desc = conciliar(mapa, t, r)
     assert erros == [] and "3000.00" in desc
+
+
+def test_valor_da_linha_com_todo_provento_transcrito_nao_finge_conferencia():
+    """`valor_bruto: "{valor}"` compara a célula com ela mesma. Um mapeamento em que TODO provento
+    é assim e que não tem fill nenhum não prova aritmética alguma: dizer "1 linha conferida" era
+    afirmar prova que não houve. Tem que parar e dizer o que fazer no lugar."""
+    m = dict(MAPA_OK, linhas=[MAPA_OK["linhas"][0]], conciliacao={"tipo": "valor-da-linha"})
+    t = _tab([["20/08/2026", "RENDIMENTO HGLG11", "99,00", "1.300,00"],
+              ["19/08/2026", "RENDIMENTO PETR4", "1,00", "1.301,00"]])
+    r = executar(m, t)
+    assert r.erros == []
+    erros, desc = conciliar(m, t, r)
+    assert any("não conferiu linha nenhuma" in e and "saldo-corrente" in e
+               and "valor_liquido" in e for e in erros)
+    assert "0 linha(s) conferidas" in desc and "2 provento(s) apenas transcrito" in desc
+
+
+def test_provento_transcrito_nao_e_erro_quando_ha_conferencia_de_verdade():
+    """Contra-prova da anterior: com um fill no mesmo documento, a conciliação tem o que provar.
+    A linha transcrita continua não contando como conferida, mas não para a importação."""
+    m = dict(MAPA_OK, linhas=[
+        MAPA_OK["linhas"][0],
+        {"quando": {"descricao": r"^COMPRA (?P<ticker>[A-Z0-9]+) (?P<qty>\d+) (?P<preco>[\d,.]+)$"},
+         "destino": "fills", "campos": {"tipo": "compra", "taxa": "0"}}],
+        conciliacao={"tipo": "valor-da-linha"})
+    t = _tab([["20/08/2026", "RENDIMENTO HGLG11", "99,00", "1.300,00"],
+              ["19/08/2026", "COMPRA PETR4 10 30,00", "-300,00", "1.000,00"]])
+    erros, desc = conciliar(m, t, executar(m, t))
+    assert erros == []
+    assert "1 linha(s) conferidas" in desc and "1 provento(s) apenas transcrito" in desc
+
+
+RODAPE = [["20/08/2026", "RENDIMENTO HGLG11", "99,00", "1.300,00"],
+          ["19/08/2026", "TED SAIDA", "-500,00", "1.201,00"],
+          ["", "SALDO DISPONIVEL", "", "5.000,00"]]
+
+
+def _com_rodape(fora: bool):
+    regra = {"quando": {"descricao": "^SALDO DISPONIVEL$"}, "destino": "ignorar",
+             "motivo": "rodapé de saldo disponível, fora do extrato"}
+    if fora:
+        regra["fora-da-cadeia"] = True
+    return dict(MAPA_OK, linhas=list(MAPA_OK["linhas"]) + [regra])
+
+
+def test_rodape_de_saldo_dentro_da_tabela_sem_a_chave_acusa_o_salto():
+    """`ignorar` é "não vira registro", não "não conta na aritmética": o rodapé continuava na
+    cadeia de saldos e a quebrava. Sem escotilha, a única saída era subir a tolerância até
+    engolir o salto, o que desliga a conferência do documento inteiro."""
+    m = _com_rodape(fora=False)
+    t = _tab(RODAPE)
+    r = executar(m, t)
+    assert r.erros == [] and len(r.ignoradas) == 2
+    erros, _ = conciliar(m, t, r)
+    assert any("5000.00" in e for e in erros)
+
+
+def test_rodape_marcado_fora_da_cadeia_fecha_limpo():
+    m = _com_rodape(fora=True)
+    t = _tab(RODAPE)
+    r = executar(m, t)
+    assert r.erros == []
+    erros, desc = conciliar(m, t, r)
+    assert erros == [] and "1 par(es)" in desc
+    # e o rodapé continua ignorado como qualquer outra linha de `ignorar`: fora da cadeia não
+    # é fora do documento, ele segue contado e nomeado
+    assert (4, "rodapé de saldo disponível, fora do extrato") in r.ignoradas

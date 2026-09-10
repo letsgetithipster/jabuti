@@ -62,7 +62,10 @@ def test_diretorio_no_lugar_do_arquivo(tmp_path):
         ler_tabela(tmp_path / "umdir", {"formato": "csv"})
     with pytest.raises(FileNotFoundError):
         ler_tabela(tmp_path / "umdir", {"formato": "xlsx"})
-    assert "não encontrado" in inspecionar(tmp_path / "umdir")
+    with pytest.raises(FileNotFoundError, match="é um diretório"):
+        inspecionar(tmp_path / "umdir")
+    with pytest.raises(FileNotFoundError, match="não encontrado"):
+        inspecionar(tmp_path / "nao.csv")
 
 
 def test_xlsx_mantem_tipos_das_celulas(tmp_path):
@@ -183,3 +186,15 @@ def test_numero_da_linha_e_a_linha_fisica_mesmo_com_branco_no_meio(tmp_path):
 
 def test_tabela_construida_a_mao_mantem_a_aritmetica():
     assert [Tabela(["a"], [["x"], ["y"]], 1).numero_da_linha(i) for i in range(2)] == [2, 3]
+
+
+def test_inspecionar_aba_inexistente_vira_frase_com_as_abas(tmp_path):
+    """Engano mais comum de quem inspeciona xlsx: nome de aba errado virava KeyError cru."""
+    openpyxl = pytest.importorskip("openpyxl")
+    wb = openpyxl.Workbook()
+    wb.active.title = "Extrato"
+    p = tmp_path / "x.xlsx"
+    wb.save(p)
+    for aba in ("NaoExiste", 7):
+        with pytest.raises(ValueError, match="não existe"):
+            inspecionar(p, aba=aba)

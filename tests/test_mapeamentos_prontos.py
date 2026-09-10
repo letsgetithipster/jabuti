@@ -36,7 +36,21 @@ def test_todo_mapeamento_do_motor_declara_a_propria_tolerancia():
     for p in (MOTOR / "mapeamentos").glob("*.yaml"):
         mapa = carregar_mapeamento(p)
         assert mapa["conciliacao"].get("tolerancia"), f"{p.stem} não declara conciliacao.tolerancia"
-        assert "olerância" in mapa["observacoes"], f"{p.stem} não justifica a tolerância em observacoes"
+        assert any(p in mapa["observacoes"].lower() for p in ("tolerância", "tolerancia")), f"{p.stem} não justifica a tolerância em observacoes"
+
+
+SIM = {"sim"}
+NAO = {"não", "nao", "modelo"}
+
+
+def _diz_sim(celula: str, nome: str) -> bool:
+    """Primeira palavra da célula, sem ênfase markdown. Conjunto explícito nos dois lados: um
+    `startswith("sim")` aceitaria "simulado" e "sim, parcialmente" como verificado, que é
+    exatamente a afirmação bonita que este teste existe para barrar. Palavra fora do vocabulário
+    é falha, não um `False` silencioso."""
+    palavra = celula.strip().lstrip("*").split()[0].strip("*,.:;").lower()
+    assert palavra in SIM | NAO, f"{nome}: célula do README começa com {palavra!r}, fora de {sorted(SIM | NAO)}"
+    return palavra in SIM
 
 
 def test_readme_dos_prontos_reflete_o_campo_verificado_de_cada_yaml():
@@ -50,7 +64,7 @@ def test_readme_dos_prontos_reflete_o_campo_verificado_de_cada_yaml():
     assert set(linhas) == set(listar_mapeamentos(MOTOR / "nao-existe", MOTOR))
     for nome, dito in linhas.items():
         verificado = carregar_mapeamento(MOTOR / "mapeamentos" / f"{nome}.yaml")["verificado-contra-export-real"]
-        assert dito.startswith("sim") is bool(verificado), f"{nome}: README diz {dito!r}"
+        assert _diz_sim(dito, nome) is bool(verificado), f"{nome}: README diz {dito!r}"
 
 
 def test_clear_extrato(tmp_path):
@@ -117,7 +131,10 @@ def test_schwab_transacoes():
     ev = res.registros["eventos"]
     assert len(ev) == 1
     assert (ev[0]["ticker"], ev[0]["tipo"], ev[0]["confirmado"], ev[0]["data"]) == ("MNST", "split", "nao", "2026-08-11")
-    assert len(res.ignoradas) == 1 and "4 linha(s)" in desc
+    # 2 conferidas (os dois fills, cujo qty × preço ± taxa é prova de verdade) e 2 apenas
+    # transcritas: o valor_bruto do dividendo SAI da coluna que a conciliação leria.
+    assert len(res.ignoradas) == 1
+    assert "2 linha(s) conferidas" in desc and "2 provento(s) apenas transcrito" in desc
     assert all(p["moeda"] == "USD" and p["conta"] == "corretora-us" for p in res.registros["proventos"])
 
 
@@ -174,3 +191,17 @@ def test_fixtures_nao_carregam_dado_pessoal():
     for t in textos:
         for p in proibidos:
             assert p.lower() not in t.lower()
+
+
+def test_schwab_ajuste_de_imposto_com_digito_a_mais_para(tmp_path):
+    """C2 de ponta a ponta. O NRA Tax Adj da WELL com um dígito a mais (-$15.30 no lugar de
+    -$1.53, sobre um dividendo de $5.10) gravava dividendo líquido NEGATIVO com "4 linha(s)
+    conferidas": `valor-da-linha` comparava valor_bruto com a mesma célula de onde ele saiu, e
+    valor_liquido, o único campo que o ajuste move, não era conferido por nada."""
+    doc = tmp_path / "s.csv"
+    doc.write_text((FIX / "schwab-transacoes.csv").read_text(encoding="utf-8").replace("-$1.53", "-$15.30"),
+                   encoding="utf-8")
+    _, res, erros, _ = _rodar("schwab-transacoes", doc)
+    assert any("depois do ajuste" in e and "sinal oposto" in e for e in erros)
+    # e o registro envenenado não sobrevive à rodada: com res.erros preenchido, o CLI não grava
+    assert res.erros

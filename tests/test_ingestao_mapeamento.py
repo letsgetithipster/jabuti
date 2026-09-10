@@ -337,3 +337,51 @@ def test_chaves_desconhecidas_de_tipos_mistos_nao_levantam(bloco):
     alvo = m if bloco is None else m[bloco]
     alvo.update({1: "a", "zzz": 2, True: 3})
     assert validar_mapeamento(m)      # reprova, não levanta
+
+
+def test_quando_com_grupo_de_nome_de_coluna_e_erro():
+    """A mesma colisão de `extrair`, no caminho mais usado dos dois: o engine faz ctx.update com
+    o groupdict de `quando` também. Um grupo `valor` sobrescreve a coluna Valor na linha inteira,
+    e a conciliação não pega porque lê o mesmo contexto envenenado — os dois lados da igualdade
+    viram o número errado. Documento com Valor = 99,00 e histórico "... DE 9,00" gravava 9,00."""
+    m = dict(MAPA_OK, linhas=[
+        {"quando": {"descricao": r"^RENDIMENTO (?P<ticker>[A-Z0-9]+) DE (?P<valor>[\d,.]+)$"},
+         "destino": "proventos",
+         "campos": {"tipo": "rendimento", "valor_bruto": "{valor}", "valor_liquido": "{valor}"}}])
+    erros = validar_mapeamento(m)
+    assert any("linhas[1]" in e and "quando.descricao" in e and "['valor']" in e
+               and "sobrescreveriam" in e for e in erros)
+
+
+def test_quando_com_grupo_que_nao_colide_continua_aceito():
+    """Controle da recusa acima: grupo nomeado é o mecanismo normal da DSL. A recusa vale para a
+    colisão com apelido de colunas, não para grupo nomeado em geral."""
+    m = dict(MAPA_OK, linhas=[
+        {"quando": {"descricao": r"^RENDIMENTO (?P<ticker>[A-Z0-9]+)$"}, "destino": "proventos",
+         "campos": {"tipo": "rendimento", "valor_bruto": "{valor}", "valor_liquido": "{valor}"}}])
+    assert validar_mapeamento(m) == []
+
+
+def test_carregar_recusa_grupo_de_quando_colidindo_e_nomeia_o_grupo(tmp_path):
+    p = tmp_path / "m.yaml"
+    p.write_text(yaml.safe_dump(dict(MAPA_OK, linhas=[
+        {"quando": {"descricao": r"^RENDIMENTO (?P<ticker>[A-Z0-9]+) DE (?P<valor>[\d,.]+)$"},
+         "destino": "proventos",
+         "campos": {"tipo": "rendimento", "valor_bruto": "{valor}", "valor_liquido": "{valor}"}}]),
+        allow_unicode=True), encoding="utf-8")
+    with pytest.raises(ValueError, match=r"\['valor'\]"):
+        carregar_mapeamento(p)
+
+
+def test_fora_da_cadeia_so_vale_em_ignorar():
+    """`ignorar` é "não vira registro", não "não conta na aritmética". A escotilha existe para
+    rodapé de saldo dentro da tabela; linha que vira registro move saldo e fica na cadeia."""
+    ok = dict(MAPA_OK, linhas=[
+        MAPA_OK["linhas"][0],
+        {"quando": {"descricao": "^SALDO DISPONIVEL$"}, "destino": "ignorar",
+         "motivo": "rodapé de saldo disponível", "fora-da-cadeia": True}])
+    assert validar_mapeamento(ok) == []
+    grava = dict(MAPA_OK, linhas=[dict(MAPA_OK["linhas"][0], **{"fora-da-cadeia": True})])
+    assert any("fora-da-cadeia só vale em destino: ignorar" in e for e in validar_mapeamento(grava))
+    nao_bool = dict(MAPA_OK, linhas=[dict(MAPA_OK["linhas"][1], **{"fora-da-cadeia": "sim"})])
+    assert any("fora-da-cadeia deve ser true ou false" in e for e in validar_mapeamento(nao_bool))

@@ -2,6 +2,12 @@
 desenhar o mapeamento. Não converte nem grava nada.
 
 Uso: python scripts/inspecionar_extrato.py <arquivo> [--aba NOME|N] [--linhas N]
+
+Códigos de saída:
+  0  documento inspecionado (o dump saiu no stdout)
+  1  não deu para inspecionar: arquivo inexistente, travado, aba que não existe ou
+     dependência ausente (openpyxl para xlsx)
+  2  uso inválido (argumento faltando ou desconhecido)
 """
 import argparse
 import sys
@@ -24,7 +30,10 @@ def main():
     aba = int(args.aba) if args.aba is not None and args.aba.isdigit() else args.aba
     try:
         print(inspecionar(args.arquivo, aba=aba, n=args.linhas))
-    except DependenciaAusente as e:
+    except (DependenciaAusente, ValueError) as e:
+        print(f"erro: {e}")
+        sys.exit(1)
+    except FileNotFoundError as e:   # antes de OSError: "aberto no Excel?" não ajuda quem errou o caminho
         print(f"erro: {e}")
         sys.exit(1)
     except OSError as e:   # PermissionError é irmã de FileNotFoundError, não filha — pega as duas

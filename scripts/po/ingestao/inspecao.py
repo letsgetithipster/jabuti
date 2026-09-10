@@ -16,7 +16,12 @@ def _fmt(linha) -> str:
 def inspecionar(caminho: str | Path, aba: str | int | None = None, n: int = N_PADRAO) -> str:
     caminho = Path(caminho)
     if not caminho.is_file():   # exists() é verdade para diretório
-        return f"{caminho}: arquivo não encontrado"
+        # Levanta, não devolve: a frase era o retorno normal da função, e o CLI a imprimia e
+        # saía 0. Erro que sai 0 é silêncio para quem encadeia comandos, e a saída deste CLI
+        # é contrato de skill.
+        o_que = "é um diretório, não um arquivo" if caminho.is_dir() else "arquivo não encontrado"
+        raise FileNotFoundError(f"{caminho}: {o_que} — confira o caminho (aspas se tiver espaço) "
+                                "e aponte o export da corretora, não a pasta que o contém")
     if caminho.suffix.lower() == ".xlsx":
         return _xlsx(caminho, aba, n)
     return _csv(caminho, n)
@@ -55,7 +60,13 @@ def _xlsx(caminho: Path, aba, n: int) -> str:
     if aba is None:
         abas = wb.worksheets
     else:
-        abas = [wb.worksheets[aba] if isinstance(aba, int) else wb[aba]]
+        # Aba errada é o engano mais comum de quem inspeciona xlsx pela primeira vez. Sem isto
+        # virava KeyError/IndexError cru, com traceback e sem dizer que abas existem — a mesma
+        # frase que ler_tabela já dá, porque um fato mora em um lugar só.
+        try:
+            abas = [wb.worksheets[aba] if isinstance(aba, int) else wb[aba]]
+        except (KeyError, IndexError):
+            raise ValueError(f"{caminho.name}: aba {aba!r} não existe (abas: {wb.sheetnames})") from None
     for ws in abas:
         linhas = [list(r) for r in ws.iter_rows(values_only=True)]
         out += ["", f"== aba {ws.title!r} ({len(linhas)} linhas)"]

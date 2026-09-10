@@ -130,7 +130,7 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
                 grupos.update({k: v for k, v in m.groupdict().items() if v is not None})
             if ok:
                 ctx.update(grupos)
-                escolhida = regra
+                escolhida, ordem_escolhida = regra, ordem
                 res.acertos[ordem] = res.acertos.get(ordem, 0) + 1
                 break
         if escolhida is None:
@@ -144,7 +144,9 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
         if destino == "ajuste":
             ajustes.append((n, escolhida, ctx))
             continue
-        registro = {"_linha": n}
+        # `_regra` deixa a conciliação saber de qual regra o registro veio, para não
+        # contar como "conferida" a linha cujo campo saiu da mesma célula que ela compara.
+        registro = {"_linha": n, "_regra": ordem_escolhida}
         campos = escolhida.get("campos") or {}
         falhou = False
         for campo in SCHEMAS[destino]:
