@@ -7,7 +7,7 @@ TIPOS = {
     "perfil", "alocacao", "frameworks", "rituais",
     "tese", "tese-semente", "watchlist",
     "estado", "setup", "foto",
-    "log-aporte", "log-venda", "log-decisao", "log-revisao",
+    "log-aporte", "log-venda", "log-decisao", "log-revisao", "log-importacao",
 }
 # 'data' é chave legítima nos logs; os aliases herdados do vault ficam proibidos:
 ALIASES_PROIBIDOS = {"criado", "atualizado", "ultima-revisao"}
