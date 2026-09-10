@@ -16,7 +16,11 @@ def main():
     ap.add_argument("raiz", nargs="?", default=".", help="raiz do workspace (default: .)")
     ap.add_argument("--errors-only", action="store_true", help="omite avisos na saída")
     args = ap.parse_args()
-    erros, avisos = validar(args.raiz)
+    try:
+        erros, avisos = validar(args.raiz)
+    except OSError as e:
+        print(f"erro: {e}")
+        sys.exit(1)
     for e in erros:
         print(f"ERRO  {e}")
     if not args.errors_only:

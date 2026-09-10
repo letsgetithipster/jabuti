@@ -27,7 +27,7 @@ def buscar_bcb(url, timeout=15.0, headers=None):
 
 
 def test_registry_fecha_com_o_vocabulario_de_fonte():
-    assert set(REGISTRY) | {"manual"} == FONTES_COTACAO
+    assert set(REGISTRY) | {"manual", "definicao"} == FONTES_COTACAO
     with pytest.raises(ValueError):
         criar_provider("chute")
 

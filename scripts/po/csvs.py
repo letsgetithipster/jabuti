@@ -35,7 +35,8 @@ TIPOS_EVENTO = {"split", "grupamento", "bonificacao", "subscricao", "fusao", "ci
                 "variacao-anomala", "outro"}
 CONFIRMADO = {"sim", "nao"}
 INDICES = {"ibov", "sp500", "usdbrl", "cdi", "ipca", "selic"}
-FONTES_COTACAO = {"yahoo", "brapi", "bcb-sgs", "manual"}   # registry de providers + manual
+FONTES_COTACAO = {"yahoo", "brapi", "bcb-sgs", "manual", "definicao"}   # registry de providers + manual
+# definicao: valor que decorre da unidade (saldo em conta vale 1,00), não observação de mercado
 VOCABULARIOS = {
     ("posicoes", "classe"): CLASSES,
     ("fills", "tipo"): TIPOS_FILL,

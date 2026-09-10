@@ -1,10 +1,15 @@
+import csv
+import datetime
+import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-from po.cotacoes.atualizar import atualizar
+import atualizar_cotacoes as cli_mod
+from po.cotacoes.atualizar import Relatorio, atualizar
 from po.cotacoes.tipos import Cotacao, SemRede
 from po.csvs import ler_csv
 from test_validar_dados import copia_exemplo
@@ -96,12 +101,59 @@ def test_variacao_anomala_grava_cotacao_e_propoe_evento_sem_duplicar(tmp_path):
     eventos, _ = ler_csv("eventos", ws / "dados" / "eventos.csv")
     assert len(eventos) == 1
     assert (eventos[0]["ticker"], eventos[0]["tipo"], eventos[0]["confirmado"]) == ("PETR4", "variacao-anomala", "nao")
-    assert "-50.0%" in eventos[0]["razao"]
+    assert "-50,00%" in eventos[0]["razao"]
     # segunda rodada com o mesmo preço: proposta aberta já existe, não duplica
     rel2 = atualizar(ws, provider=ProviderFalso({"PETR4": 20.0, "HGLG11": 160.0}, data="2026-09-10"))
     assert rel2.propostas == []
     eventos, _ = ler_csv("eventos", ws / "dados" / "eventos.csv")
     assert len(eventos) == 1
+
+
+def test_anomalia_ja_aberta_e_sinalizada_no_relatorio(tmp_path):
+    ws = _ws_yahoo(tmp_path)
+    atualizar(ws, provider=ProviderFalso({"PETR4": 20.0, "HGLG11": 160.0}))   # -50%, abre a proposta
+    rel2 = atualizar(ws, provider=ProviderFalso({"PETR4": 5.0, "HGLG11": 160.0}, data="2026-09-10"))   # -75%
+    assert any("PETR4" in a and "já existe proposta aberta em eventos.csv" in a for a in rel2.anomalias)
+    assert rel2.propostas == []   # não duplica: a de PETR4 já está aberta
+
+
+def test_baseline_zero_e_tratada_como_primeira_cotacao(tmp_path):
+    ws = _ws_yahoo(tmp_path)
+    pos = ws / "dados" / "posicoes.csv"
+    pos.write_text(pos.read_text(encoding="utf-8") + "VALE3,acoes-br,corretora-br,10,60.00,BRL\n", encoding="utf-8")
+    fills = ws / "dados" / "fills.csv"
+    fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,VALE3,saldo-inicial,10,60.00,0,corretora-br,BRL\n", encoding="utf-8")
+    cot = ws / "dados" / "cotacoes.csv"
+    cot.write_text(cot.read_text(encoding="utf-8") + "2026-09-01,18:00,VALE3,0.00,BRL,manual\n", encoding="utf-8")
+    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0, "VALE3": 65.0}))
+    assert rel.variacoes["VALE3"] is None                # 0 como base não vira divisão por zero
+    assert not any("VALE3" in a for a in rel.anomalias)  # nem falsa anomalia de +infinito
+
+
+def test_proposta_nao_gravada_vira_aviso_sem_perder_a_cotacao(tmp_path, monkeypatch):
+    """Reproduz o Critical: eventos.csv trancado (Excel/OneDrive) não pode apagar a proposta em
+    silêncio nem perder a cotação já obtida. -62,5% em PETR4 (40,00 -> 15,00), igual ao repro do
+    revisor."""
+    import po.cotacoes.atualizar as mod
+    original = mod.anexar_csv
+
+    def _falha_so_em_eventos(nome, caminho, linhas):
+        if nome == "eventos":
+            raise PermissionError("[Errno 13] Permission denied")
+        return original(nome, caminho, linhas)
+
+    monkeypatch.setattr(mod, "anexar_csv", _falha_so_em_eventos)
+    ws = _ws_yahoo(tmp_path)
+    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 15.0, "HGLG11": 160.0}))
+    assert rel.gravadas == 2   # a cotação (o preço real) foi gravada mesmo assim
+    assert rel.propostas_nao_gravadas is not None
+    motivo, linhas = rel.propostas_nao_gravadas
+    assert "Permission denied" in motivo
+    assert linhas and linhas[0]["ticker"] == "PETR4"
+    linhas_cot, erros = ler_csv("cotacoes", ws / "dados" / "cotacoes.csv")
+    assert erros == [] and any(l["ticker"] == "PETR4" and l["preco"] == 15.0 for l in linhas_cot)
+    eventos, _ = ler_csv("eventos", ws / "dados" / "eventos.csv")
+    assert eventos == []   # nada meio-escrito em eventos.csv
 
 
 def test_manual_cobre_classe_sem_mercado_e_provider_faz_o_resto(tmp_path):
@@ -115,6 +167,24 @@ def test_manual_cobre_classe_sem_mercado_e_provider_faz_o_resto(tmp_path):
     assert any(c.ticker == "CDB-X" and c.fonte == "manual" for c in rel.obtidas)
 
 
+def test_manual_sobrepoe_provider_para_o_mesmo_ticker(tmp_path):
+    """restantes filtra por p.ticker not in manual — sem isso o provider cotaria PETR4 de novo
+    e uma segunda linha (com o preço do provider) apareceria ao lado da manual."""
+    ws = _ws_yahoo(tmp_path)
+    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 41.0, "HGLG11": 161.0}), manual={"PETR4": 99.0})
+    petr4 = [c for c in rel.obtidas if c.ticker == "PETR4"]
+    assert len(petr4) == 1
+    assert petr4[0].preco == 99.0 and petr4[0].fonte == "manual"
+
+
+def test_manual_ticker_sem_posicao_vira_falha_mas_nao_trava_o_resto(tmp_path):
+    ws = _ws_yahoo(tmp_path)
+    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 41.0, "HGLG11": 161.0}), manual={"FANTASMA": 10.0})
+    assert any("FANTASMA" in f and "sem posição" in f for f in rel.falhas)
+    assert "FANTASMA" not in {c.ticker for c in rel.obtidas}
+    assert rel.gravadas == 2   # PETR4 e HGLG11 seguem normalmente
+
+
 def test_saldo_em_conta_vale_um_por_definicao(tmp_path):
     ws = _ws_yahoo(tmp_path)
     pos = ws / "dados" / "posicoes.csv"
@@ -123,12 +193,52 @@ def test_saldo_em_conta_vale_um_por_definicao(tmp_path):
     fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,CAIXA,saldo-inicial,5000,1.00,0,corretora-br,BRL\n", encoding="utf-8")
     rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0}))
     assert rel.falhas == [] and rel.sinteticas == ["CAIXA"]
-    assert any(c.ticker == "CAIXA" and c.preco == 1.0 and c.fonte == "manual" for c in rel.obtidas)
+    assert any(c.ticker == "CAIXA" and c.preco == 1.0 and c.fonte == "definicao" for c in rel.obtidas)
     rf = ws / "dados" / "posicoes.csv"          # rf-br continua exigindo --manual: o valor muda
     rf.write_text(rf.read_text(encoding="utf-8") + "CDB-X,rf-br,corretora-br,1,1000.00,BRL\n", encoding="utf-8")
     fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-02,CDB-X,saldo-inicial,1,1000.00,0,corretora-br,BRL\n", encoding="utf-8")
     rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0}), dry_run=True)
     assert any("CDB-X" in f for f in rel.falhas)
+
+
+def test_saldo_ja_sintetizado_hoje_nao_duplica(tmp_path):
+    ws = _ws_yahoo(tmp_path)
+    pos = ws / "dados" / "posicoes.csv"
+    pos.write_text(pos.read_text(encoding="utf-8") + "CAIXA,caixa,corretora-br,5000,1.00,BRL\n", encoding="utf-8")
+    fills = ws / "dados" / "fills.csv"
+    fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,CAIXA,saldo-inicial,5000,1.00,0,corretora-br,BRL\n", encoding="utf-8")
+    agora = datetime.datetime(2026, 9, 9, 12, 0)
+    rel1 = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0}), agora=agora)
+    assert rel1.sinteticas == ["CAIXA"]
+    rel2 = atualizar(ws, provider=ProviderFalso({"PETR4": 41.0, "HGLG11": 161.0}), agora=agora)
+    assert rel2.sinteticas == [] and "CAIXA" not in {c.ticker for c in rel2.obtidas}
+    linhas, _ = ler_csv("cotacoes", ws / "dados" / "cotacoes.csv")
+    assert sum(1 for l in linhas if l["ticker"] == "CAIXA") == 1   # append-only, sem duplicar
+
+
+def test_saldo_em_conta_moeda_estrangeira(tmp_path):
+    ws = _ws_yahoo(tmp_path)
+    (ws / "vault.config.yaml").write_text(CONFIG_DUAS_CONTAS.format(motor=RAIZ.as_posix()), encoding="utf-8")
+    pos = ws / "dados" / "posicoes.csv"
+    pos.write_text(pos.read_text(encoding="utf-8") + "CAIXA-US,caixa,corretora-us,500,1.00,USD\n", encoding="utf-8")
+    fills = ws / "dados" / "fills.csv"
+    fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,CAIXA-US,saldo-inicial,500,1.00,0,corretora-us,USD\n", encoding="utf-8")
+    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0}),
+                    cambio=ProviderFalso({"USDBRL": 5.0}))
+    assert rel.falhas == []
+    assert any(c.ticker == "CAIXA-US" and c.preco == 1.0 and c.moeda == "USD" and c.fonte == "definicao"
+              for c in rel.obtidas)
+
+
+def test_moeda_ambigua_entre_contas_barra_a_rodada(tmp_path):
+    ws = _ws_yahoo(tmp_path)
+    (ws / "vault.config.yaml").write_text(CONFIG_DUAS_CONTAS.format(motor=RAIZ.as_posix()), encoding="utf-8")
+    pos = ws / "dados" / "posicoes.csv"
+    pos.write_text(pos.read_text(encoding="utf-8") + "PETR4,acoes-br,corretora-us,10,8.00,USD\n", encoding="utf-8")
+    fills = ws / "dados" / "fills.csv"
+    fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,PETR4,saldo-inicial,10,8.00,0,corretora-us,USD\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="mais de uma moeda"):
+        atualizar(ws, provider=ProviderFalso({"PETR4": 41.0, "HGLG11": 160.0}))
 
 
 def test_provider_manual_na_config_sem_manual_lista_falhas(tmp_path):
@@ -201,3 +311,95 @@ def test_cli_sem_cotacao_obtida_exit_1(tmp_path):
     r = subprocess.run([sys.executable, str(CLI), str(ws)], capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     assert r.returncode == 1 and "FALHA" in r.stdout and "Nada gravado" in r.stdout
+
+
+def test_cli_posicoes_vazio_mensagem_clara(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    (ws / "dados" / "posicoes.csv").write_text("ticker,classe,conta,qty,pm,moeda\n", encoding="utf-8")
+    r = subprocess.run([sys.executable, str(CLI), str(ws)], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    assert r.returncode == 0
+    assert "não tem posições ainda" in r.stdout
+
+
+def test_cli_parcial_exit_3(tmp_path):
+    ws = copia_exemplo(tmp_path)   # provider: manual — HGLG11 fica sem cotação, PETR4 é gravado
+    r = subprocess.run([sys.executable, str(CLI), str(ws), "--manual", "PETR4=41,00"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode == 3, r.stdout + r.stderr
+    assert "Gravado" in r.stdout and "FALHA" in r.stdout
+
+
+def test_cli_manual_valor_ambiguo_rejeitado(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    r = subprocess.run([sys.executable, str(CLI), str(ws), "--manual", "PETR4=1.500"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode != 0
+    assert "ambíguo" in r.stderr
+    assert "1,500" in r.stderr and "1500" in r.stderr   # as duas leituras oferecidas
+
+
+def test_cli_dry_run_relata_quantidade_de_propostas(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    r = subprocess.run([sys.executable, str(CLI), str(ws), "--dry-run",
+                        "--manual", "PETR4=15,00", "HGLG11=160,00"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "1 proposta(s) de anomalia seriam criadas" in r.stdout
+
+
+def test_cli_preco_satoshi_nao_vira_0_00(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    pos = ws / "dados" / "posicoes.csv"
+    pos.write_text(pos.read_text(encoding="utf-8") + "SHIB,cripto,corretora-br,1000000,0.00000100,BRL\n",
+                   encoding="utf-8")
+    fills = ws / "dados" / "fills.csv"
+    fills.write_text(fills.read_text(encoding="utf-8")
+                     + "2026-08-01,SHIB,saldo-inicial,1000000,0.00000100,0,corretora-br,BRL\n", encoding="utf-8")
+    r = subprocess.run([sys.executable, str(CLI), str(ws), "--dry-run",
+                        "--manual", "PETR4=41,00", "HGLG11=160,00", "SHIB=0,00000123"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode == 0, r.stdout + r.stderr
+    linhas_shib = [l for l in r.stdout.splitlines() if "SHIB" in l]
+    assert linhas_shib and "0.00000123" in linhas_shib[0]
+    assert "0,00 " not in linhas_shib[0]
+
+
+def test_cli_proposta_nao_gravada_imprime_linha_para_colar_e_sai_parcial(tmp_path):
+    """Nível CLI do Critical: eventos.csv trancado no disco de verdade (chmod), não monkeypatch."""
+    ws = _ws_yahoo(tmp_path)
+    eventos = ws / "dados" / "eventos.csv"
+    os.chmod(eventos, stat.S_IREAD)
+    try:
+        r = subprocess.run([sys.executable, str(CLI), str(ws), "--manual", "PETR4=15,00", "HGLG11=160,00"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+    finally:
+        os.chmod(eventos, stat.S_IWRITE | stat.S_IREAD)
+    assert r.returncode == 3, r.stdout + r.stderr
+    assert "Cole estas linhas no fim de dados/eventos.csv" in r.stdout
+    assert "PETR4" in r.stdout
+    linhas, erros = ler_csv("cotacoes", ws / "dados" / "cotacoes.csv")
+    assert erros == [] and any(l["ticker"] == "PETR4" and l["preco"] == 15.0 for l in linhas)
+    # a razão tem vírgula do formatar_brl ("-62,50%"): a linha impressa precisa estar entre aspas
+    # CSV de verdade, senão colar à mão quebra as colunas de eventos.csv em vez de corrigi-lo
+    saida = r.stdout.splitlines()
+    colada = saida[saida.index("Cole estas linhas no fim de dados/eventos.csv:") + 1].strip()
+    campos = next(csv.reader([colada]))
+    assert len(campos) == 5 and campos[1] == "PETR4" and campos[2] == "variacao-anomala"
+    assert "," in campos[3]   # a vírgula sobreviveu DENTRO do campo razão, não virou coluna extra
+    # a linha de resumo não pode contradizer o aviso acima alegando que a proposta foi gravada
+    assert "proposta(s) para confirmar" not in r.stdout
+
+
+def test_cli_sinaliza_cotacao_que_nao_e_de_hoje(tmp_path, monkeypatch, capsys):
+    """--manual sempre data a cotação de hoje, então o único jeito de exercitar o aviso é
+    injetar um Relatório com uma Cotacao de outro dia — equivalente a um provider real que
+    devolveu o último fechamento em vez do pregão de hoje."""
+    fake = Relatorio(dry_run=True, hoje="2026-09-09")
+    fake.obtidas = [Cotacao("2026-09-01", "18:00", "PETR4", 41.0, "BRL", "yahoo")]
+    fake.variacoes = {"PETR4": None}
+    monkeypatch.setattr(cli_mod, "atualizar", lambda *a, **k: fake)
+    monkeypatch.setattr(sys, "argv", ["atualizar_cotacoes.py", str(tmp_path), "--dry-run"])
+    with pytest.raises(SystemExit):
+        cli_mod.main()
+    assert "(não é de hoje)" in capsys.readouterr().out

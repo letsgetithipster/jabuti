@@ -7,6 +7,11 @@ Saldo em conta (classe caixa sem código da B3) vale 1,00 na própria moeda por 
 unidade — não é preço de mercado inventado, é a identidade que o encoding qty×pm já assume, do
 mesmo jeito que a conversão BRL→BRL é 1,0 sem consultar provider.
 Renda fixa (rf-br) NÃO ganha esse tratamento: o valor dela muda e exige --manual.
+
+Se a cotação foi gravada mas a proposta de anomalia não (arquivo travado por Excel/OneDrive,
+por exemplo), perder a proposta em silêncio é pior que não gravar nada: o preço ruim vira a
+base da próxima comparação e a anomalia desaparece para sempre. Por isso a escrita de
+eventos.csv é isolada: falha ali vira `Relatorio.propostas_nao_gravadas`, nunca traceback.
 """
 import datetime
 from dataclasses import dataclass, field
@@ -17,6 +22,7 @@ from po.cotacoes.providers import criar_provider
 from po.cotacoes.providers.manual import ManualProvider
 from po.cotacoes.tipos import Cotacao, pedidos_de_posicoes, sem_cotacao_de_mercado
 from po.csvs import anexar_csv, ler_csv, ultimas_cotacoes
+from po.numeros import formatar_brl, formatar_canonico
 
 LIMIAR_ANOMALIA = 0.30
 
@@ -28,9 +34,11 @@ class Relatorio:
     variacoes: dict[str, float | None] = field(default_factory=dict)  # ticker -> fração vs última (None = primeira)
     anomalias: list[str] = field(default_factory=list)
     propostas: list[dict] = field(default_factory=list)                # linhas propostas em eventos.csv
+    propostas_nao_gravadas: tuple[str, list[dict]] | None = None       # (motivo, linhas) — cole à mão
     sinteticas: list[str] = field(default_factory=list)                # tickers precificados por definição (saldo)
     gravadas: int = 0
     dry_run: bool = False
+    hoje: str = ""
 
 
 def _ler_limpo(nome: str, raiz: Path) -> list[dict]:
@@ -38,6 +46,20 @@ def _ler_limpo(nome: str, raiz: Path) -> list[dict]:
     if erros:
         raise ValueError(f"dados/{nome}.csv com erros — corrija antes (rode o validador): {erros[0]}")
     return linhas
+
+
+def _checar_moeda_unica(posicoes: list[dict]) -> None:
+    """cotacoes.csv guarda uma cotação vencedora por ticker (ver ultimas_cotacoes). Um ticker em
+    duas moedas faria uma sobrescrever a outra em rel.variacoes e, na próxima rodada, compararia
+    preço numa moeda contra base na outra — falsa anomalia de centenas de %. checar_dados já
+    barra isso como ERRO; barrar aqui também evita que a rodada chegue a gravar o resultado."""
+    moedas_do_ticker = {}
+    for p in posicoes:
+        moedas_do_ticker.setdefault(p["ticker"], set()).add(p["moeda"])
+    ambiguos = sorted(t for t, m in moedas_do_ticker.items() if len(m) > 1)
+    if ambiguos:
+        raise ValueError(f"posicoes.csv: {', '.join(ambiguos)} em mais de uma moeda — cotacoes.csv guarda "
+                         "uma cotação vencedora por ticker; corrija antes (rode o validador)")
 
 
 def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_run: bool = False,
@@ -48,12 +70,15 @@ def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_r
     hoje, hora_agora = agora.strftime("%Y-%m-%d"), agora.strftime("%H:%M")
     cfg = carregar_config(raiz)
     posicoes = _ler_limpo("posicoes", raiz)
+    _checar_moeda_unica(posicoes)
     cotacoes_atuais = _ler_limpo("cotacoes", raiz)
     eventos = _ler_limpo("eventos", raiz)
-    rel = Relatorio(dry_run=dry_run)
+    rel = Relatorio(dry_run=dry_run, hoje=hoje)
     pedidos = pedidos_de_posicoes(posicoes)
     if not pedidos:
         return rel
+
+    ultimas = ultimas_cotacoes(cotacoes_atuais)
 
     manual = manual or {}
     if manual:
@@ -66,10 +91,18 @@ def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_r
     restantes = [p for p in pedidos if p.ticker not in manual]
 
     # Saldo em conta: 1,00 na própria moeda por definição da unidade (não é cotação de mercado).
+    # Fonte "definicao": distingue do que o usuário colou (--manual) mesmo quando o número é o mesmo.
     saldos = [p for p in restantes if p.classe == "caixa" and sem_cotacao_de_mercado(p)]
     for p in saldos:
-        rel.obtidas.append(Cotacao(hoje, "00:00", p.ticker, 1.0, p.moeda, "manual"))
+        existente = ultimas.get(p.ticker)
+        ja_sintetizado_hoje = (existente and existente["data"] == hoje
+                               and existente["fonte"] == "definicao" and existente["preco"] == 1.0)
+        if ja_sintetizado_hoje:
+            continue   # append-only: não empilha uma linha idêntica por rodada
+        rel.obtidas.append(Cotacao(hoje, "00:00", p.ticker, 1.0, p.moeda, "definicao"))
         rel.sinteticas.append(p.ticker)
+    # Seguro comparar Pedido por igualdade aqui: pedidos_de_posicoes dedupa por (ticker, moeda),
+    # então dois Pedidos nunca são iguais por valor a menos que sejam o mesmo pedido.
     restantes = [p for p in restantes if p not in saldos]
 
     mercado = [p for p in restantes if p.classe != "cambio"]
@@ -95,7 +128,6 @@ def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_r
             rel.obtidas.extend(obtidas)
             rel.falhas.extend(falhas)
 
-    ultimas = ultimas_cotacoes(cotacoes_atuais)
     abertas = {e["ticker"] for e in eventos if e["tipo"] == "variacao-anomala" and e["confirmado"] == "nao"}
     for c in rel.obtidas:
         ant = ultimas.get(c.ticker)
@@ -105,16 +137,24 @@ def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_r
         pct = c.preco / ant["preco"] - 1
         rel.variacoes[c.ticker] = pct
         if abs(pct) > LIMIAR_ANOMALIA:
-            rel.anomalias.append(f"{c.ticker}: {ant['preco']:g} ({ant['data']}) -> {c.preco:g} ({pct:+.1%}) "
-                                 "— split, grupamento ou ticker trocado? confirme em eventos.csv")
-            if c.ticker not in abertas:
+            pct_txt = f"{formatar_brl(pct * 100)}%"
+            ant_txt, novo_txt = formatar_canonico(ant["preco"]), formatar_canonico(c.preco)
+            ja_aberta = c.ticker in abertas
+            sufixo = " (já existe proposta aberta em eventos.csv)" if ja_aberta else ""
+            rel.anomalias.append(f"{c.ticker}: {ant_txt} ({ant['data']}) -> {novo_txt} ({pct_txt}) "
+                                 f"— split, grupamento ou ticker trocado? confirme em eventos.csv{sufixo}")
+            if not ja_aberta:
                 rel.propostas.append({"data": c.data, "ticker": c.ticker, "tipo": "variacao-anomala",
-                                      "razao": f"{pct:+.1%} vs {ant['data']} ({ant['preco']:g} -> {c.preco:g})",
+                                      "razao": f"{pct_txt} vs {ant['data']} ({ant_txt} -> {novo_txt})",
                                       "confirmado": "nao"})
                 abertas.add(c.ticker)
 
     if not dry_run and rel.obtidas:
+        # Se ESTA falhar, nada foi escrito e a exceção sobe: o CLI declara e ninguém perde nada.
         rel.gravadas = anexar_csv("cotacoes", raiz / "dados" / "cotacoes.csv", [c.como_linha() for c in rel.obtidas])
         if rel.propostas:
-            anexar_csv("eventos", raiz / "dados" / "eventos.csv", rel.propostas)
+            try:   # o preço já está no disco: perder a proposta em silêncio é pior que gravar nada
+                anexar_csv("eventos", raiz / "dados" / "eventos.csv", rel.propostas)
+            except (OSError, ValueError) as e:
+                rel.propostas_nao_gravadas = (str(e), rel.propostas)
     return rel
