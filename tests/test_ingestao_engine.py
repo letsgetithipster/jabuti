@@ -179,6 +179,32 @@ def test_saldo_anterior_sem_valor_ancora_a_cadeia():
     assert erros == [] and "âncora" in desc
 
 
+def test_ancora_no_meio_da_cadeia_tem_que_repetir_o_saldo_anterior():
+    """A primeira linha da cadeia abre saldo do nada (é a abertura). Da segunda em diante, linha
+    sem valor que muda o saldo é lançamento fora do documento, e passava limpo."""
+    m = dict(MAPA_OK, linhas=list(MAPA_OK["linhas"]) + [
+        {"quando": {"descricao": "^SALDO EM"}, "destino": "ignorar", "motivo": "saldo intermediário"}])
+    t = _tab([["20/08/2026", "RENDIMENTO HGLG11", "99,00", "1.099,00"],
+              ["19/08/2026", "SALDO EM 19/08", "", "1.000,00"],
+              ["18/08/2026", "TED SAIDA", "-500,00", "1.000,00"]])
+    erros, desc = conciliar(m, t, executar(m, t))
+    assert erros == [] and "1 âncora(s)" in desc
+    t.linhas[1][3] = "9.998,00"
+    erros, _ = conciliar(m, t, executar(m, t))
+    assert any("âncora" in e and "salto de 8998.00" in e for e in erros)
+
+
+def test_tolerancia_declarada_vale_em_saldo_corrente_e_valor_da_linha():
+    """Tolerância declarada é honrada nos três tipos, não só em total-declarado: mapeamento que
+    a declara e não é obedecido é pior que mapeamento sem a chave."""
+    t = _tab([["20/08/2026", "RENDIMENTO HGLG11", "99,00", "1.099,50"],
+              ["19/08/2026", "TED SAIDA", "-500,00", "1.000,00"]])
+    assert any("saldo 1099.50" in e for e in conciliar(MAPA_OK, t, executar(MAPA_OK, t))[0])
+    m = dict(MAPA_OK, conciliacao=dict(MAPA_OK["conciliacao"], tolerancia=1.0))
+    erros, desc = conciliar(m, t, executar(m, t))
+    assert erros == [] and "tolerância 1 (declarada no mapeamento)" in desc
+
+
 def test_documento_de_uma_linha_nao_passa_vazio():
     t = _tab([["20/08/2026", "RENDIMENTO HGLG11", "99,00", "1.099,00"]])
     erros, _ = conciliar(MAPA_OK, t, executar(MAPA_OK, t))

@@ -1,0 +1,62 @@
+nome: schwab-transacoes
+versao: 1
+descricao: Transactions (CSV) exportado no site da Schwab. Dividendos com NRA tax como ajuste do líquido, compras, vendas, splits e fusões.
+verificado-contra-export-real: true
+observacoes: >
+  Cash In Lieu (dinheiro por fração em fusão) e movimentos de caixa são ignorados. Stock Split e Stock Merger viram
+  propostas em eventos.csv (confirmado nao) com razão vazia para você preencher. A conta default é corretora-us;
+  passe --conta se a sua tem outro id. A data de um evento com "as of" sai do primeiro token (08/11/2026 de
+  "08/11/2026 as of 08/10/2026"), que é a data de processamento e não a efetiva: um dia de diferença num registro
+  que já nasce confirmado nao, e que você confere ao confirmar.
+  Tolerância declarada em um centavo (0,011, com a folga de ponto flutuante): a coluna Amount do export é qty ×
+  price menos as fees, exibidos com a mesma precisão, sem arredondamento intermediário a acomodar.
+detectar:
+  cabecalho-contem: ["Date", "Action", "Symbol", "Description", "Quantity", "Price", "Fees & Comm", "Amount"]
+arquivo:
+  formato: csv
+  encoding: utf-8-sig
+  delimitador: ","
+  cabecalho-contem: ["Date", "Action", "Symbol", "Amount"]
+datas:
+  formatos: ["%m/%d/%Y"]
+  extrair: "^(\\S+)"
+conta: corretora-us
+moeda: USD
+colunas:
+  data: Date
+  acao: Action
+  ticker: Symbol
+  descricao: Description
+  qty: Quantity
+  preco: Price
+  taxa: "Fees & Comm"
+  valor: Amount
+linhas:
+  - quando: {acao: "^(Qualified Dividend|Non-Qualified Div|Cash Dividend|Special Dividend|Pr Yr Cash Div|Qual Div Reinvest)$"}
+    destino: proventos
+    campos: {tipo: dividendo, valor_bruto: "{valor}", valor_liquido: "{valor}"}
+  - quando: {acao: "^NRA Tax Adj$"}
+    destino: ajuste
+    aplica-em: proventos
+    campo: valor_liquido
+    chave: [data, ticker]
+    valor: "{valor}"
+  - quando: {acao: "^Buy$"}
+    destino: fills
+    campos: {tipo: compra, taxa: "{taxa|0}"}
+  - quando: {acao: "^Sell$"}
+    destino: fills
+    campos: {tipo: venda, taxa: "{taxa|0}"}
+  - quando: {acao: "^Stock Split$"}
+    destino: eventos
+    campos: {tipo: split, razao: "", confirmado: nao}
+  - quando: {acao: "^Stock Merger$"}
+    destino: eventos
+    campos: {tipo: fusao, razao: "{descricao}", confirmado: nao}
+  - quando: {acao: "^(Cash In Lieu|Journal|Journaled Shares|Wire Funds|Wire Funds Received|MoneyLink Transfer|MoneyLink Deposit|Bank Interest|Credit Interest|Service Fee|Misc Cash Entry|ADR Mgmt Fee)$"}
+    destino: ignorar
+    motivo: caixa, juros de conta ou tarifa (sem efeito em posição, provento por ticker ou evento)
+conciliacao:
+  tipo: valor-da-linha
+  proventos: valor_bruto
+  tolerancia: 0.011

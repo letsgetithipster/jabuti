@@ -1,0 +1,1 @@
+# mapeamentos/ — mapeamentos de documento → dados/ escritos para AS SUAS corretoras. Versionado (não carrega número). Mesmo nome que um do motor sobrepõe o do motor. Vocabulário e exemplos: mapeamentos/README.md do motor.

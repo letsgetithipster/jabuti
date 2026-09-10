@@ -1,0 +1,41 @@
+nome: exemplo-posicoes-csv
+versao: 1
+descricao: Posições em CSV tabular (ticker, classe, quantidade, preço médio, valor investido, linha Total). Modelo para adaptar ao seu export de custódia.
+verificado-contra-export-real: false
+observacoes: >
+  Copie para mapeamentos/ do workspace e ajuste os nomes das colunas ao seu export. Posição importada nasce com um fill
+  saldo-inicial (qty e preço = PM) na data passada em --data. Conciliação pela linha Total do documento; se o seu export
+  não tiver total, troque origem para flag e passe --total-declarado com o valor que a corretora mostra na tela.
+  Tolerância declarada em um centavo (0,011, com a folga de ponto flutuante), e não o default que escala com a soma
+  das quantidades (0,005 × Σqty). O default é o limite teórico de um PM exibido com 2 casas contra o PM cheio da
+  corretora: em 300 posições de 1.000 ações ele vira R$ 1.500 sobre R$ 3,15 milhões, frouxo a ponto de uma posição
+  inteira de R$ 1.200 sumir sem acusar — que é justamente o que total-declarado existe para pegar. Este modelo assume
+  PM com precisão cheia. Se o seu export arredonda o PM, suba a tolerância aqui com o número que você mediu (numa
+  base real a deriva medida foi R$ 5,38), nunca com o limite teórico.
+detectar:
+  cabecalho-contem: ["Ativo", "Classe", "Quantidade", "Preço médio", "Valor investido"]
+arquivo:
+  formato: csv
+  encoding: utf-8-sig
+  delimitador: ";"
+datas:
+  formatos: ["%d/%m/%Y"]
+conta: corretora-br
+moeda: BRL
+colunas:
+  ticker: Ativo
+  classe: Classe
+  qty: Quantidade
+  pm: Preço médio
+  investido: Valor investido
+linhas:
+  - quando: {ticker: "^Total$"}
+    destino: ignorar
+    motivo: linha de total (usada na conciliação)
+  - quando: {ticker: "^[A-Z0-9]{4,6}$"}
+    destino: posicoes
+conciliacao:
+  tipo: total-declarado
+  soma: qty*pm
+  origem: {linha-contem: Total, coluna: investido}
+  tolerancia: 0.011

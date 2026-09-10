@@ -1,0 +1,70 @@
+nome: b3-movimentacao
+versao: 1
+descricao: Movimentação (xlsx) exportada na Área do Investidor da B3. Proventos, liquidações e eventos por ativo.
+verificado-contra-export-real: false
+observacoes: >
+  Construído a partir do formato documentado (Entrada/Saída, Data, Movimentação, Produto, Instituição, Quantidade,
+  Preço unitário, Valor da Operação) e ainda NÃO conferido contra um export real. Se o seu falhar, rode
+  scripts/inspecionar_extrato.py, ajuste uma cópia em mapeamentos/ do workspace e, se puder, contribua a fixture.
+  JCP aparece líquido; valor_bruto é gravado igual ao líquido. Renda fixa é ignorada (registre à mão no v1).
+  Tolerância declarada em um centavo (0,011, com a folga de ponto flutuante). Valor da Operação é o produto de
+  Quantidade por Preço unitário, e se o seu export exibir o preço arredondado a 2 casas o produto pode não fechar
+  ao centavo: aí a conciliação PARA e diz a diferença, que é o que se quer num mapeamento não verificado. Suba a
+  tolerância numa cópia no workspace, com o número que você mediu, em vez de afrouxar aqui no escuro.
+detectar:
+  cabecalho-contem: ["Entrada/Saída", "Data", "Movimentação", "Produto", "Instituição", "Quantidade", "Preço unitário", "Valor da Operação"]
+arquivo:
+  formato: xlsx
+  aba: 0
+  cabecalho-contem: ["Entrada/Saída", "Movimentação", "Produto"]
+  fim-em-vazio: true
+datas:
+  formatos: ["%d/%m/%Y", "%Y-%m-%d %H:%M:%S"]
+conta: corretora-br
+moeda: BRL
+colunas:
+  sentido: Entrada/Saída
+  data: Data
+  movimentacao: Movimentação
+  produto: Produto
+  instituicao: Instituição
+  qty: Quantidade
+  preco: Preço unitário
+  valor: Valor da Operação
+extrair:
+  produto: "^(?P<ticker>[A-Z0-9]{4,6}) - "
+linhas:
+  - quando: {produto: "^(Tesouro|TESOURO|CDB|LCI|LCA|LC |LF |CRI|CRA|DEB)"}
+    destino: ignorar
+    motivo: renda fixa (sem ticker de bolsa; registre à mão no v1)
+  - quando: {movimentacao: "^Transferência - Liquidação$", sentido: "^Cr[eé]dito$"}
+    destino: fills
+    campos: {tipo: compra, taxa: "0"}
+  - quando: {movimentacao: "^Transferência - Liquidação$", sentido: "^D[eé]bito$"}
+    destino: fills
+    campos: {tipo: venda, taxa: "0"}
+  - quando: {movimentacao: "^Rendimento$"}
+    destino: proventos
+    campos: {tipo: rendimento, valor_bruto: "{valor}", valor_liquido: "{valor}"}
+  - quando: {movimentacao: "^Dividendo$"}
+    destino: proventos
+    campos: {tipo: dividendo, valor_bruto: "{valor}", valor_liquido: "{valor}"}
+  - quando: {movimentacao: "^Juros Sobre Capital Próprio$"}
+    destino: proventos
+    campos: {tipo: jcp, valor_bruto: "{valor}", valor_liquido: "{valor}"}
+  - quando: {movimentacao: "^(Desdobro|Desdobramento)$"}
+    destino: eventos
+    campos: {tipo: split, razao: "", confirmado: nao}
+  - quando: {movimentacao: "^Grupamento$"}
+    destino: eventos
+    campos: {tipo: grupamento, razao: "", confirmado: nao}
+  - quando: {movimentacao: "^Bonificação em Ativos$"}
+    destino: eventos
+    campos: {tipo: bonificacao, razao: "{qty} novas", confirmado: nao}
+  - quando: {movimentacao: "^(Atualização|Fração em Ativos|Leilão de Fração|Cessão de Direitos.*|Direitos? de Subscrição.*|Recibo de Subscrição|Transferência|Empréstimo|Compra|Venda|Resgate|Vencimento|Aplicação|Pagamento de Juros|Amortização|Juros|Cobrança de Taxa Semestral)$"}
+    destino: ignorar
+    motivo: subscrição, fração, custódia ou renda fixa (sem efeito em posição/PM/provento por ticker no v1)
+conciliacao:
+  tipo: valor-da-linha
+  proventos: valor_bruto
+  tolerancia: 0.011

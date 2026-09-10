@@ -1,0 +1,45 @@
+nome: clear-extrato
+versao: 1
+descricao: Extrato da conta (xlsx) exportado no site da Clear. Proventos por ticker; operações em bolsa vêm agregadas por nota e são ignoradas (fills por ticker vêm da nota de corretagem ou do export da B3).
+verificado-contra-export-real: true
+observacoes: >
+  JCP aparece líquido de IRRF no extrato; valor_bruto é gravado igual ao líquido porque o bruto não está no documento.
+  Lançamento que não casa nenhuma regra PARA a importação; acrescente a regra numa cópia em mapeamentos/ do workspace.
+  Tolerância declarada em um centavo (0,011, com a folga de ponto flutuante): saldo-corrente compara uma quantia do
+  documento contra outra do mesmo documento, ambas com 2 casas e sem produto no meio, então não há arredondamento a
+  acomodar. Diferença maior que isso é lançamento faltando, não ruído.
+detectar:
+  cabecalho-contem: ["Movimentação", "Liquidação", "Lançamento", "Valor (R$)", "Saldo (R$)"]
+arquivo:
+  formato: xlsx
+  aba: 0
+  cabecalho-contem: ["Movimentação", "Lançamento", "Valor (R$)"]
+  fim-em-vazio: true
+datas:
+  formatos: ["%Y-%m-%d %H:%M:%S", "%d/%m/%Y"]
+conta: corretora-br
+moeda: BRL
+colunas:
+  data: Movimentação
+  descricao: Lançamento
+  valor: Valor (R$)
+  saldo: Saldo (R$)
+linhas:
+  - quando: {descricao: "^RENDIMENTOS DE CLIENTES (?P<ticker>[A-Z0-9]{4,6}) S/\\s+\\d+"}
+    destino: proventos
+    campos: {tipo: rendimento, valor_bruto: "{valor}", valor_liquido: "{valor}"}
+  - quando: {descricao: "^DIVIDENDOS DE CLIENTES (?P<ticker>[A-Z0-9]{4,6}) S/\\s+\\d+"}
+    destino: proventos
+    campos: {tipo: dividendo, valor_bruto: "{valor}", valor_liquido: "{valor}"}
+  - quando: {descricao: "^JUROS S/ CAPITAL DE CLIENTES (?P<ticker>[A-Z0-9]{4,6}) S/\\s+\\d+"}
+    destino: proventos
+    campos: {tipo: jcp, valor_bruto: "{valor}", valor_liquido: "{valor}"}
+  - quando: {descricao: "^(TED |IRRF |OPERAÇÕES EM BOLSA|TAXA |CORRETAGEM|EMOLUMENTOS|APLICAÇÃO|RESGATE|CRÉDITO|DÉBITO)"}
+    destino: ignorar
+    motivo: caixa, tributo, renda fixa ou nota agregada (sem provento por ticker)
+conciliacao:
+  tipo: saldo-corrente
+  valor: valor
+  saldo: saldo
+  ordem: decrescente
+  tolerancia: 0.011

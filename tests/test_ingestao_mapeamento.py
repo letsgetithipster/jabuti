@@ -95,12 +95,23 @@ def test_conciliacao_tolerancia_declarada_e_valida_ou_erro():
         assert any("conciliacao.tolerancia" in e for e in validar_mapeamento(m))
 
 
-def test_tolerancia_fora_de_total_declarado_e_erro():
-    """Probado: {tipo: valor-da-linha, tolerancia: 5.0} validava limpo e uma discrepância de
-    2,00 ainda reprovava a um centavo — chave que valida e não faz nada."""
-    m = dict(MAPA_OK, conciliacao=dict(MAPA_OK["conciliacao"], tolerancia=5.0))
+def test_tolerancia_vale_nos_tres_tipos_de_conciliacao():
+    """Já foi recusada fora de total-declarado, porque lá era chave que validava e não fazia nada.
+    Desde a calibração da Task 12 os três tipos a honram (test_ingestao_engine cobre o efeito),
+    então o certo é aceitar — e cada mapeamento do motor declara a sua."""
     assert MAPA_OK["conciliacao"]["tipo"] == "saldo-corrente"
-    assert any("conciliacao.tolerancia" in e and "total-declarado" in e for e in validar_mapeamento(m))
+    m = dict(MAPA_OK, conciliacao=dict(MAPA_OK["conciliacao"], tolerancia=5.0))
+    assert validar_mapeamento(m) == []
+
+
+def test_extrair_com_grupo_de_nome_de_coluna_e_erro():
+    """O engine faz ctx.update com o groupdict: um grupo chamado 'valor' sobrescreveria a coluna
+    Valor em toda linha que casa. Erro plausível, não estridente — o pior tipo."""
+    m = dict(MAPA_OK, extrair={"descricao": r"^RENDIMENTO \S+ (?P<valor>[\d,\.]+)$"})
+    erros = validar_mapeamento(m)
+    assert any("extrair.descricao" in e and "['valor']" in e and "sobrescreveriam" in e for e in erros)
+    m = dict(MAPA_OK, extrair={"descricao": r"^RENDIMENTO (?P<ticker>[A-Z0-9]{4,6})$"})
+    assert validar_mapeamento(m) == []
 
 
 def test_datas_extrair_exige_um_grupo():

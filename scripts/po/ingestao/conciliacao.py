@@ -2,7 +2,9 @@
 
 Três tipos (vocabulário fechado, decisão 8):
 - saldo-corrente: saldo[i] = saldo[i-1] + valor[i], linha a linha, sobre TODAS as linhas
-  do documento (ordem crescente ou decrescente declarada).
+  do documento (ordem crescente ou decrescente declarada). Linha com saldo e sem valor é
+  âncora: só a primeira da cadeia pode trazer saldo novo (é a abertura); âncora no meio
+  tem que repetir o saldo anterior, senão é salto sem lançamento que o explique.
 - valor-da-linha: fills: |valor| = qty × preço + taxa (compra) ou − taxa (venda);
   proventos: valor_bruto (ou valor_liquido, declarado) = |valor| quando a linha traz valor.
 - total-declarado: soma de um campo (ou campo*campo) dos registros = total do documento
@@ -18,9 +20,20 @@ ROUNDING_POR_UNIDADE = 0.005   # meia casa: quanto um preço exibido com 2 decim
 # `valor-da-linha` e `saldo-corrente`, que comparam UMA quantia contra outra quantia do mesmo
 # documento. É a medida errada para `total-declarado` com soma de produto (qty*pm): a corretora
 # exibe o PM com 2 casas mas calcula o total com o PM cheio, então o erro cresce com a
-# quantidade — 300 posições de 1.000 ações erram até R$ 1.500 sem que nada esteja errado. Ali a
-# tolerância escala com a soma do primeiro fator, e o mapeamento pode declarar a sua própria
-# em `conciliacao.tolerancia` quando o export traz precisão cheia.
+# quantidade — 300 posições de 1.000 ações erram até R$ 1.500 sem que nada esteja errado. Ali o
+# default escala com a soma do primeiro fator.
+# Isso são DEFAULTS. Qualquer mapeamento, de qualquer um dos três tipos, declara a sua própria
+# em `conciliacao.tolerancia` e justifica o número em `observacoes` — inclusive para apertar: o
+# default de total-declarado é o limite teórico, largo o bastante para uma posição inteira de
+# R$ 1.200 sumir sem acusar, que é justamente o que total-declarado existe para pegar.
+
+
+def _tolerancia(conc: dict, padrao: float = TOL, porque: str = "um centavo") -> tuple[float, str]:
+    """(tolerância, por quê). A declarada no mapeamento vence o default do tipo de conciliação."""
+    declarada = conc.get("tolerancia")
+    if declarada is not None:
+        return float(declarada), "declarada no mapeamento"
+    return padrao, porque
 
 
 def _num(v):
@@ -46,6 +59,8 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
     idx = {ap: tabela.cabecalho.index(nome) for ap, nome in mapa["colunas"].items() if nome in tabela.cabecalho}
     erros = []
 
+    tol, porque_tol = _tolerancia(conc)
+
     if tipo == "saldo-corrente":
         if conc["valor"] not in idx or conc["saldo"] not in idx:
             faltando = [k for k in (conc["valor"], conc["saldo"]) if k not in idx]
@@ -70,9 +85,17 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
         pares = 0
         for (n_ant, _, s_ant), (n, v, s) in zip(pontos, pontos[1:]):
             if v is None:
+                # Âncora fora do início da cadeia. A primeira linha pode trazer um saldo do nada
+                # (é a abertura, e não há elo anterior para conferir); da segunda em diante, uma
+                # linha sem valor não pode mover o saldo — se move, há lançamento fora do
+                # documento, e sem esta conferência o salto passaria limpo.
+                if abs(s - s_ant) > tol:
+                    erros.append(f"linha {n}: âncora sem valor com saldo {s:.2f} ≠ saldo anterior "
+                                 f"(linha {n_ant}) {s_ant:.2f} — salto de {abs(s - s_ant):.2f} sem "
+                                 "lançamento que o explique (só a primeira linha da cadeia abre saldo)")
                 continue
             esperado = s_ant + v
-            if abs(esperado - s) > TOL:
+            if abs(esperado - s) > tol:
                 erros.append(f"linha {n}: saldo {s:.2f} ≠ saldo anterior (linha {n_ant}) {s_ant:.2f} "
                              f"+ valor {v:.2f} = {esperado:.2f}")
             pares += 1
@@ -82,7 +105,8 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
                 return erros, "saldo-corrente: documento sem linhas — nada a conciliar (no-op)"
             erros.append(f"saldo-corrente não conferiu par nenhum ({len(pontos)} linha(s) com saldo"
                          f"{extra}) — o documento não provou a própria aritmética")
-        return erros, f"saldo-corrente: {pares} par(es) de linhas conferidos{extra}"
+        return erros, (f"saldo-corrente: {pares} par(es) de linhas conferidos{extra}, "
+                       f"tolerância {tol:g} ({porque_tol})")
 
     if tipo == "valor-da-linha":
         campo_prov = conc.get("proventos", "valor_bruto")
@@ -96,7 +120,7 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
                 continue
             sinal = 1 if f["tipo"] == "compra" else -1
             esperado = f["qty"] * f["preco"] + sinal * f["taxa"]
-            if abs(abs(declarado) - esperado) > TOL:
+            if abs(abs(declarado) - esperado) > tol:
                 erros.append(f"linha {f['_linha']}: {f['ticker']} {f['tipo']} qty {f['qty']:g} × preço {f['preco']:g} "
                              f"{'+' if sinal > 0 else '−'} taxa {f['taxa']:g} = {esperado:.2f} "
                              f"≠ valor declarado {abs(declarado):.2f}")
@@ -106,12 +130,13 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
             if declarado is None:
                 sem_valor += 1     # o documento não declarou valor nessa linha: nada a provar
                 continue
-            if abs(abs(declarado) - p[campo_prov]) > TOL:
+            if abs(abs(declarado) - p[campo_prov]) > tol:
                 erros.append(f"linha {p['_linha']}: {p['ticker']} {p['tipo']} {campo_prov} {p[campo_prov]:.2f} "
                              f"≠ valor declarado {abs(declarado):.2f}")
             conferidas += 1
         fora = f", {sem_valor} sem valor declarado" if sem_valor else ""
-        return erros, f"valor-da-linha: {conferidas} linha(s) conferidas{fora}"
+        return erros, (f"valor-da-linha: {conferidas} linha(s) conferidas{fora}, "
+                       f"tolerância {tol:g} ({porque_tol})")
 
     origem = conc["origem"]
     if origem == "flag":
@@ -142,14 +167,12 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
                     escala += abs(float(r[fator]))
             except (KeyError, TypeError, ValueError):
                 continue   # tabela sem esses campos não entra na soma
-    declarada = conc.get("tolerancia")
-    if declarada is not None:
-        tolerancia, porque = float(declarada), "declarada no mapeamento"
-    elif fator:
-        tolerancia = max(TOL, ROUNDING_POR_UNIDADE * escala)
-        porque = f"arredondamento de {conc['soma'].split('*')[1].strip()} a 2 casas sobre {escala:g} de {fator}"
+    if fator:
+        tolerancia, porque = _tolerancia(
+            conc, max(TOL, ROUNDING_POR_UNIDADE * escala),
+            f"arredondamento de {conc['soma'].split('*')[1].strip()} a 2 casas sobre {escala:g} de {fator}")
     else:
-        tolerancia, porque = TOL, "um centavo"
+        tolerancia, porque = _tolerancia(conc)
     if abs(soma - total) > tolerancia:
         erros.append(f"soma de {conc['soma']} nos registros = {soma:.2f} ≠ total declarado {total:.2f} "
                      f"({de}); diferença {abs(soma - total):.2f} passa da tolerância {tolerancia:.2f} ({porque})")

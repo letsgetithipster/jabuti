@@ -11,13 +11,16 @@ erro de validação, não é ignorada em silêncio — ver _desconhecidas):
   moeda: BRL|USD|EUR
   colunas: {apelido: "Nome exato no cabeçalho"}   # apelido é escolha livre, não vocabulário fechado
   extrair: {apelido: regex com grupos nomeados}   # roda sobre o VALOR da coluna do apelido (que já
-                                                   # existe em colunas), não sobre a linha inteira
+                                                   # existe em colunas), não sobre a linha inteira;
+                                                   # grupo não pode ter o nome de um apelido de colunas
   linhas: [ {quando: {apelido: regex}, destino: posicoes|fills|proventos|eventos|ignorar|ajuste,
              campos: {campo do schema: literal | "{apelido}" | "{apelido|padrão}"},
              motivo (ignorar) | aplica-em, campo, chave, valor (ajuste)} ]
   conciliacao: {tipo: saldo-corrente (valor, saldo, ordem)
                     | valor-da-linha (proventos: valor_bruto|valor_liquido)
-                    | total-declarado (soma: campo | campo*campo; origem: flag | {linha-contem, coluna: apelido})}
+                    | total-declarado (soma: campo | campo*campo; origem: flag | {linha-contem, coluna: apelido});
+                tolerancia: número positivo, opcional, vale nos três tipos (sobrepõe o default de
+                po.ingestao.conciliacao; justifique o número em observacoes)}
 
 Regras: primeira que casa vence; linha que não casa nenhuma é ERRO no engine. `quando` com mais
 de um apelido é AND (todos têm que casar). As regex de `quando`/`extrair`/`detectar` rodam com
@@ -139,9 +142,18 @@ def validar_mapeamento(mapa: object) -> list[str]:
         if apelido not in colunas:
             erros.append(f"extrair.{apelido}: apelido não existe em colunas")
         try:
-            apelidos_base |= _grupos(regex)
+            grupos = _grupos(regex)
         except (re.error, TypeError) as e:
             erros.append(f"extrair.{apelido}: regex inválida ({e})")
+            continue
+        # Grupo com o nome de uma coluna sobrescreve o valor DELA no contexto da linha (o engine
+        # faz ctx.update com o groupdict). O resultado não é erro, é um valor plausível e errado
+        # em toda linha que casa — o pior tipo de defeito para um documento de dinheiro.
+        colidem = sorted(grupos & set(colunas))
+        if colidem:
+            erros.append(f"extrair.{apelido}: grupo(s) {colidem} têm o nome de apelido(s) de colunas "
+                         "e sobrescreveriam a coluna na linha inteira — renomeie o grupo")
+        apelidos_base |= grupos
     regras = mapa.get("linhas")
     if not isinstance(regras, list) or not regras:
         erros.append("linhas deve ser uma lista não-vazia de regras")
@@ -211,9 +223,6 @@ def validar_mapeamento(mapa: object) -> list[str]:
         if tolerancia is not None:
             if isinstance(tolerancia, bool) or not isinstance(tolerancia, (int, float)) or tolerancia <= 0:
                 erros.append(f"conciliacao.tolerancia deve ser um número positivo (veio {tolerancia!r})")
-            if conc.get("tipo") != "total-declarado":
-                erros.append("conciliacao.tolerancia só vale com conciliacao.tipo total-declarado "
-                             "(é onde ela é honrada — ver po.ingestao.conciliacao)")
     if not isinstance(conc, dict) or not em_vocabulario(conc.get("tipo"), CONCILIACOES):
         erros.append(f"conciliacao.tipo deve ser um de {sorted(CONCILIACOES)} — mapeamento sem conciliação é recusado")
     elif conc["tipo"] == "saldo-corrente":

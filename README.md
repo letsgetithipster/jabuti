@@ -53,6 +53,7 @@ Seu workspace é **privado por desenho** — não o publique. Os fluxos de
 | `rules/` | núcleo de voz e personas, fontes do compilador multi-LLM |
 | `scripts/` | validador, instanciador, geradores — com testes |
 | `fiscal/` | pacotes tributários por ano-fiscal, com validade declarada |
+| `mapeamentos/` | documento de corretora → `dados/`, em YAML: um por export |
 | `exemplos/` | workspace fictício completo, validado em todo commit |
 
 ## Contribuindo
