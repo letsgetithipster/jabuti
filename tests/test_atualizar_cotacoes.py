@@ -96,7 +96,8 @@ def test_variacao_anomala_grava_cotacao_e_propoe_evento_sem_duplicar(tmp_path):
     eventos, _ = ler_csv("eventos", ws / "dados" / "eventos.csv")
     assert len(eventos) == 1
     assert (eventos[0]["ticker"], eventos[0]["tipo"], eventos[0]["confirmado"]) == ("PETR4", "variacao-anomala", "nao")
-    assert "-50" in eventos[0]["razao"]
+    assert "-50.0%" in eventos[0]["razao"]
+    # segunda rodada com o mesmo preço: proposta aberta já existe, não duplica
     rel2 = atualizar(ws, provider=ProviderFalso({"PETR4": 20.0, "HGLG11": 160.0}, data="2026-09-10"))
     assert rel2.propostas == []
     eventos, _ = ler_csv("eventos", ws / "dados" / "eventos.csv")
@@ -148,6 +149,36 @@ def test_posicao_em_usd_pede_cambio_ao_provider_de_cambio(tmp_path):
                     cambio=ProviderFalso({"USDBRL": 5.43}))
     assert rel.falhas == []
     assert {c.ticker for c in rel.obtidas} == {"PETR4", "HGLG11", "AAPL", "USDBRL"}
+
+
+def test_cambio_manual_na_config_sem_cambio_lista_falha(tmp_path):
+    ws = _ws_yahoo(tmp_path)
+    (ws / "vault.config.yaml").write_text(
+        CONFIG_DUAS_CONTAS.format(motor=RAIZ.as_posix()).replace("cambio: bcb-sgs", "cambio: manual"),
+        encoding="utf-8")
+    pos = ws / "dados" / "posicoes.csv"
+    pos.write_text(pos.read_text(encoding="utf-8") + "AAPL,rv-int,corretora-us,2,200.00,USD\n", encoding="utf-8")
+    fills = ws / "dados" / "fills.csv"
+    fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,AAPL,saldo-inicial,2,200.00,0,corretora-us,USD\n", encoding="utf-8")
+    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0, "AAPL": 230.0}))
+    assert any("USDBRL" in f and "--manual USDBRL=" in f for f in rel.falhas)
+    assert "USDBRL" not in {c.ticker for c in rel.obtidas}
+
+
+def test_sem_rede_no_cambio_depois_do_mercado_ok_nao_grava_nada(tmp_path):
+    ws = _ws_yahoo(tmp_path)
+    (ws / "vault.config.yaml").write_text(CONFIG_DUAS_CONTAS.format(motor=RAIZ.as_posix()), encoding="utf-8")
+    pos = ws / "dados" / "posicoes.csv"
+    pos.write_text(pos.read_text(encoding="utf-8") + "AAPL,rv-int,corretora-us,2,200.00,USD\n", encoding="utf-8")
+    fills = ws / "dados" / "fills.csv"
+    fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,AAPL,saldo-inicial,2,200.00,0,corretora-us,USD\n", encoding="utf-8")
+    antes = (ws / "dados" / "cotacoes.csv").read_text(encoding="utf-8")
+    with pytest.raises(SemRede):
+        atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0, "AAPL": 230.0}),
+                  cambio=ProviderSemRede())
+    # o mercado (PETR4, HGLG11, AAPL) já tinha cotação obtida quando o câmbio caiu — nada foi
+    # gravado mesmo assim, porque a escrita acontece uma vez só, no final da rodada inteira
+    assert (ws / "dados" / "cotacoes.csv").read_text(encoding="utf-8") == antes
 
 
 def test_dados_sujos_barram_a_rodada(tmp_path):

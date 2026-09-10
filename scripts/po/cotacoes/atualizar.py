@@ -4,7 +4,8 @@ Regras: sem rede, SemRede sobe e nada é gravado; cada cotação carrega fonte, 
 variação > 30% contra a última cotação vencedora grava a cotação (é o preço real) E propõe
 uma linha em eventos.csv (tipo variacao-anomala, confirmado nao) sem duplicar proposta aberta.
 Saldo em conta (classe caixa sem código da B3) vale 1,00 na própria moeda por definição da
-unidade — não é preço de mercado inventado, é a identidade que o encoding qty×pm já assume.
+unidade — não é preço de mercado inventado, é a identidade que o encoding qty×pm já assume, do
+mesmo jeito que a conversão BRL→BRL é 1,0 sem consultar provider.
 Renda fixa (rf-br) NÃO ganha esse tratamento: o valor dela muda e exige --manual.
 """
 import datetime

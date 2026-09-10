@@ -11,12 +11,13 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+if hasattr(sys.stdout, "reconfigure"):   # console cp1252 do Windows não escreve ≤ nem →
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 from po.cotacoes.atualizar import atualizar  # noqa: E402
 from po.cotacoes.tipos import SemRede  # noqa: E402
 from po.numeros import formatar_brl, parse_valor  # noqa: E402
-
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(errors="replace")
 
 
 def _manual(itens: list[str]) -> dict[str, float]:

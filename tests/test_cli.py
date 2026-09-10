@@ -32,6 +32,26 @@ def test_cli_workspace_quebrado_exit_1(tmp_path):
     assert "ERRO" in r.stdout
 
 
+def test_cli_sobrevive_a_console_cp1252(tmp_path):
+    """Mensagem do validador tem ≤, que não existe em cp1252: sem reconfigure, o CLI morria
+    com UnicodeEncodeError em vez de imprimir a frase — e o pre-commit roda este CLI."""
+    import os
+    ws = tmp_path / "ws"
+    shutil.copytree(EXEMPLO, ws)
+    cfg = ws / "vault.config.yaml"
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace("motor: '../..'", f"motor: '{RAIZ.as_posix()}'"),
+                   encoding="utf-8")
+    alvo = ws / "politica" / "01-alocacao-alvo.md"
+    alvo.write_text(alvo.read_text(encoding="utf-8").replace("| acoes-br | 25 | 35 | 45 |",
+                                                             "| acoes-br | 40 | 35 | 45 |"), encoding="utf-8")
+    env = dict(os.environ, PYTHONIOENCODING="cp1252")
+    r = subprocess.run([sys.executable, str(CLI), str(ws)], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", env=env)
+    assert r.returncode == 1
+    assert "UnicodeEncodeError" not in r.stderr and "Traceback" not in r.stderr
+    assert "alvo" in r.stdout and "acoes-br" in r.stdout
+
+
 def test_cli_errors_only_omite_avisos(tmp_path):
     ws = tmp_path / "ws"
     shutil.copytree(EXEMPLO, ws)

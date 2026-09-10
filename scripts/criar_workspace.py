@@ -7,7 +7,13 @@ import datetime
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+if hasattr(sys.stdout, "reconfigure"):   # console cp1252 do Windows não escreve ≤ nem →
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 MOTOR = Path(__file__).resolve().parent.parent
 TEMPLATE = MOTOR / "templates" / "workspace"
