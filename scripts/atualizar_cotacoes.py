@@ -30,24 +30,42 @@ from po.numeros import formatar_brl, formatar_canonico  # noqa: E402
 
 _ESPACO = re.compile(r"\s+")
 _COM_MOEDA = re.compile(r"^([+-]?)(?:r\$|us\$|\$)?(.*)$", re.IGNORECASE)
-_TRES_CASAS = re.compile(r"[+-]?\d{1,3}\.\d{3}")
+_MILHAR_PONTO = re.compile(r"^\d{1,3}(\.\d{3}){2,}$")   # 12.345.678: vários grupos, só milhar
+_AMBIGUO = re.compile(r"^[1-9]\d{0,2}\.\d{3}$")         # 5.432: milhar (pt-BR) ou decimal (en-US)
+_NUMERO = re.compile(r"^\d+(\.\d+)?$")
 
 
 def _preco_digitado(texto: str) -> float:
-    """Preço que o USUÁRIO digita, em pt-BR estrito: vírgula é decimal, ponto é milhar.
+    """Preço que o USUÁRIO digita. A regra é explícita porque ler errado aqui vira preço
+    errado gravado, e este é o único lugar do sistema onde um humano digita um número:
+
+      1.234,56 e 1,234.56  → o separador MAIS À DIREITA é o decimal (as duas formas valem)
+      5,432                → vírgula é sempre decimal em entrada digitada
+      41.50 · 0.5 · 30.00  → ponto sozinho com qualquer quantidade de casas != 3 é decimal
+      0.001                → idem: parte inteira 0 não pode ser grupo de milhar
+      12.345.678           → ponto formando vários grupos de 3 é milhar
+      5.432 · 1.500        → RECUSADO, é o único caso ambíguo; a recusa sugere as duas formas
 
     Não usa parse_valor de propósito: aquele parser lê export de corretora, onde milhar com
-    vírgula existe, e leria '5,432' como 5432 — ou seja, leria errado justamente a forma que
-    esta função sugere quando recusa uma entrada ambígua. Aqui a vírgula é sempre decimal, e
-    por isso toda sugestão dada numa recusa é aceita por esta mesma função.
+    vírgula existe, e leria '5,432' como 5432 — justamente a forma que esta função sugere.
     """
     sinal, corpo = _COM_MOEDA.match(_ESPACO.sub("", texto)).groups()
-    if _TRES_CASAS.fullmatch(corpo):   # 5.432 pode ser milhar (pt-BR) ou decimal (en-US)
+    tem_ponto, tem_virgula = "." in corpo, "," in corpo
+    if tem_ponto and tem_virgula:
+        if corpo.rfind(",") > corpo.rfind("."):
+            corpo = corpo.replace(".", "").replace(",", ".")
+        else:
+            corpo = corpo.replace(",", "")
+    elif tem_virgula:
+        corpo = corpo.replace(",", ".")
+    elif _AMBIGUO.fullmatch(corpo):
         raise SystemExit(
             f"erro: --manual {texto.strip()!r} é ambíguo: '{corpo}' pode ser milhar ou decimal. "
-            f"Escreva {corpo.replace('.', ',')} para decimal, ou {corpo.replace('.', '')} para milhar.")
-    corpo = corpo.replace(".", "").replace(",", ".")
-    if not re.fullmatch(r"\d+(\.\d+)?", corpo):
+            f"Escreva {sinal}{corpo.replace('.', ',')} para decimal, "
+            f"ou {sinal}{corpo.replace('.', '')} para milhar.")
+    elif _MILHAR_PONTO.fullmatch(corpo):
+        corpo = corpo.replace(".", "")
+    if not _NUMERO.fullmatch(corpo):
         raise SystemExit(f"erro: preço inválido em --manual {texto.strip()!r}")
     valor = float(sinal + corpo)
     if not math.isfinite(valor) or valor <= 0:

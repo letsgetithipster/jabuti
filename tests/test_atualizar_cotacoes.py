@@ -384,12 +384,15 @@ def test_cli_manual_valor_ambiguo_rejeitado(tmp_path):
 @pytest.mark.parametrize("digitado,esperado", [
     ("5,432", 5.432), ("1500", 1500.0), ("1.234,56", 1234.56), ("R$ 41,50", 41.5),
     ("0,00012345", 0.00012345), ("US$1,5", 1.5),
+    ("41.50", 41.5), ("0.5", 0.5), ("30.00", 30.0), ("160.75", 160.75),   # ponto decimal: o
+    ("1,234.56", 1234.56), ("12.345.678", 12345678.0),                    # formato do próprio
+    ("0.001", 0.001), ("0.00012345", 0.00012345), ("1.234.567,89", 1234567.89),  # posicoes.csv
 ])
-def test_preco_digitado_em_ptbr(digitado, esperado):
+def test_preco_digitado_em_ptbr_e_em_ponto_decimal(digitado, esperado):
     assert cli_mod._preco_digitado(digitado) == pytest.approx(esperado)
 
 
-@pytest.mark.parametrize("ambiguo", ["5.432", "R$ 5.432", "1.500", "-1.500"])
+@pytest.mark.parametrize("ambiguo", ["5.432", "R$ 5.432", "1.500", "10.000"])
 def test_a_sugestao_da_recusa_e_aceita_por_quem_recusou(ambiguo):
     """A recusa só serve se a forma que ela manda digitar for lida do jeito que ela promete."""
     with pytest.raises(SystemExit) as exc:
