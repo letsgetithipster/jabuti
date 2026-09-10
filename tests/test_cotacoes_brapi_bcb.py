@@ -6,7 +6,7 @@ import pytest
 from po.cotacoes.providers import REGISTRY, criar_provider
 from po.cotacoes.providers.bcb_sgs import SERIES, BcbSgsProvider
 from po.cotacoes.providers.brapi import BrapiProvider
-from po.cotacoes.tipos import Pedido, RespostaInvalida
+from po.cotacoes.tipos import Pedido, RespostaInvalida, SemRede
 from po.csvs import FONTES_COTACAO
 
 FIX = Path(__file__).resolve().parent / "fixtures" / "cotacoes"
@@ -94,3 +94,64 @@ def test_bcb_resposta_estranha_e_resposta_invalida():
         return {"erro": "x"}
     with pytest.raises(RespostaInvalida):
         BcbSgsProvider(buscar=estranho).serie(1)
+
+
+def test_criar_provider_repassa_kwargs_por_provider():
+    prov = criar_provider("brapi", buscar=buscar_brapi, token="segredo", pausa=0)
+    cot, falhas = prov.cotar([Pedido("PETR4", "acoes-br", "BRL")])
+    assert falhas == [] and cot[0].fonte == "brapi"
+    cot, falhas = criar_provider("bcb-sgs", buscar=buscar_bcb).cotar([Pedido("USDBRL", "cambio", "BRL")])
+    assert falhas == [] and cot[0].fonte == "bcb-sgs"
+    with pytest.raises(TypeError):        # kwargs são por provider: o bcb-sgs não tem pausa
+        criar_provider("bcb-sgs", buscar=buscar_bcb, pausa=0)
+
+
+def test_brapi_erro_sem_relacao_com_token_nao_sugere_token():
+    def nao_achou(url, timeout=15.0, headers=None):
+        raise RespostaInvalida("HTTP 404: symbol not found")
+    _, falhas = BrapiProvider(buscar=nao_achou, token="segredo", pausa=0).cotar([Pedido("XXXX3", "acoes-br", "BRL")])
+    assert falhas and "BRAPI_TOKEN" not in falhas[0] and "404" in falhas[0]
+
+
+def test_brapi_moeda_diferente_da_esperada():
+    def em_usd(url, timeout=15.0, headers=None):
+        return {"results": [{"symbol": "PETR4", "currency": "USD", "regularMarketPrice": 8.0,
+                             "regularMarketTime": "2026-09-08T20:07:00.000Z"}]}
+    cot, falhas = BrapiProvider(buscar=em_usd, token="s", pausa=0).cotar([Pedido("PETR4", "acoes-br", "BRL")])
+    assert cot == [] and any("USD" in f and "BRL" in f for f in falhas)
+
+
+def test_brapi_timestamp_sem_fuso_nao_vira_cotacao():
+    def sem_fuso(url, timeout=15.0, headers=None):
+        return {"results": [{"symbol": "PETR4", "currency": "BRL", "regularMarketPrice": 40.15,
+                             "regularMarketTime": "2026-09-08 20:07:00"}]}
+    cot, falhas = BrapiProvider(buscar=sem_fuso, token="s", pausa=0).cotar([Pedido("PETR4", "acoes-br", "BRL")])
+    assert cot == [] and any("sem fuso" in f for f in falhas)
+
+
+def test_brapi_sem_rede_propaga():
+    def caiu(url, timeout=15.0, headers=None):
+        raise SemRede("getaddrinfo failed")
+    with pytest.raises(SemRede):
+        BrapiProvider(buscar=caiu, token="s", pausa=0).cotar([Pedido("PETR4", "acoes-br", "BRL")])
+
+
+def test_brapi_throttle_entre_pedidos():
+    dormidas = []
+    prov = BrapiProvider(buscar=buscar_brapi, token="segredo", pausa=0.4, dormir=dormidas.append)
+    prov.cotar([Pedido("PETR4", "acoes-br", "BRL"), Pedido("PETR4", "acoes-br", "BRL")])
+    assert dormidas == [0.4]
+
+
+def test_bcb_ptax_invalida_nao_vira_cotacao():
+    def zero(url, timeout=15.0, headers=None):
+        return [{"data": "08/09/2026", "valor": "0"}]
+    cot, falhas = BcbSgsProvider(buscar=zero).cotar([Pedido("USDBRL", "cambio", "BRL")])
+    assert cot == [] and any("preço inválido" in f for f in falhas)
+
+
+def test_bcb_serie_recusa_valor_nao_finito():
+    def nan(url, timeout=15.0, headers=None):
+        return [{"data": "08/09/2026", "valor": "NaN"}]
+    with pytest.raises(RespostaInvalida, match="não finito"):
+        BcbSgsProvider(buscar=nan).serie(12, 1)

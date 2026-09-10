@@ -4,7 +4,7 @@ idioma: pt-BR
 moeda_base: BRL
 harness: [claude-code]        # alvos de compilação: claude-code, codex, cursor, app-web
 cotacoes:
-  provider: manual            # manual | yahoo | brapi (brapi lê o token da variável de ambiente BRAPI_TOKEN)
+  provider: manual            # manual | yahoo | brapi (brapi lê o token de BRAPI_TOKEN e cobre SÓ a B3 em BRL: com ativo internacional, use yahoo)
   cambio: bcb-sgs             # bcb-sgs | yahoo | manual — usado quando há posição fora do BRL
 contas:
   - id: corretora-br

@@ -9,25 +9,13 @@ import time
 import urllib.parse
 
 from po.cotacoes.http import buscar_json
-from po.cotacoes.tipos import Cotacao, Pedido, RespostaInvalida
+from po.cotacoes.tipos import (Cotacao, Pedido, RespostaInvalida, e_codigo_b3, falha_moeda,
+                               falha_nao_negociado, falha_preco, sem_cotacao_de_mercado)
 
 URL = "https://query1.finance.yahoo.com/v8/finance/chart/{simbolo}?range=1d&interval=1d"
 PAUSA_ENTRE_PEDIDOS = 0.3   # a fonte pública é sensível a rajada
-SEM_MERCADO = {"rf-br"}
 SEMPRE_B3 = {"acoes-br", "fiis"}      # por definição da classe
 SEMPRE_EUA = {"reits-us"}             # idem
-
-
-def _e_codigo_b3(ticker: str) -> bool:
-    """Código da B3 carrega dígito (PETR4, HGLG11, IVVB11, AAPL34, OZ1D); papel americano é
-    só letra (AAPL, GLD, O)."""
-    return any(ch.isdigit() for ch in ticker)
-
-
-def sem_cotacao_de_mercado(p: Pedido) -> bool:
-    """Não é papel negociado: RF privada/tesouro (classe rf-br), ou saldo em conta
-    (classe caixa sem código da B3 — um fundo de caixa listado, tipo AUPO11, tem cotação)."""
-    return p.classe in SEM_MERCADO or (p.classe == "caixa" and not _e_codigo_b3(p.ticker))
 
 
 def simbolo_yahoo(p: Pedido) -> str | None:
@@ -52,7 +40,7 @@ def simbolo_yahoo(p: Pedido) -> str | None:
         return f"{p.ticker}.SA"
     if p.classe in SEMPRE_EUA:
         return p.ticker
-    return f"{p.ticker}.SA" if _e_codigo_b3(p.ticker) else p.ticker
+    return f"{p.ticker}.SA" if e_codigo_b3(p.ticker) else p.ticker
 
 
 class YahooProvider:
@@ -68,8 +56,7 @@ class YahooProvider:
         for p in pedidos:
             simbolo = simbolo_yahoo(p)
             if simbolo is None:
-                falhas.append(f"{p.ticker}: não é papel negociado ({p.classe}) — "
-                              f"passe --manual {p.ticker}=VALOR")
+                falhas.append(falha_nao_negociado(p.ticker, p.classe))
                 continue
             if consultados and self._pausa:
                 self._dormir(self._pausa)
@@ -90,12 +77,10 @@ class YahooProvider:
                               f"({type(e).__name__}: {e})")
                 continue
             if not math.isfinite(preco) or preco <= 0:
-                falhas.append(f"{p.ticker}: yahoo devolveu preço inválido ({preco!r}) para {simbolo} — "
-                              "ativo suspenso ou deslistado? confira o ticker")
+                falhas.append(falha_preco(p.ticker, "yahoo", preco))
                 continue
             if moeda != p.moeda:
-                falhas.append(f"{p.ticker}: yahoo devolveu {moeda}, esperado {p.moeda} (moeda da posição) "
-                              "— confira o ticker")
+                falhas.append(falha_moeda(p.ticker, "yahoo", moeda, p.moeda))
                 continue
             momento = datetime.datetime.fromtimestamp(ts + off, tz=datetime.timezone.utc)
             cotacoes.append(Cotacao(momento.strftime("%Y-%m-%d"), momento.strftime("%H:%M"),

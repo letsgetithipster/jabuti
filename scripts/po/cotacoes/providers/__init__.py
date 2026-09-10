@@ -7,6 +7,8 @@ REGISTRY = {"yahoo": YahooProvider, "brapi": BrapiProvider, "bcb-sgs": BcbSgsPro
 
 
 def criar_provider(nome: str, buscar=None, **kwargs):
+    """kwargs vão para o construtor do provider (ex.: pausa=0 na suíte, token= no brapi).
+    São POR PROVIDER: o bcb-sgs não aceita pausa (é uma chamada por rodada)."""
     if nome not in REGISTRY:
         raise ValueError(f"provider {nome!r} desconhecido (disponíveis: {sorted(REGISTRY)}; "
                          "'manual' é via --manual)")

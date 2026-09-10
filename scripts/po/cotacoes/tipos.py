@@ -10,6 +10,39 @@ class Pedido:
     moeda: str    # moeda ESPERADA da cotação (a da posição; BRL para câmbio)
 
 
+SEM_MERCADO = {"rf-br"}
+
+
+def e_codigo_b3(ticker: str) -> bool:
+    """Código da B3 carrega dígito (PETR4, HGLG11, IVVB11, AAPL34, OZ1D); papel americano é
+    só letra (AAPL, GLD, O)."""
+    return any(ch.isdigit() for ch in ticker)
+
+
+def sem_cotacao_de_mercado(p: Pedido) -> bool:
+    """Não é papel negociado: RF privada/tesouro (classe rf-br), ou saldo em conta (classe
+    caixa sem código da B3 — um fundo de caixa listado, tipo AUPO11, tem cotação).
+
+    Política do INSTRUMENTO, não de um provider: mora aqui pra que todo provider importe as
+    duas metades da decisão (classe e forma do ticker) do mesmo lugar.
+    """
+    return p.classe in SEM_MERCADO or (p.classe == "caixa" and not e_codigo_b3(p.ticker))
+
+
+def falha_nao_negociado(ticker: str, classe: str) -> str:
+    return f"{ticker}: não é papel negociado ({classe}) — passe --manual {ticker}=VALOR"
+
+
+def falha_preco(ticker: str, fonte: str, preco) -> str:
+    return (f"{ticker}: {fonte} devolveu preço inválido ({preco!r}) — "
+            "ativo suspenso ou deslistado? confira o ticker")
+
+
+def falha_moeda(ticker: str, fonte: str, obtida: str, esperada: str) -> str:
+    return (f"{ticker}: {fonte} devolveu {obtida}, esperado {esperada} (moeda da posição) "
+            "— confira o ticker")
+
+
 @dataclass(frozen=True)
 class Cotacao:
     data: str
