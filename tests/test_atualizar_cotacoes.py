@@ -117,17 +117,16 @@ def test_anomalia_ja_aberta_e_sinalizada_no_relatorio(tmp_path):
     assert rel2.propostas == []   # não duplica: a de PETR4 já está aberta
 
 
-def test_baseline_zero_e_tratada_como_primeira_cotacao(tmp_path):
+def test_preco_zero_no_arquivo_para_a_rodada_com_frase(tmp_path):
+    """Preço zerado é o que a fonte devolve para ativo parado, e a régua única do CSV passou a
+    recusá-lo. Antes ele era aceito no arquivo e tratado como "sem base" adiante, e o total do
+    bloco ia a zero com o validador verde. Agora a rodada para e diz o que corrigir."""
     ws = _ws_yahoo(tmp_path)
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") + "VALE3,acoes-br,corretora-br,10,60.00,BRL\n", encoding="utf-8")
-    fills = ws / "dados" / "fills.csv"
-    fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,VALE3,saldo-inicial,10,60.00,0,corretora-br,BRL\n", encoding="utf-8")
     cot = ws / "dados" / "cotacoes.csv"
-    cot.write_text(cot.read_text(encoding="utf-8") + "2026-09-01,18:00,VALE3,0.00,BRL,manual\n", encoding="utf-8")
-    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0, "VALE3": 65.0}))
-    assert rel.variacoes["VALE3"] is None                # 0 como base não vira divisão por zero
-    assert not any("VALE3" in a for a in rel.anomalias)  # nem falsa anomalia de +infinito
+    cot.write_text(cot.read_text(encoding="utf-8") + "2026-09-01,18:00,VALE3,0.00,BRL,manual" + chr(10),
+                   encoding="utf-8")
+    with pytest.raises(ValueError, match="preço deve ser positivo"):
+        atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0}))
 
 
 def test_proposta_nao_gravada_vira_aviso_sem_perder_a_cotacao(tmp_path, monkeypatch):

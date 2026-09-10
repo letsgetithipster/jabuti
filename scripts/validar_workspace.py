@@ -5,9 +5,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from po.cli import mensagem_os, preparar_console  # noqa: E402
-from po.validar import validar  # noqa: E402
 
-preparar_console()
+preparar_console()   # antes dos demais imports de po.*: se um deles
+                     # quebrar, o traceback ainda sai legível no cp1252
+
+from po.validar import validar  # noqa: E402
 
 
 def main():

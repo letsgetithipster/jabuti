@@ -341,3 +341,58 @@ def test_provento_invariante_tambem_vale_lendo_do_csv(tmp_path):
              "2026-08-20,WELL,,dividendo,5.10,-10.20,corretora-us,USD\n")
     _, erros = ler_csv("proventos", p)
     assert any("sinal oposto" in e for e in erros)
+
+
+# --- I2: preço não-positivo é recusado pela régua única, com pista diferente por caso ---
+
+def test_preco_zero_recusado_com_pista_de_ativo_parado(tmp_path):
+    """A guarda existia quatro vezes nas bordas, uma por provider, e faltava na régua única:
+    preço 0 vindo do arquivo zerava o bloco inteiro com o validador verde."""
+    p = escreve(tmp_path, "cotacoes",
+                "data,hora,ticker,preco,moeda,fonte\n2026-09-08,18:00,PETR4,0,BRL,manual\n")
+    _, erros = ler_csv("cotacoes", p)
+    assert any("preço deve ser positivo (veio 0)" in e and "ativo parado" in e for e in erros)
+
+
+def test_preco_negativo_recusado_com_pista_de_sinal(tmp_path):
+    """Preço negativo dava patrimônio negativo com percentual de -100%. Pista diferente da do
+    zero: aqui o que a pessoa tem que olhar é o sinal da linha, não a fonte."""
+    p = escreve(tmp_path, "cotacoes",
+                "data,hora,ticker,preco,moeda,fonte\n2026-09-08,18:00,PETR4,-40.00,BRL,manual\n")
+    _, erros = ler_csv("cotacoes", p)
+    assert any("preço deve ser positivo (veio -40)" in e and "confira o sinal" in e for e in erros)
+    assert not any("ativo parado" in e for e in erros)
+
+
+def test_preco_nao_positivo_recusado_tambem_vindo_da_ingestao():
+    """A régua é a mesma para o que vem de arquivo e para o que vem de parser, antes de gravar."""
+    linha = {"data": "2026-09-08", "hora": "18:00", "ticker": "PETR4", "preco": 0.0,
+             "moeda": "BRL", "fonte": "yahoo"}
+    assert any("positivo" in e for e in validar_linha("cotacoes", linha, "ingestão:1"))
+
+
+def test_valor_de_indice_nao_positivo_recusado(tmp_path):
+    p = escreve(tmp_path, "indices", "data,indice,valor,fonte\n2026-08-31,ibov,0,manual\n")
+    _, erros = ler_csv("indices", p)
+    assert any("valor de índice deve ser positivo" in e for e in erros)
+
+
+# --- N1: o desempate da cotação vencedora olha a hora, não só a data ---
+
+def test_ultimas_cotacoes_desempata_por_hora_nao_por_ordem_do_arquivo():
+    """Comparando só a data, a linha das 09:00 appendada depois vencia a das 18:00 do mesmo dia,
+    em silêncio: é o que acontece no primeiro backfill, reordenação ou série histórica."""
+    cot = [
+        {"data": "2026-09-08", "hora": "18:00", "ticker": "PETR4", "preco": 40.0},
+        {"data": "2026-09-08", "hora": "09:00", "ticker": "PETR4", "preco": 35.0},
+    ]
+    assert ultimas_cotacoes(cot)["PETR4"]["preco"] == 40.0
+
+
+def test_ultimas_cotacoes_mesma_hora_ainda_desempata_pela_ultima_linha():
+    """Empate de (data, hora) mantém a regra antiga: a última linha do arquivo é a boa."""
+    cot = [
+        {"data": "2026-09-08", "hora": "18:00", "ticker": "PETR4", "preco": 40.0},
+        {"data": "2026-09-08", "hora": "18:00", "ticker": "PETR4", "preco": 41.0},
+    ]
+    assert ultimas_cotacoes(cot)["PETR4"]["preco"] == 41.0

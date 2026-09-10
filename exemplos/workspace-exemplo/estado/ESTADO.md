@@ -20,5 +20,5 @@ Total investido: R$ 12.000,00
 Cotações: mais antiga de 2026-09-08 · 2 manual(is) de 2
 
 ## Pendências
-- fiis acima da banda máxima (67% vs 40%): rebalancear via aporte nos blocos abaixo
-- rf-br abaixo do mínimo (0% vs 25%): priorizar nos próximos aportes
+- fiis acima da banda máxima (66,7% vs 40%): rebalancear via aporte nos blocos abaixo
+- rf-br abaixo do mínimo (0,0% vs 25%): priorizar nos próximos aportes

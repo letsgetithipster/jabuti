@@ -128,6 +128,15 @@ def validar_linha(nome: str, linha: dict, onde: str) -> list[str]:
         erros.append(f"{onde}: qty de fill deve ser positiva (venda usa tipo=venda, não sinal)")
     if nome == "posicoes" and isinstance(linha["qty"], float) and linha["qty"] <= 0:
         erros.append(f"{onde}: qty de posição deve ser positiva (v1 não admite short)")
+    if nome == "cotacoes" and isinstance(linha["preco"], float) and linha["preco"] <= 0:
+        # Cada provider já barra preço <= 0 na borda (é o que o Yahoo devolve para ativo parado),
+        # mas a régua única não barrava: preço 0 zerava o bloco e preço negativo dava patrimônio
+        # negativo com percentual de -100%, tudo com o validador verde.
+        pista = ("cotação zerada é o que a fonte devolve para ativo parado, não um preço"
+                 if linha["preco"] == 0 else "preço negativo não existe; confira o sinal da linha")
+        erros.append(f"{onde}: preço deve ser positivo (veio {linha['preco']:g}) — {pista}")
+    if nome == "indices" and isinstance(linha["valor"], float) and linha["valor"] <= 0:
+        erros.append(f"{onde}: valor de índice deve ser positivo (veio {linha['valor']:g})")
     if nome == "proventos":
         bruto, liquido = linha["valor_bruto"], linha["valor_liquido"]
         if isinstance(bruto, float) and isinstance(liquido, float):
@@ -173,12 +182,22 @@ def ler_csv(nome: str, caminho: str | Path) -> tuple[list[dict], list[str]]:
     return linhas, erros
 
 
+def _quando(c: dict) -> tuple[str, str]:
+    """(data, hora) para ordenar. `hora` ausente vira "" — linha de ler_csv sempre tem, mas quem
+    monta dict à mão não deve receber KeyError de uma função de ordenação."""
+    return (c["data"], c.get("hora") or "")
+
+
 def ultimas_cotacoes(cotacoes: list[dict]) -> dict[str, dict]:
-    """Cotação vencedora por ticker: a de DATA mais recente; empate, a última linha do arquivo.
-    Pré-condição: linhas saídas de ler_csv sem erros (comparação de data é textual, exige ISO)."""
+    """Cotação vencedora por ticker: a de (DATA, HORA) mais recente; empate, a última linha do
+    arquivo. `hora` entra no desempate porque ela é validada e gravada em toda linha: comparar só a
+    data escolheria em silêncio a cotação das 09:00 sobre a das 18:00 do mesmo dia no primeiro
+    backfill, reordenação ou importação de série histórica.
+    Pré-condição: linhas saídas de ler_csv sem erros (comparação textual, exige ISO e HH:MM)."""
     melhor = {}
     for c in cotacoes:
-        if c["ticker"] not in melhor or c["data"] >= melhor[c["ticker"]]["data"]:
+        atual = melhor.get(c["ticker"])
+        if atual is None or _quando(c) >= _quando(atual):
             melhor[c["ticker"]] = c
     return melhor
 

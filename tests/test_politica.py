@@ -56,3 +56,13 @@ def test_secao_ausente(tmp_path):
 def test_linha_com_espaco_a_esquerda_nao_encerra_a_tabela(tmp_path):
     bandas, erros = ler_bandas(_ws(tmp_path, "  | acoes-br | 25 | 35 | 45 |\n | fiis | 20 | 30 | 40 |"))
     assert erros == [] and [b.bloco for b in bandas] == ["acoes-br", "fiis"]
+
+
+def test_bloco_duplicado_e_erro_na_leitura(tmp_path):
+    """A detecção mora aqui, e não só no check_politica: o gerador de ESTADO lê por esta função e
+    precisa recusar antes de gravar, senão o bloco repetido sai duas vezes na tabela e a soma dela
+    passa do 'Total investido' impresso logo acima."""
+    bandas, erros = ler_bandas(_ws(tmp_path, "| acoes-br | 25 | 35 | 45 |\n| acoes-br | 25 | 35 | 45 |"))
+    assert any("'acoes-br' duplicado na tabela de bandas" in e for e in erros)
+    assert len(erros) == 1      # uma frase por bloco repetido, não uma por repetição
+    assert bandas                # a tabela segue legível: quem chama decide o que fazer com ela

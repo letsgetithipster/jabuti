@@ -16,9 +16,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from po.cli import caminho_do_erro, mensagem_os, preparar_console  # noqa: E402
-from po.estado import gerar_estado  # noqa: E402
 
-preparar_console()
+preparar_console()   # antes dos demais imports de po.*: se um deles
+                     # quebrar, o traceback ainda sai legível no cp1252
+
+from po.estado import gerar_estado  # noqa: E402
 
 
 def main():
@@ -43,7 +45,7 @@ def main():
             print(f"erro: --data inválida: {args.data!r} — use AAAA-MM-DD")
             sys.exit(1)
     try:
-        caminho = gerar_estado(raiz, hoje=hoje)
+        caminho, texto = gerar_estado(raiz, hoje=hoje)
     except ValueError as e:
         print(f"erro: {e}")
         sys.exit(1)
@@ -57,7 +59,6 @@ def main():
     except OSError as e:
         print(mensagem_os(e, raiz))
         sys.exit(1)
-    texto = caminho.read_text(encoding="utf-8")
     total = next(l for l in texto.splitlines() if l.startswith("Total investido:"))
     print(f"{caminho.relative_to(raiz).as_posix()} regenerado — {total}")
     pendencias = texto.split("## Pendências\n", 1)[1].strip()

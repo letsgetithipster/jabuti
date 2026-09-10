@@ -21,6 +21,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from po.cli import mensagem_os, preparar_console  # noqa: E402
+
+preparar_console()   # antes dos demais imports de po.*: se um deles
+                     # quebrar, o traceback ainda sai legível no cp1252
+
 from po.config import carregar_config, moedas_por_conta  # noqa: E402
 from po.ingestao.conciliacao import conciliar  # noqa: E402
 from po.ingestao.engine import executar  # noqa: E402
@@ -28,8 +32,6 @@ from po.ingestao.escrita import GravacaoParcial, conferir, gravar  # noqa: E402
 from po.ingestao.leitores import DependenciaAusente, ler_tabela  # noqa: E402
 from po.ingestao.mapeamento import carregar_mapeamento, detectar_mapeamento, resolver_mapeamento  # noqa: E402
 from po.numeros import parse_valor  # noqa: E402
-
-preparar_console()
 
 
 def _motor(raiz: Path, cfg: dict) -> Path:

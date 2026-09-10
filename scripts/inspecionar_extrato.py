@@ -15,10 +15,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from po.cli import mensagem_os, preparar_console  # noqa: E402
+
+preparar_console()   # antes dos demais imports de po.*: se um deles
+                     # quebrar, o traceback ainda sai legível no cp1252
+
 from po.ingestao.inspecao import N_PADRAO, inspecionar  # noqa: E402
 from po.ingestao.leitores import DependenciaAusente  # noqa: E402
-
-preparar_console()
 
 
 def main():

@@ -135,6 +135,8 @@ def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_r
     abertas = {e["ticker"] for e in eventos if e["tipo"] == "variacao-anomala" and e["confirmado"] == "nao"}
     for c in rel.obtidas:
         ant = ultimas.get(c.ticker)
+        # `preco == 0` é inalcançável pelo arquivo desde que validar_linha passou a recusá-lo;
+        # fica como defesa: divisão por zero aqui viraria variação de +infinito e falsa anomalia.
         if not ant or ant["preco"] == 0:
             rel.variacoes[c.ticker] = None
             continue

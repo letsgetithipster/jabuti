@@ -65,4 +65,14 @@ def ler_bandas(raiz: str | Path) -> tuple[list[Banda], list[str]]:
             erros.append(f"{ARQUIVO}: bloco {bloco!r} com valor não numérico: {nums}")
             continue
         bandas.append(Banda(bloco, *valores))
+    # O check_politica já acusava bloco duplicado, mas só ele: o gerador de ESTADO lê por aqui e
+    # percorria a lista na ordem, então o bloco repetido saía duas vezes na tabela e a soma dela
+    # passava do "Total investido" impresso logo acima — no arquivo que o cabeçalho diz ser gerado
+    # e confiável. Acusar na leitura faz a valoração recusar antes de gravar. Mesma frase do check.
+    vistos, ja_avisados = set(), set()
+    for b in bandas:
+        if b.bloco in vistos and b.bloco not in ja_avisados:
+            erros.append(f"{ARQUIVO}: bloco {b.bloco!r} duplicado na tabela de bandas")
+            ja_avisados.add(b.bloco)
+        vistos.add(b.bloco)
     return bandas, erros

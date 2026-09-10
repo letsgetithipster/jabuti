@@ -20,12 +20,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from po.cli import mensagem_os, preparar_console  # noqa: E402
+
+preparar_console()   # antes dos demais imports de po.*: se um deles
+                     # quebrar, o traceback ainda sai legível no cp1252
+
 from po.cotacoes.atualizar import atualizar  # noqa: E402
 from po.cotacoes.tipos import SemRede  # noqa: E402
 from po.csvs import SCHEMAS  # noqa: E402
 from po.numeros import formatar_brl, formatar_canonico  # noqa: E402
 
-preparar_console()
 
 _ESPACO = re.compile(r"\s+")
 _COM_MOEDA = re.compile(r"^([+-]?)(?:r\$|us\$|\$)?(.*)$", re.IGNORECASE)

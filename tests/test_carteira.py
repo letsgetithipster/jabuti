@@ -1,3 +1,5 @@
+import datetime
+
 import pytest
 
 from po.carteira import valorar
@@ -45,3 +47,31 @@ def test_dados_sujos_e_erro(tmp_path):
     (ws / "dados" / "posicoes.csv").write_text("ticker\n", encoding="utf-8")
     with pytest.raises(ValueError, match="corrija antes"):
         valorar(ws)
+
+
+def test_cotacao_em_moeda_diferente_da_posicao_levanta(tmp_path):
+    """Uma cotação de AAPL digitada em BRL com a posição em USD dava valor 5× errado sem exceção.
+    O validador também pega isto, mas o gerador de ESTADO grava antes de alguém rodar o validador,
+    então a guarda tem que estar na valoração."""
+    ws = copia_exemplo(tmp_path)
+    (ws / "vault.config.yaml").write_text(CONFIG_DUAS_CONTAS.format(motor=RAIZ.as_posix()), encoding="utf-8")
+    _anexa(ws, "dados/posicoes.csv", "AAPL,rv-int,corretora-us,2,200.00,USD")
+    _anexa(ws, "dados/fills.csv", "2026-08-01,AAPL,saldo-inicial,2,200.00,0,corretora-us,USD")
+    _anexa(ws, "dados/cotacoes.csv", "2026-09-08,00:00,USDBRL,5.00,BRL,manual")
+    _anexa(ws, "dados/cotacoes.csv", "2026-09-08,18:00,AAPL,1150.00,BRL,manual")
+    with pytest.raises(ValueError, match="AAPL: cotação em BRL mas a posição está em USD"):
+        valorar(ws)
+
+
+def test_cotacao_velha_vira_aviso_e_nao_erro(tmp_path):
+    """Cotação velha não é erro (o mercado fecha, o ativo pode ser ilíquido), mas virar patrimônio
+    de hoje sem uma palavra é. O `hoje` é parâmetro para o limiar não depender do relógio."""
+    ws = copia_exemplo(tmp_path)
+    (ws / "dados" / "cotacoes.csv").write_text(
+        "data,hora,ticker,preco,moeda,fonte\n"
+        "2026-09-08,18:00,PETR4,40.00,BRL,manual\n"
+        "2026-08-20,18:00,HGLG11,160.00,BRL,manual\n", encoding="utf-8")
+    c = valorar(ws, hoje=datetime.date(2026, 9, 10))
+    assert c.total_brl == 12000.0                       # o número continua saindo
+    assert any("HGLG11 (2026-08-20, 21 dias)" in a for a in c.avisos)
+    assert valorar(ws, hoje=datetime.date(2026, 8, 25)).avisos == []   # dentro do limiar, calado
