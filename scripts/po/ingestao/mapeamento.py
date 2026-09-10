@@ -1,24 +1,44 @@
 """Mapeamento documento → schema canônico: carga, validação e resolução por nome.
 
-O mapeamento é DADO (YAML), o engine é código. Vocabulário fechado:
+O mapeamento é DADO (YAML), o engine é código. Vocabulário fechado (chave fora daqui é
+erro de validação, não é ignorada em silêncio — ver _desconhecidas):
 
-  nome, versao (1), descricao, verificado-contra-export-real (bool)
+  nome, versao (1), descricao, observacoes, verificado-contra-export-real (bool)
   detectar: {cabecalho-contem: [textos]}         # auto-seleção do mapeamento pelo cabeçalho
   arquivo: {formato: csv|xlsx, aba, encoding, delimitador, cabecalho-contem, fim-em-vazio}
   datas: {formatos: [strptime...], extrair: regex com 1 grupo (opcional)}
   conta: id da conta na config (o CLI --conta sobrescreve)
   moeda: BRL|USD|EUR
-  colunas: {apelido: "Nome exato no cabeçalho"}
-  extrair: {apelido: regex com grupos nomeados}   # aplicado a toda linha antes das regras
+  colunas: {apelido: "Nome exato no cabeçalho"}   # apelido é escolha livre, não vocabulário fechado
+  extrair: {apelido: regex com grupos nomeados}   # roda sobre o VALOR da coluna do apelido (que já
+                                                   # existe em colunas), não sobre a linha inteira
   linhas: [ {quando: {apelido: regex}, destino: posicoes|fills|proventos|eventos|ignorar|ajuste,
              campos: {campo do schema: literal | "{apelido}" | "{apelido|padrão}"},
              motivo (ignorar) | aplica-em, campo, chave, valor (ajuste)} ]
   conciliacao: {tipo: saldo-corrente (valor, saldo, ordem)
                     | valor-da-linha (proventos: valor_bruto|valor_liquido)
-                    | total-declarado (soma: campo | campo*campo; origem: flag | {linha-contem, coluna})}
+                    | total-declarado (soma: campo | campo*campo; origem: flag | {linha-contem, coluna: apelido})}
 
-Regras: primeira que casa vence; linha que não casa nenhuma é ERRO no engine.
-Grupos nomeados das regex (?P<ticker>...) viram apelidos disponíveis nos templates.
+Regras: primeira que casa vence; linha que não casa nenhuma é ERRO no engine. `quando` com mais
+de um apelido é AND (todos têm que casar). As regex de `quando`/`extrair`/`detectar` rodam com
+`search`, não `fullmatch`: "^TED" ancora no início, mas "TED" solto casa em qualquer posição.
+Grupos nomeados das regex (?P<ticker>...) viram apelidos disponíveis nos templates, só dentro
+da regra onde aparecem (não vazam para outras regras — ver escopo de `apelidos` por regra).
+
+Preenchimento de `campos` (regra "destino não consegue preencher"): todo campo do schema do
+destino tem que estar coberto por um de — chave em `campos`; apelido de mesmo nome (colunas ou
+grupo nomeado) preenche o campo implicitamente, sem precisar aparecer em `campos`; `conta` e
+`moeda` vêm do cabeçalho do mapa (PREENCHIDOS_PELO_MAPA); `cnpj` (proventos) e `razao` (eventos)
+são opcionais (OPCIONAIS); `data` é exceção — quem chama pode suprir `--data` no runtime, o
+mapa não precisa cobri-lo.
+
+Defaults que não aparecem em erro nenhum, então ficam só aqui: `ajuste.campo` sem valor é
+`valor_liquido`; `conciliacao.ordem` sem valor é `crescente`; `conciliacao.valor-da-linha` exige
+um apelido chamado literalmente `valor` em colunas; `conciliacao.origem: flag` significa que
+quem roda a ingestão passa a quantia por `--total-declarado` na hora (não vem do documento).
+
+Tipos de célula: xlsx devolve datetime/float nativos por célula (não string) quando a planilha
+guarda assim; CSV é sempre string. `datas.formatos` e `po.numeros` lidam com os dois.
 """
 import datetime
 import re
@@ -34,6 +54,7 @@ CHAVES_TOPO = {"nome", "versao", "descricao", "observacoes", "verificado-contra-
                "detectar", "arquivo", "datas", "conta", "moeda", "colunas", "extrair", "linhas",
                "conciliacao"}
 CHAVES_ARQUIVO = {"formato", "aba", "encoding", "delimitador", "cabecalho-contem", "fim-em-vazio"}
+CHAVES_DATAS = {"formatos", "extrair"}
 CHAVES_REGRA = {"quando", "destino", "campos", "motivo", "aplica-em", "campo", "chave", "valor"}
 CHAVES_CONCILIACAO = {"tipo", "valor", "saldo", "ordem", "proventos", "soma", "origem"}
 PREENCHIDOS_PELO_MAPA = {"conta", "moeda"}
@@ -50,7 +71,9 @@ def _grupos(regex) -> set[str]:
 def _desconhecidas(bloco: dict, conhecidas: set, onde: str) -> list[str]:
     """Chave fora do vocabulário é typo, e typo silencioso é o erro mais comum de quem
     escreve YAML a partir de um docstring."""
-    extras = sorted(k for k in bloco if k not in conhecidas)
+    # key=repr: YAML resolve `on:`/`2026:` para bool/int, e ordenar chaves de tipos
+    # mistos levantaria TypeError — dentro do helper que existe pra não levantar.
+    extras = sorted((k for k in bloco if k not in conhecidas), key=repr)
     return [f"{onde}: chave desconhecida {k!r} (conhecidas: {sorted(conhecidas)})" for k in extras]
 
 
@@ -82,6 +105,8 @@ def validar_mapeamento(mapa: object) -> list[str]:
     if (not isinstance(datas, dict) or not isinstance(datas.get("formatos"), list) or not datas["formatos"]
             or not all(isinstance(f, str) for f in datas["formatos"])):
         erros.append("datas.formatos deve ser uma lista de formatos strptime (ex.: ['%d/%m/%Y'])")
+    if isinstance(datas, dict):
+        erros.extend(_desconhecidas(datas, CHAVES_DATAS, "datas"))
     extrair_data = datas.get("extrair") if isinstance(datas, dict) else None
     if extrair_data is not None:
         try:
@@ -168,7 +193,8 @@ def validar_mapeamento(mapa: object) -> list[str]:
                 continue
             faltando = [c for c in SCHEMAS[destino]
                         if c not in campos and c not in apelidos and c not in PREENCHIDOS_PELO_MAPA
-                        and c not in OPCIONAIS.get(destino, set()) and c != "data"]
+                        and c not in OPCIONAIS.get(destino, set())
+                        and c != "data"]   # data é exceção: --data supre no runtime, mapa não precisa
             if faltando:
                 erros.append(f"{onde}: destino {destino} não consegue preencher {faltando} — "
                              "declare em campos ou dê a esses nomes um apelido em colunas/extrair")

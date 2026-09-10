@@ -40,18 +40,18 @@ def _vazia(linha) -> bool:
     return all(str(c).strip() == "" for c in linha)
 
 
-def _linhas_csv(caminho: Path, cfg: dict) -> list[list]:
+def _linhas_csv(caminho: Path, cfg: dict) -> tuple[list[list], dict]:
     encoding = cfg.get("encoding", "utf-8-sig")
     delimitador = cfg.get("delimitador", ",")
     try:
         with caminho.open(encoding=encoding, newline="") as f:
-            return [[_celula(c) for c in linha] for linha in csv.reader(f, delimiter=delimitador)]
+            return [[_celula(c) for c in linha] for linha in csv.reader(f, delimiter=delimitador)], {}
     except UnicodeDecodeError as e:
         raise ValueError(f"{caminho.name}: não é {encoding} válido — confira 'arquivo.encoding' no "
                          "mapeamento (latin-1 é comum em export brasileiro)") from e
 
 
-def _linhas_xlsx(caminho: Path, cfg: dict) -> list[list]:
+def _linhas_xlsx(caminho: Path, cfg: dict) -> tuple[list[list], dict]:
     try:
         import openpyxl
     except ImportError as e:
@@ -68,25 +68,32 @@ def _linhas_xlsx(caminho: Path, cfg: dict) -> list[list]:
     except (IndexError, KeyError):
         raise ValueError(f"{caminho.name}: aba {aba!r} não existe (abas: {wb.sheetnames})")
     linhas = [[_celula(c) for c in linha] for linha in ws.iter_rows(values_only=True)]
-    _recusar_formula_sem_valor(caminho, wb, aba, linhas)
-    return linhas
+    return linhas, _formulas_sem_valor(caminho, aba, linhas)
 
 
-def _recusar_formula_sem_valor(caminho: Path, wb, aba, linhas: list[list]) -> None:
-    """Com data_only=True, uma fórmula sem valor em cache volta None — indistinguível de célula
-    vazia. Uma coluna Total que é fórmula viraria coluna vazia, e com 'fim-em-vazio' uma linha
-    inteira de fórmulas truncaria a tabela sem erro nenhum. Melhor parar e mandar recalcular."""
+def _formulas_sem_valor(caminho: Path, aba, linhas: list[list]) -> dict:
+    """{(linha0, coluna0): coordenada} das fórmulas que voltaram vazias.
+
+    Com data_only=True, fórmula sem valor em cache volta None — indistinguível de célula vazia.
+    Uma coluna Total que é fórmula viraria coluna vazia e uma linha inteira de fórmulas
+    truncaria a tabela sob 'fim-em-vazio', sem erro nenhum. Quem decide se isso importa é o
+    ler_tabela, que sabe qual região do documento vai mesmo consumir: rodapé de soma fora da
+    tabela é justamente o que 'fim-em-vazio' existe pra descartar. Segunda leitura do arquivo
+    (data_only=False) é o único jeito de distinguir fórmula de célula vazia — não remova."""
     import openpyxl
     bruto = openpyxl.load_workbook(caminho, data_only=False)
     ws = bruto.worksheets[aba] if isinstance(aba, int) else bruto[aba]
+    achadas = {}
     for linha in ws.iter_rows():
         for c in linha:
-            if isinstance(c.value, str) and c.value.startswith("="):
-                calculada = linhas[c.row - 1][c.column - 1] if c.row - 1 < len(linhas) else ""
-                if calculada == "":
-                    raise ValueError(
-                        f"{caminho.name}: célula {c.coordinate} é fórmula sem valor calculado "
-                        "— abra e salve a planilha no Excel/LibreOffice, ou exporte como CSV")
+            e_formula = (isinstance(c.value, str) and c.value.startswith("=")
+                         or type(c.value).__name__ in ("ArrayFormula", "DataTableFormula"))
+            if not e_formula:
+                continue
+            i, j = c.row - 1, c.column - 1
+            if i < len(linhas) and j < len(linhas[i]) and linhas[i][j] == "":
+                achadas[(i, j)] = c.coordinate
+    return achadas
 
 
 def ler_tabela(caminho: str | Path, cfg: dict) -> Tabela:
@@ -97,7 +104,7 @@ def ler_tabela(caminho: str | Path, cfg: dict) -> Tabela:
     if not caminho.is_file():
         raise FileNotFoundError(f"{caminho}: arquivo não encontrado")
     formato = cfg.get("formato", "csv")
-    linhas = _linhas_xlsx(caminho, cfg) if formato == "xlsx" else _linhas_csv(caminho, cfg)
+    linhas, formulas = _linhas_xlsx(caminho, cfg) if formato == "xlsx" else _linhas_csv(caminho, cfg)
     contem = cfg.get("cabecalho-contem") or []
     indice = None
     for i, linha in enumerate(linhas):
@@ -112,12 +119,24 @@ def ler_tabela(caminho: str | Path, cfg: dict) -> Tabela:
     if indice is None:
         raise ValueError(f"{caminho.name}: cabeçalho não encontrado (procurei uma linha com {contem})")
     cabecalho = [str(c).strip() for c in linhas[indice]]
-    dados = []
-    for linha in linhas[indice + 1:]:
-        if _vazia(linha):
+    dados, examinadas = [], {indice}
+    for n, linha in enumerate(linhas[indice + 1:], start=indice + 1):
+        examinadas.add(n)          # inclui a linha vazia que encerra a leitura: se ela só parece
+        if _vazia(linha):          # vazia por ser fórmula sem valor, é ela que trunca a tabela
             if cfg.get("fim-em-vazio", False):
                 break
             continue
         linha = list(linha) + [""] * max(0, len(cabecalho) - len(linha))
         dados.append(linha)
+    if formulas:   # só importa fórmula vazia DENTRO da região que este mapeamento examina
+        # largura lógica = última coluna com nome; o iter_rows preenche o cabeçalho até a
+        # largura da planilha, então uma fórmula solta à direita não é coluna desta tabela
+        nomeadas = [j for j, c in enumerate(cabecalho) if c]
+        n_colunas = nomeadas[-1] + 1 if nomeadas else 0
+        dentro = sorted(coord for (i, j), coord in formulas.items()
+                        if i in examinadas and j < n_colunas)
+        if dentro:
+            raise ValueError(
+                f"{caminho.name}: célula {dentro[0]} é fórmula sem valor calculado "
+                "— abra e salve a planilha no Excel/LibreOffice, ou exporte como CSV")
     return Tabela(cabecalho, dados, indice + 1)

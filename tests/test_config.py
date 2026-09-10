@@ -177,3 +177,38 @@ def test_valores_em_lista_nao_levantam_so_reprovam():
     assert any("provider" in e for e in erros) and any("cambio" in e for e in erros)
     assert any("'a'" in e and "moeda" in e for e in erros) and any("'b'" in e and "moeda" in e for e in erros)
     assert any("moeda_base" in e for e in erros)
+
+
+VENENOS = [["x"], {"a": 1}, None, True, 7, 3.5, {1: "a", "b": 2}]
+
+
+def _caminhos(obj, prefixo=()):
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield prefixo + (k,)
+            yield from _caminhos(v, prefixo + (k,))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield prefixo + (i,)
+            yield from _caminhos(v, prefixo + (i,))
+
+
+def _poe(obj, caminho, valor):
+    import copy
+    obj = copy.deepcopy(obj)
+    alvo = obj
+    for passo in caminho[:-1]:
+        alvo = alvo[passo]
+    alvo[caminho[-1]] = valor
+    return obj
+
+
+def test_validar_config_nunca_levanta_com_shape_nenhum():
+    """Mesmo fuzz de tipos de tests/test_ingestao_mapeamento.py (validar_config e
+    validar_mapeamento compartilham em_vocabulario e o mesmo contrato de nunca levantar)."""
+    for caminho in _caminhos(CFG_OK):
+        for veneno in VENENOS:
+            try:
+                validar_config(_poe(CFG_OK, caminho, veneno))
+            except Exception as e:
+                raise AssertionError(f"{'.'.join(map(str, caminho))} <- {veneno!r}: {type(e).__name__}: {e}")

@@ -256,3 +256,49 @@ def test_soma_com_destino_de_regra_nao_hashavel_nao_levanta_so_reprova():
              conciliacao={"tipo": "total-declarado", "soma": "valor_bruto", "origem": "flag"})
     erros = validar_mapeamento(m)   # não levanta
     assert any("destino" in e for e in erros)
+
+
+VENENOS = [["x"], {"a": 1}, None, True, 7, 3.5, {1: "a", "b": 2}]
+
+
+def _caminhos(obj, prefixo=()):
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield prefixo + (k,)
+            yield from _caminhos(v, prefixo + (k,))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield prefixo + (i,)
+            yield from _caminhos(v, prefixo + (i,))
+
+
+def _poe(obj, caminho, valor):
+    import copy
+    obj = copy.deepcopy(obj)
+    alvo = obj
+    for passo in caminho[:-1]:
+        alvo = alvo[passo]
+    alvo[caminho[-1]] = valor
+    return obj
+
+
+def test_validar_mapeamento_nunca_levanta_com_shape_nenhum():
+    """O mesmo defeito (hash/ordenação de valor do usuário) já voltou quatro vezes em lugares
+    diferentes, e o grep pelo sintoma não achou o quarto. Este teste procura a CLASSE: troca
+    cada caminho do mapa por cada shape venenoso e exige frase, nunca exceção."""
+    for caminho in _caminhos(MAPA_OK):
+        for veneno in VENENOS:
+            try:
+                validar_mapeamento(_poe(MAPA_OK, caminho, veneno))
+            except Exception as e:
+                raise AssertionError(f"{'.'.join(map(str, caminho))} <- {veneno!r}: {type(e).__name__}: {e}")
+
+
+@pytest.mark.parametrize("bloco", [None, "arquivo", "datas", "colunas", "conciliacao"])
+def test_chaves_desconhecidas_de_tipos_mistos_nao_levantam(bloco):
+    """YAML resolve `on:` para bool e `2026:` para int; ordenar chaves de tipos mistos levantaria."""
+    import copy
+    m = copy.deepcopy(MAPA_OK)
+    alvo = m if bloco is None else m[bloco]
+    alvo.update({1: "a", "zzz": 2, True: 3})
+    assert validar_mapeamento(m)      # reprova, não levanta

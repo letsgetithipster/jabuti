@@ -131,6 +131,27 @@ def test_planilha_sem_formula_continua_lendo(tmp_path):
     assert ler_tabela(p, {"formato": "xlsx"}).linhas == [["PETR4", 100]]
 
 
+def test_formula_fora_da_regiao_lida_nao_recusa_o_documento(tmp_path):
+    """Rodapé de soma depois da linha vazia é justamente o que fim-em-vazio descarta."""
+    openpyxl = pytest.importorskip("openpyxl")
+    wb = openpyxl.Workbook(); ws = wb.active
+    for l in [["Ativo", "Qtd"], ["PETR4", 100], ["HGLG11", 10], [], ["Total", "=SUM(B2:B3)"]]:
+        ws.append(l)
+    p = tmp_path / "rodape.xlsx"; wb.save(p)
+    assert ler_tabela(p, {"formato": "xlsx", "fim-em-vazio": True}).linhas == [["PETR4", 100], ["HGLG11", 10]]
+
+
+def test_linha_inteira_de_formula_nao_some_em_silencio(tmp_path):
+    """Uma linha só de fórmulas lê como vazia: é exatamente a que truncaria a tabela."""
+    openpyxl = pytest.importorskip("openpyxl")
+    wb = openpyxl.Workbook(); ws = wb.active
+    for l in [["Ativo", "Qtd"], ["PETR4", 100], ["=A2", "=B2"], ["VALE3", 5]]:
+        ws.append(l)
+    p = tmp_path / "linha.xlsx"; wb.save(p)
+    with pytest.raises(ValueError, match="fórmula sem valor calculado"):
+        ler_tabela(p, {"formato": "xlsx", "fim-em-vazio": True})
+
+
 def test_inspecionar_csv_mostra_encoding_delimitador_e_amostra(tmp_path):
     p = tmp_path / "x.csv"
     p.write_bytes("Ativo;Preço\nPETR4;30,00\nHGLG11;155,00\n".encode("latin-1"))
