@@ -34,9 +34,15 @@ def test_json_ok(monkeypatch):
 
 
 def test_http_de_erro_vira_resposta_invalida_com_detalhe(monkeypatch):
-    _urlopen(monkeypatch, lambda req: _erro_http(404, b"No data found, symbol may be delisted"))
-    with pytest.raises(RespostaInvalida, match="404"):
-        po_http.buscar_json("http://x")
+    dormidas, chamadas = [], []
+
+    def efeito(req):
+        chamadas.append(1)
+        return _erro_http(404, b"No data found, symbol may be delisted")
+    _urlopen(monkeypatch, efeito)
+    with pytest.raises(RespostaInvalida, match="delisted"):
+        po_http.buscar_json("http://x", dormir=dormidas.append)
+    assert dormidas == [] and len(chamadas) == 1     # 404 não é transitório: sem retentativa
 
 
 def test_rede_caida_vira_sem_rede(monkeypatch):
@@ -66,21 +72,23 @@ def test_nan_no_corpo_e_recusado(monkeypatch):
         po_http.buscar_json("http://x")
 
 
-def test_429_tenta_de_novo_uma_vez(monkeypatch):
+@pytest.mark.parametrize("codigo", [429, 503])
+def test_transitorio_tenta_de_novo_uma_vez(monkeypatch, codigo):
     chamadas = []
 
     def efeito(req):
         chamadas.append(1)
-        return b'{"ok": true}' if len(chamadas) > 1 else _erro_http(429)
+        return b'{"ok": true}' if len(chamadas) > 1 else _erro_http(codigo)
     _urlopen(monkeypatch, efeito)
     dormidas = []
     assert po_http.buscar_json("http://x", dormir=dormidas.append) == {"ok": True}
     assert len(chamadas) == 2 and dormidas == [po_http.PAUSA_RETENTATIVA]
 
 
-def test_429_persistente_desiste(monkeypatch):
-    _urlopen(monkeypatch, lambda req: _erro_http(429))
-    with pytest.raises(RespostaInvalida, match="429"):
+@pytest.mark.parametrize("codigo", [429, 503])
+def test_transitorio_persistente_desiste(monkeypatch, codigo):
+    _urlopen(monkeypatch, lambda req: _erro_http(codigo))
+    with pytest.raises(RespostaInvalida, match=str(codigo)):
         po_http.buscar_json("http://x", dormir=lambda s: None)
 
 

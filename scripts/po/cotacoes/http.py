@@ -22,7 +22,6 @@ def buscar_json(url: str, timeout: float = 15.0, headers: dict | None = None, do
     RespostaInvalida se alcançou mas a resposta não serve (HTTP de erro, corpo não-JSON,
     NaN/Infinity). HTTP transitório (429, 5xx) é tentado de novo uma vez antes de desistir."""
     req = urllib.request.Request(url, headers={**UA, **(headers or {})})
-    corpo = None
     for tentativa in range(1, TENTATIVAS + 1):
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -36,6 +35,8 @@ def buscar_json(url: str, timeout: float = 15.0, headers: dict | None = None, do
             raise RespostaInvalida(f"HTTP {e.code}" + (f": {detalhe}" if detalhe else "")) from e
         except (urllib.error.URLError, http.client.HTTPException, OSError) as e:
             raise SemRede(str(e)) from e
+    else:
+        raise SemRede(f"esgotou {TENTATIVAS} tentativas sem obter resposta")
     try:
         return json.loads(corpo.decode("utf-8"), parse_constant=_constante_nao_numerica)
     except (UnicodeDecodeError, json.JSONDecodeError) as e:

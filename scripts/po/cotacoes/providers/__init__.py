@@ -4,8 +4,10 @@ from po.cotacoes.providers.yahoo import YahooProvider
 REGISTRY = {"yahoo": YahooProvider}
 
 
-def criar_provider(nome: str, buscar=None):
+def criar_provider(nome: str, buscar=None, **kwargs):
     if nome not in REGISTRY:
         raise ValueError(f"provider {nome!r} desconhecido (disponíveis: {sorted(REGISTRY)}; "
                          "'manual' é via --manual)")
-    return REGISTRY[nome](buscar=buscar) if buscar is not None else REGISTRY[nome]()
+    if buscar is not None:
+        kwargs["buscar"] = buscar
+    return REGISTRY[nome](**kwargs)

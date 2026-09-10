@@ -24,6 +24,12 @@ def _e_codigo_b3(ticker: str) -> bool:
     return any(ch.isdigit() for ch in ticker)
 
 
+def sem_cotacao_de_mercado(p: Pedido) -> bool:
+    """Não é papel negociado: RF privada/tesouro (classe rf-br), ou saldo em conta
+    (classe caixa sem código da B3 — um fundo de caixa listado, tipo AUPO11, tem cotação)."""
+    return p.classe in SEM_MERCADO or (p.classe == "caixa" and not _e_codigo_b3(p.ticker))
+
+
 def simbolo_yahoo(p: Pedido) -> str | None:
     """Símbolo no Yahoo a partir de (ticker, classe, moeda). None = não é papel negociado.
 
@@ -36,10 +42,8 @@ def simbolo_yahoo(p: Pedido) -> str | None:
     Errar o palpite não inventa preço: o símbolo não existe no yahoo e a falha é declarada
     por ticker (e uma moeda diferente da esperada é barrada logo depois).
     """
-    if p.classe in SEM_MERCADO:
+    if sem_cotacao_de_mercado(p):
         return None
-    if p.classe == "caixa" and not _e_codigo_b3(p.ticker):
-        return None                    # saldo em conta; fundo de caixa (AUPO11) tem cotação
     if p.classe == "cambio":
         return "BRL=X" if p.ticker == "USDBRL" else f"{p.ticker}=X"
     if p.classe == "cripto":
@@ -64,7 +68,7 @@ class YahooProvider:
         for p in pedidos:
             simbolo = simbolo_yahoo(p)
             if simbolo is None:
-                falhas.append(f"{p.ticker}: classe {p.classe} não tem cotação de mercado — "
+                falhas.append(f"{p.ticker}: não é papel negociado ({p.classe}) — "
                               f"passe --manual {p.ticker}=VALOR")
                 continue
             if consultados and self._pausa:
