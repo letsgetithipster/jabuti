@@ -10,24 +10,32 @@ from po.cotacoes.tipos import Cotacao, Pedido, RespostaInvalida
 
 URL = "https://query1.finance.yahoo.com/v8/finance/chart/{simbolo}?range=1d&interval=1d"
 SEM_MERCADO = {"rf-br", "caixa"}
+SEMPRE_B3 = {"acoes-br", "fiis"}      # por definição da classe
+SEMPRE_EUA = {"reits-us"}             # idem
 
 
 def simbolo_yahoo(p: Pedido) -> str | None:
     """Símbolo no Yahoo a partir de (ticker, classe, moeda). None = classe sem cotação de mercado.
-    acoes-br e fiis são sempre B3 (sufixo .SA). Em rv-int o ticker decide a bolsa: BDR/ETF
-    listado na B3 termina em dígito (ex.: IVVB11 → IVVB11.SA), ação americana não (ex.: AAPL
-    → AAPL). A moeda do Pedido é só o valor ESPERADO pra validar a resposta do yahoo — não
-    entra na escolha do símbolo, senão um pedido malformado (ticker americano com moeda BRL)
-    nunca chegaria a consultar a fonte pra denunciar a inconsistência."""
+
+    A classe resolve quando ela já diz a bolsa (acoes-br e fiis são B3, reits-us é EUA).
+    Nas classes mistas (rv-int, commodities) o TICKER decide: papel listado na B3 carrega
+    dígito (IVVB11, AAPL34, OZ1D — contrato com código de vencimento no meio → sufixo .SA),
+    papel americano não tem dígito nenhum (AAPL, GLD). A moeda do Pedido é só o valor
+    ESPERADO pra validar a resposta do yahoo — não entra na escolha do símbolo, senão um
+    pedido malformado (ticker americano com moeda BRL) nunca chegaria a consultar a fonte
+    pra denunciar a inconsistência.
+    """
     if p.classe in SEM_MERCADO:
         return None
     if p.classe == "cambio":
         return "BRL=X" if p.ticker == "USDBRL" else f"{p.ticker}=X"
     if p.classe == "cripto":
         return f"{p.ticker}-{p.moeda}"
-    if p.classe == "rv-int":
-        return f"{p.ticker}.SA" if p.ticker[-1].isdigit() else p.ticker
-    return f"{p.ticker}.SA"
+    if p.classe in SEMPRE_B3:
+        return f"{p.ticker}.SA"
+    if p.classe in SEMPRE_EUA:
+        return p.ticker
+    return f"{p.ticker}.SA" if any(ch.isdigit() for ch in p.ticker) else p.ticker
 
 
 class YahooProvider:

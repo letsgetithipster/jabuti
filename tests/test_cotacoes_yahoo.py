@@ -23,9 +23,15 @@ def buscar_fixture(url, timeout=15.0, headers=None):
 def test_simbolos():
     assert simbolo_yahoo(Pedido("PETR4", "acoes-br", "BRL")) == "PETR4.SA"
     assert simbolo_yahoo(Pedido("HGLG11", "fiis", "BRL")) == "HGLG11.SA"
-    assert simbolo_yahoo(Pedido("IVVB11", "rv-int", "BRL")) == "IVVB11.SA"   # BDR: moeda decide
+    assert simbolo_yahoo(Pedido("IVVB11", "rv-int", "BRL")) == "IVVB11.SA"   # BDR/ETF na B3: termina em dígito
+    assert simbolo_yahoo(Pedido("AAPL34", "rv-int", "BRL")) == "AAPL34.SA"   # BDR de ação americana
     assert simbolo_yahoo(Pedido("AAPL", "rv-int", "USD")) == "AAPL"
+    assert simbolo_yahoo(Pedido("O", "reits-us", "USD")) == "O"              # REIT americano nunca leva .SA
+    assert simbolo_yahoo(Pedido("WELL", "reits-us", "USD")) == "WELL"
+    assert simbolo_yahoo(Pedido("GLD", "commodities", "USD")) == "GLD"       # ETF de ouro americano
+    assert simbolo_yahoo(Pedido("OZ1D", "commodities", "BRL")) == "OZ1D.SA"  # contrato de ouro na B3
     assert simbolo_yahoo(Pedido("BTC", "cripto", "BRL")) == "BTC-BRL"
+    assert simbolo_yahoo(Pedido("BTC", "cripto", "USD")) == "BTC-USD"        # a moeda da posição decide o par
     assert simbolo_yahoo(Pedido("USDBRL", "cambio", "BRL")) == "BRL=X"
     assert simbolo_yahoo(Pedido("EURBRL", "cambio", "BRL")) == "EURBRL=X"
     assert simbolo_yahoo(Pedido("TESOURO-IPCA-2035", "rf-br", "BRL")) is None
