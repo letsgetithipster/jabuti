@@ -108,16 +108,17 @@ def test_posicao_duplicada_mesma_conta(tmp_path):
 def test_multi_conta_importada_e_permitida(tmp_path):
     ws = copia_exemplo(tmp_path)
     cfg = ws / "vault.config.yaml"
+    # v2 também acusa o mesmo ticker em mais de uma moeda entre contas (cotacoes.csv só
+    # guarda uma cotação vencedora por ticker); a segunda conta deste teste fica em BRL,
+    # igual à primeira, pra manter o que o teste exercita (multi-conta, não multi-moeda).
     cfg.write_text(cfg.read_text(encoding="utf-8").replace(
-        "contas:", 'contas:\n  - id: corretora-us\n    nome: "US"\n    moeda: USD'),
+        "contas:", 'contas:\n  - id: corretora-br-2\n    nome: "Segunda corretora"\n    moeda: BRL'),
         encoding="utf-8")
     pos = ws / "dados" / "posicoes.csv"
-    # moeda da linha precisa bater com a moeda da conta (deferral pago nesta task);
-    # corretora-us é USD, então a linha declara USD, não BRL.
     pos.write_text(pos.read_text(encoding="utf-8") +
-                   "PETR4,acoes-br,corretora-us,50,28.00,USD\n", encoding="utf-8")
+                   "PETR4,acoes-br,corretora-br-2,50,28.00,BRL\n", encoding="utf-8")
     erros, _ = checar_dados(ws)
-    assert erros == []  # posição importada em outra conta, sem fills: permitida
+    assert erros == []  # posição importada em outra conta, mesma moeda, sem fills: permitida
 
 
 def test_leitura_suja_pula_cross_check(tmp_path):
@@ -293,5 +294,28 @@ def test_cotacao_em_moeda_diferente_da_posicao_e_erro(tmp_path):
 def test_moeda_divergente_em_fills_e_proventos(tmp_path):
     ws = copia_exemplo(tmp_path)
     _anexa(ws, "dados/proventos.csv", "2026-09-06,HGLG11,,rendimento,10.00,10.00,corretora-br,USD")
+    _anexa(ws, "dados/fills.csv", "2026-09-06,HGLG11,compra,1,155.00,0,corretora-br,USD")
     erros, _ = checar_dados(ws)
     assert any("proventos.csv" in e and "USD" in e and "conta corretora-br é BRL" in e for e in erros)
+    assert any("fills.csv" in e and "USD" in e and "conta corretora-br é BRL" in e for e in erros)
+
+
+def test_pm_de_ativo_de_fracao_de_centavo_nao_e_engolido_pelo_piso(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/posicoes.csv", "SHIB,cripto,corretora-br,1000000,0.009,BRL")
+    _anexa(ws, "dados/cotacoes.csv", "2026-09-08,18:00,SHIB,0.0002,BRL,manual")
+    _anexa(ws, "dados/fills.csv", "2026-08-01,SHIB,saldo-inicial,1000000,0.00012,0,corretora-br,BRL")
+    erros, _ = checar_dados(ws)
+    assert any("SHIB" in e and "pm" in e for e in erros)   # 75x errado: o piso de 1 centavo escondia
+
+
+def test_mesmo_ticker_em_duas_moedas_e_erro(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    cfg = ws / "vault.config.yaml"
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace(
+        "  - id: corretora-br\n", "  - id: corretora-us\n    nome: US\n    moeda: USD\n  - id: corretora-br\n"),
+        encoding="utf-8")
+    _anexa(ws, "dados/posicoes.csv", "PETR4,acoes-br,corretora-us,10,6.00,USD")
+    _anexa(ws, "dados/fills.csv", "2026-08-01,PETR4,saldo-inicial,10,6.00,0,corretora-us,USD")
+    erros, _ = checar_dados(ws)
+    assert any("PETR4" in e and "mais de uma moeda" in e for e in erros)

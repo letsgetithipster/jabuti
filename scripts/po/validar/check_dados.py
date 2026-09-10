@@ -5,10 +5,13 @@ posicoes.csv; venda acima do saldo; abertura única via saldo-inicial); quando
 o ledger já aponta erro numa chave (venda sem saldo, duplicata em
 posicoes.csv, abertura inválida), a comparação de qty/pm daquela chave fica
 suspensa — não soma erro derivado em cima de erro de origem; posição sem
-cotação, ou cotação em moeda diferente da posição, = ERRO; cotação anexada
-fora de ordem = aviso; provento sem posição = aviso; eventos confirmados
-coerentes. Tolerância de PM combina piso absoluto (BRL) e relativa (domina em
-PM alto, ex. cripto). Vocabulários e formatos de campo são do ler_csv.
+cotação, cotação em moeda diferente da posição, ou o mesmo ticker em mais de
+uma moeda entre contas (cotacoes.csv só guarda uma vencedora por ticker, a
+ambiguidade já é o defeito), = ERRO; cotação anexada fora de ordem = aviso;
+provento sem posição = aviso; eventos confirmados coerentes. Tolerância de PM
+combina piso absoluto (BRL), teto relativo ao próprio PM (protege ativo de
+fração de centavo) e piso relativo (domina em PM alto, ex. cripto).
+Vocabulários e formatos de campo são do ler_csv.
 """
 from pathlib import Path
 
@@ -16,8 +19,12 @@ from po.config import carregar_config, moedas_por_conta
 from po.csvs import SCHEMAS, ler_csv, ultimas_cotacoes
 from po.ledger import TOLERANCIA_QTY, calcular_saldos
 
-TOLERANCIA_PM = 0.01          # piso absoluto em BRL
-TOLERANCIA_PM_RELATIVA = 1e-7  # domina em PM alto (cripto); o piso domina em PM baixo
+TOLERANCIA_PM = 0.01           # piso absoluto em BRL, limitado a 5% do PM (ver abaixo)
+TOLERANCIA_PM_RELATIVA = 1e-7  # domina acima de PM 100.000 (o cruzamento é 0,01 / 1e-7)
+# Por que estes números: o piso absorve PM de corretora arredondado a 2 casas (erro ≤ 0,005);
+# o termo relativo absorve o mesmo erro em PM alto (0,03 em PM de 300 mil) e deixa nove ordens
+# de grandeza de folga sobre o ruído de float acumulado; o teto de 5% impede que o piso engula
+# o valor inteiro em ativo de fração de centavo (cripto, penny), onde 1 centavo é 100% do PM.
 
 
 def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
@@ -109,7 +116,8 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
                     f"posicoes.csv: {ticker} ({conta}) qty {qty_posicao[chave]:g} "
                     f"difere do saldo dos fills ({s.qty:g})")
             else:
-                tolerancia = max(TOLERANCIA_PM, abs(pm_posicao[chave]) * TOLERANCIA_PM_RELATIVA)
+                tolerancia = max(min(TOLERANCIA_PM, abs(pm_posicao[chave]) * 0.05),
+                                 abs(pm_posicao[chave]) * TOLERANCIA_PM_RELATIVA)
                 if abs(s.pm - pm_posicao[chave]) > tolerancia:
                     erros.append(
                         f"posicoes.csv: {ticker} ({conta}) pm {pm_posicao[chave]:g} "
@@ -127,6 +135,11 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
             moedas_do_ticker.setdefault(p["ticker"], set()).add(p["moeda"])
         for ticker in sorted(moedas_do_ticker):
             c = ultimas.get(ticker)
+            if len(moedas_do_ticker[ticker]) > 1:
+                erros.append(f"posicoes.csv: {ticker} aparece em mais de uma moeda "
+                             f"({'/'.join(sorted(moedas_do_ticker[ticker]))}) — cotacoes.csv guarda uma "
+                             "cotação vencedora por ticker, então a valoração não saberia qual usar")
+                continue
             if c is None:
                 erros.append(f"cotacoes.csv: {ticker} sem nenhuma cotação — rode "
                              f"scripts/atualizar_cotacoes.py (ou passe --manual {ticker}=PRECO)")
