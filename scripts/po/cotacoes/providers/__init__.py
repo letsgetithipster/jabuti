@@ -1,7 +1,9 @@
 """Registry de providers de cotação por nome. 'manual' não entra aqui: é via --manual."""
+from po.cotacoes.providers.bcb_sgs import BcbSgsProvider
+from po.cotacoes.providers.brapi import BrapiProvider
 from po.cotacoes.providers.yahoo import YahooProvider
 
-REGISTRY = {"yahoo": YahooProvider}
+REGISTRY = {"yahoo": YahooProvider, "brapi": BrapiProvider, "bcb-sgs": BcbSgsProvider}
 
 
 def criar_provider(nome: str, buscar=None, **kwargs):
