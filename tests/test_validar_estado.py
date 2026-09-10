@@ -44,7 +44,10 @@ def test_ultima_cotacao_por_data_nao_por_linha(tmp_path):
     assert erros == []  # linha velha appendada depois não vence a data mais nova
 
 
-def test_moeda_nao_brl_suspende(tmp_path):
+def test_moeda_sem_cambio_declarado_suspende(tmp_path):
+    """Antes este teste se chamava test_moeda_nao_brl_suspende, e o nome era verdade:
+    qualquer posição não-BRL desligava o check. Não é mais — o que suspende é a FALTA do par
+    de câmbio, e o aviso tem que nomear o par que falta para a suspensão ser acionável."""
     ws = tmp_path / "ws"
     shutil.copytree(EXEMPLO, ws)
     pos = ws / "dados" / "posicoes.csv"
@@ -55,7 +58,7 @@ def test_moeda_nao_brl_suspende(tmp_path):
                    "2026-09-08,18:00,VOO,510.00,USD,manual\n", encoding="utf-8")
     erros, avisos = checar_estado(ws)
     assert erros == []
-    assert any("BRL" in a for a in avisos)
+    assert any("suspenso" in a and "sem câmbio USDBRL" in a for a in avisos)
 
 
 def test_mensagem_de_divergencia_em_ptbr(tmp_path):
