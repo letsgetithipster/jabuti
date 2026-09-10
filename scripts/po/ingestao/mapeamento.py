@@ -26,7 +26,7 @@ from pathlib import Path
 
 import yaml
 
-from po.csvs import MOEDAS, SCHEMAS
+from po.csvs import MOEDAS, SCHEMAS, em_vocabulario
 from po.ingestao.leitores import DependenciaAusente, ler_tabela
 
 DESTINOS_TABELA = {"posicoes", "fills", "proventos", "eventos"}
@@ -50,7 +50,7 @@ def validar_mapeamento(mapa: object) -> list[str]:
     if mapa.get("versao") != 1:
         erros.append("versao deve ser 1")
     arquivo = mapa.get("arquivo")
-    if not isinstance(arquivo, dict) or arquivo.get("formato") not in FORMATOS:
+    if not isinstance(arquivo, dict) or not em_vocabulario(arquivo.get("formato"), FORMATOS):
         erros.append(f"arquivo.formato deve ser um de {sorted(FORMATOS)}")
     datas = mapa.get("datas")
     if (not isinstance(datas, dict) or not isinstance(datas.get("formatos"), list) or not datas["formatos"]
@@ -73,7 +73,7 @@ def validar_mapeamento(mapa: object) -> list[str]:
             erros.append(f"datas.formatos: {fmt!r} não é um formato strptime válido ({e})")
     if not isinstance(mapa.get("conta"), str) or not mapa["conta"]:
         erros.append("conta ausente (id da conta na config)")
-    if mapa.get("moeda") not in MOEDAS:
+    if not em_vocabulario(mapa.get("moeda"), MOEDAS):
         erros.append(f"moeda deve ser uma de {sorted(MOEDAS)}")
     colunas = mapa.get("colunas")
     if not isinstance(colunas, dict) or not colunas or not all(isinstance(v, str) and v for v in colunas.values()):
@@ -112,7 +112,7 @@ def validar_mapeamento(mapa: object) -> list[str]:
                 except (re.error, TypeError) as e:
                     erros.append(f"{onde}: regex inválida em quando.{apelido} ({e})")
         destino = regra.get("destino")
-        if destino not in DESTINOS:
+        if not em_vocabulario(destino, DESTINOS):
             erros.append(f"{onde}: destino {destino!r} fora de {sorted(DESTINOS)}")
             continue
         if destino == "ignorar":
@@ -120,7 +120,7 @@ def validar_mapeamento(mapa: object) -> list[str]:
                 erros.append(f"{onde}: ignorar exige motivo")
         elif destino == "ajuste":
             alvo = regra.get("aplica-em")
-            if alvo not in DESTINOS_TABELA:
+            if not em_vocabulario(alvo, DESTINOS_TABELA):
                 erros.append(f"{onde}: ajuste exige aplica-em (uma tabela de dados/)")
             elif regra.get("campo", "valor_liquido") not in SCHEMAS[alvo]:
                 erros.append(f"{onde}: ajuste.campo fora do schema de {alvo}")
@@ -140,11 +140,11 @@ def validar_mapeamento(mapa: object) -> list[str]:
                     if nome not in apelidos:
                         erros.append(f"{onde}: {campo} usa {{{nome}}}, que não é apelido nem grupo de regex")
     conc = mapa.get("conciliacao")
-    if not isinstance(conc, dict) or conc.get("tipo") not in CONCILIACOES:
+    if not isinstance(conc, dict) or not em_vocabulario(conc.get("tipo"), CONCILIACOES):
         erros.append(f"conciliacao.tipo deve ser um de {sorted(CONCILIACOES)} — mapeamento sem conciliação é recusado")
     elif conc["tipo"] == "saldo-corrente":
         for chave in ("valor", "saldo"):
-            if conc.get(chave) not in colunas:
+            if not em_vocabulario(conc.get(chave), colunas):
                 erros.append(f"conciliacao.{chave} deve ser um apelido de colunas")
         if conc.get("ordem", "crescente") not in ("crescente", "decrescente"):
             erros.append("conciliacao.ordem deve ser crescente ou decrescente")

@@ -128,3 +128,29 @@ def test_detectar_por_assinatura_do_cabecalho(tmp_path):
     outro = tmp_path / "outro.csv"
     outro.write_text("a,b\n1,2\n", encoding="utf-8")
     assert detectar_mapeamento(outro, ws, motor) is None
+
+
+@pytest.mark.parametrize("campo,valor", [
+    ("moeda", ["BRL"]), ("conta", {"id": "x"}), ("nome", ["x"]), ("versao", [1]),
+])
+def test_valor_em_bloco_yaml_nao_levanta_so_reprova(campo, valor):
+    """`moeda:\n  - BRL` é um erro de digitação comum em YAML; tem que virar frase, não TypeError."""
+    assert validar_mapeamento(dict(MAPA_OK, **{campo: valor}))
+
+
+def test_shapes_nao_hashaveis_em_todo_lugar_nao_levantam():
+    m = dict(MAPA_OK, arquivo={"formato": ["csv"]}, moeda=["BRL"],
+             linhas=[{"quando": {"descricao": "x"}, "destino": ["proventos"]},
+                     {"quando": {"descricao": "y"}, "destino": "ajuste", "aplica-em": ["proventos"],
+                      "chave": ["data"], "valor": "{valor}"}],
+             conciliacao={"tipo": ["saldo-corrente"], "valor": ["valor"], "saldo": "saldo"})
+    erros = validar_mapeamento(m)          # não levanta
+    assert any("formato" in e for e in erros) and any("moeda" in e for e in erros)
+    assert any("destino" in e for e in erros) and any("conciliacao" in e for e in erros)
+
+
+def test_carregar_mapeamento_com_bloco_yaml_vira_value_error(tmp_path):
+    p = tmp_path / "m.yaml"
+    p.write_text("nome: x\nversao: 1\nmoeda:\n  - BRL\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="mapeamento inválido"):
+        carregar_mapeamento(p)

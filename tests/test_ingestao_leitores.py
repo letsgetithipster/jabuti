@@ -56,6 +56,14 @@ def test_arquivo_ausente(tmp_path):
         ler_tabela(tmp_path / "nao.csv", {"formato": "csv"})
 
 
+def test_diretorio_no_lugar_do_arquivo(tmp_path):
+    (tmp_path / "umdir").mkdir()
+    with pytest.raises(FileNotFoundError):
+        ler_tabela(tmp_path / "umdir", {"formato": "csv"})
+    with pytest.raises(FileNotFoundError):
+        ler_tabela(tmp_path / "umdir", {"formato": "xlsx"})
+
+
 def test_xlsx_mantem_tipos_das_celulas(tmp_path):
     openpyxl = pytest.importorskip("openpyxl")
     wb = openpyxl.Workbook()

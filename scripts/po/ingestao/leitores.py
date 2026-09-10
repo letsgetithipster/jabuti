@@ -57,8 +57,8 @@ def _linhas_xlsx(caminho: Path, cfg: dict) -> list[list]:
     except ImportError as e:
         raise DependenciaAusente(MSG_OPENPYXL) from e
     try:
-        # sem read_only: no modo read-only linhas vazias no meio da planilha podem sumir
-        # da iteração, e 'fim-em-vazio' depende delas para parar antes do rodapé
+        # sem read_only: o modo read-only já variou entre versões quanto a linhas vazias
+        # no meio da planilha, e 'fim-em-vazio' depende de enxergá-las. Custo zero aqui.
         wb = openpyxl.load_workbook(caminho, data_only=True)
     except Exception as e:  # openpyxl levanta tipos variados para arquivo corrompido
         raise ValueError(f"{caminho.name}: xlsx ilegível ({e})") from e
@@ -75,7 +75,7 @@ def ler_tabela(caminho: str | Path, cfg: dict) -> Tabela:
     cabecalho-contem (textos que identificam a linha de cabeçalho; default: primeira linha
     não-vazia), fim-em-vazio (a tabela termina na primeira linha vazia após o cabeçalho)."""
     caminho = Path(caminho)
-    if not caminho.exists():
+    if not caminho.is_file():
         raise FileNotFoundError(f"{caminho}: arquivo não encontrado")
     formato = cfg.get("formato", "csv")
     linhas = _linhas_xlsx(caminho, cfg) if formato == "xlsx" else _linhas_csv(caminho, cfg)

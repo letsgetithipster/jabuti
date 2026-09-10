@@ -3,7 +3,7 @@ from pathlib import Path
 
 import yaml
 
-from po.csvs import MOEDAS
+from po.csvs import MOEDAS, em_vocabulario
 
 MOEDAS_BASE = {"BRL"}
 HARNESSES = {"claude-code", "codex", "cursor", "app-web"}
@@ -13,11 +13,6 @@ CAMBIO_PADRAO = "bcb-sgs"
 PLANILHAS_PADRAO = "planilhas"
 
 
-def _em(valor, vocabulario) -> bool:
-    """Pertinência segura: valor não-string (lista, dict, None) nunca levanta, só reprova."""
-    return isinstance(valor, str) and valor in vocabulario
-
-
 def validar_config(cfg: object) -> list[str]:
     """Retorna lista de erros (vazia = config válida). Nunca levanta: shape ruim vira erro."""
     if not isinstance(cfg, dict):
@@ -25,7 +20,7 @@ def validar_config(cfg: object) -> list[str]:
     erros = []
     if cfg.get("versao") != 1:
         erros.append("versao deve ser 1")
-    if not _em(cfg.get("moeda_base"), MOEDAS_BASE):
+    if not em_vocabulario(cfg.get("moeda_base"), MOEDAS_BASE):
         erros.append(f"moeda_base deve ser uma de {sorted(MOEDAS_BASE)}")
     harness = cfg.get("harness")
     if (not isinstance(harness, list) or not harness
@@ -34,10 +29,10 @@ def validar_config(cfg: object) -> list[str]:
         erros.append(f"harness deve ser subconjunto não-vazio de {sorted(HARNESSES)}")
     cotacoes = cfg.get("cotacoes")
     provider = cotacoes.get("provider") if isinstance(cotacoes, dict) else None
-    if not _em(provider, PROVIDERS_COTACOES):
+    if not em_vocabulario(provider, PROVIDERS_COTACOES):
         erros.append(f"cotacoes.provider deve ser um de {sorted(PROVIDERS_COTACOES)}")
     cambio = cotacoes.get("cambio", CAMBIO_PADRAO) if isinstance(cotacoes, dict) else CAMBIO_PADRAO
-    if not _em(cambio, PROVIDERS_CAMBIO):
+    if not em_vocabulario(cambio, PROVIDERS_CAMBIO):
         erros.append(f"cotacoes.cambio deve ser um de {sorted(PROVIDERS_CAMBIO)}")
     contas = cfg.get("contas")
     if not isinstance(contas, list) or not contas:
@@ -49,7 +44,7 @@ def validar_config(cfg: object) -> list[str]:
                 erros.append(f"conta #{i} sem id (cada conta é um mapeamento com id)")
                 continue
             ids.append(conta["id"])
-            if not _em(conta.get("moeda"), MOEDAS):
+            if not em_vocabulario(conta.get("moeda"), MOEDAS):
                 erros.append(f"conta {conta['id']!r} sem moeda válida (uma de {sorted(MOEDAS)})")
         if len(ids) != len(set(ids)):
             erros.append("ids de conta duplicados")

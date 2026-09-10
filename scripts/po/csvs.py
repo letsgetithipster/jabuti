@@ -49,6 +49,18 @@ VOCABULARIOS = {
     ("indices", "fonte"): FONTES_COTACAO,
     ("cotacoes", "fonte"): FONTES_COTACAO,
 }
+
+
+def em_vocabulario(valor, vocabulario) -> bool:
+    """Pertinência segura: valor não-string (lista, dict, None) nunca levanta, só reprova.
+
+    `x in <set>` chama hash(x), então um bloco YAML (`moeda:\n  - BRL`) derrubaria o
+    validador com TypeError em vez de virar uma frase. Todo validador que confere um valor
+    do usuário contra vocabulário fechado passa por aqui.
+    """
+    return isinstance(valor, str) and valor in vocabulario
+
+
 DATA_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 HORA_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 NUMERO_CANONICO = re.compile(r"^-?\d+(\.\d+)?$")
