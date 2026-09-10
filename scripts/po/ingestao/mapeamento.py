@@ -26,10 +26,17 @@ from pathlib import Path
 
 import yaml
 
-from po.csvs import MOEDAS, SCHEMAS, em_vocabulario
+from po.csvs import MOEDAS, OPCIONAIS, SCHEMAS, em_vocabulario
 from po.ingestao.leitores import DependenciaAusente, ler_tabela
 
 DESTINOS_TABELA = {"posicoes", "fills", "proventos", "eventos"}
+CHAVES_TOPO = {"nome", "versao", "descricao", "observacoes", "verificado-contra-export-real",
+               "detectar", "arquivo", "datas", "conta", "moeda", "colunas", "extrair", "linhas",
+               "conciliacao"}
+CHAVES_ARQUIVO = {"formato", "aba", "encoding", "delimitador", "cabecalho-contem", "fim-em-vazio"}
+CHAVES_REGRA = {"quando", "destino", "campos", "motivo", "aplica-em", "campo", "chave", "valor"}
+CHAVES_CONCILIACAO = {"tipo", "valor", "saldo", "ordem", "proventos", "soma", "origem"}
+PREENCHIDOS_PELO_MAPA = {"conta", "moeda"}
 DESTINOS = DESTINOS_TABELA | {"ignorar", "ajuste"}
 FORMATOS = {"csv", "xlsx"}
 CONCILIACOES = {"saldo-corrente", "valor-da-linha", "total-declarado"}
@@ -40,11 +47,28 @@ def _grupos(regex) -> set[str]:
     return set(re.compile(regex).groupindex)
 
 
+def _desconhecidas(bloco: dict, conhecidas: set, onde: str) -> list[str]:
+    """Chave fora do vocabulário é typo, e typo silencioso é o erro mais comum de quem
+    escreve YAML a partir de um docstring."""
+    extras = sorted(k for k in bloco if k not in conhecidas)
+    return [f"{onde}: chave desconhecida {k!r} (conhecidas: {sorted(conhecidas)})" for k in extras]
+
+
 def validar_mapeamento(mapa: object) -> list[str]:
     """Lista de erros em pt-BR (vazia = válido). Nunca levanta."""
     if not isinstance(mapa, dict):
         return ["mapeamento deve ser um mapeamento YAML (chave: valor)"]
-    erros = []
+    erros = _desconhecidas(mapa, CHAVES_TOPO, "mapeamento")
+    detectar = mapa.get("detectar")
+    if detectar is not None:
+        if not isinstance(detectar, dict):
+            erros.append("detectar deve ser um mapeamento {cabecalho-contem: [textos]}")
+        else:
+            erros.extend(_desconhecidas(detectar, {"cabecalho-contem"}, "detectar"))
+            assinatura = detectar.get("cabecalho-contem")
+            if (not isinstance(assinatura, list) or not assinatura
+                    or not all(isinstance(x, str) and x for x in assinatura)):
+                erros.append("detectar.cabecalho-contem deve ser uma lista não-vazia de textos do cabeçalho")
     if not isinstance(mapa.get("nome"), str) or not mapa["nome"]:
         erros.append("nome ausente")
     if mapa.get("versao") != 1:
@@ -52,6 +76,8 @@ def validar_mapeamento(mapa: object) -> list[str]:
     arquivo = mapa.get("arquivo")
     if not isinstance(arquivo, dict) or not em_vocabulario(arquivo.get("formato"), FORMATOS):
         erros.append(f"arquivo.formato deve ser um de {sorted(FORMATOS)}")
+    if isinstance(arquivo, dict):
+        erros.extend(_desconhecidas(arquivo, CHAVES_ARQUIVO, "arquivo"))
     datas = mapa.get("datas")
     if (not isinstance(datas, dict) or not isinstance(datas.get("formatos"), list) or not datas["formatos"]
             or not all(isinstance(f, str) for f in datas["formatos"])):
@@ -79,7 +105,7 @@ def validar_mapeamento(mapa: object) -> list[str]:
     if not isinstance(colunas, dict) or not colunas or not all(isinstance(v, str) and v for v in colunas.values()):
         erros.append("colunas deve mapear apelido -> nome da coluna no documento")
         colunas = {}
-    apelidos = set(colunas)
+    apelidos_base = set(colunas)
     extrair = mapa.get("extrair") or {}
     if not isinstance(extrair, dict):
         erros.append("extrair deve ser {apelido: regex}")
@@ -88,7 +114,7 @@ def validar_mapeamento(mapa: object) -> list[str]:
         if apelido not in colunas:
             erros.append(f"extrair.{apelido}: apelido não existe em colunas")
         try:
-            apelidos |= _grupos(regex)
+            apelidos_base |= _grupos(regex)
         except (re.error, TypeError) as e:
             erros.append(f"extrair.{apelido}: regex inválida ({e})")
     regras = mapa.get("linhas")
@@ -100,6 +126,8 @@ def validar_mapeamento(mapa: object) -> list[str]:
         if not isinstance(regra, dict):
             erros.append(f"{onde}: regra deve ser um mapeamento")
             continue
+        erros.extend(_desconhecidas(regra, CHAVES_REGRA, onde))
+        apelidos = set(apelidos_base)   # por regra: grupo de outra regra não vale aqui
         quando = regra.get("quando")
         if not isinstance(quando, dict) or not quando:
             erros.append(f"{onde}: quando ausente ({{apelido: regex}})")
@@ -124,8 +152,13 @@ def validar_mapeamento(mapa: object) -> list[str]:
                 erros.append(f"{onde}: ajuste exige aplica-em (uma tabela de dados/)")
             elif regra.get("campo", "valor_liquido") not in SCHEMAS[alvo]:
                 erros.append(f"{onde}: ajuste.campo fora do schema de {alvo}")
-            if not isinstance(regra.get("chave"), list) or not regra["chave"]:
+            chave = regra.get("chave")
+            if not isinstance(chave, list) or not chave:
                 erros.append(f"{onde}: ajuste exige chave (lista de campos para achar a linha principal)")
+            elif em_vocabulario(alvo, DESTINOS_TABELA):
+                fora = [c for c in chave if not em_vocabulario(c, SCHEMAS[alvo])]
+                if fora:
+                    erros.append(f"{onde}: ajuste.chave {fora} fora do schema de {alvo} ({SCHEMAS[alvo]})")
             if not regra.get("valor"):
                 erros.append(f"{onde}: ajuste exige valor (template da quantia)")
         else:
@@ -133,6 +166,12 @@ def validar_mapeamento(mapa: object) -> list[str]:
             if not isinstance(campos, dict):
                 erros.append(f"{onde}: campos deve ser um mapeamento")
                 continue
+            faltando = [c for c in SCHEMAS[destino]
+                        if c not in campos and c not in apelidos and c not in PREENCHIDOS_PELO_MAPA
+                        and c not in OPCIONAIS.get(destino, set()) and c != "data"]
+            if faltando:
+                erros.append(f"{onde}: destino {destino} não consegue preencher {faltando} — "
+                             "declare em campos ou dê a esses nomes um apelido em colunas/extrair")
             for campo, template in campos.items():
                 if campo not in SCHEMAS[destino]:
                     erros.append(f"{onde}: campo {campo!r} fora do schema de {destino}")
@@ -140,6 +179,8 @@ def validar_mapeamento(mapa: object) -> list[str]:
                     if nome not in apelidos:
                         erros.append(f"{onde}: {campo} usa {{{nome}}}, que não é apelido nem grupo de regex")
     conc = mapa.get("conciliacao")
+    if isinstance(conc, dict):
+        erros.extend(_desconhecidas(conc, CHAVES_CONCILIACAO, "conciliacao"))
     if not isinstance(conc, dict) or not em_vocabulario(conc.get("tipo"), CONCILIACOES):
         erros.append(f"conciliacao.tipo deve ser um de {sorted(CONCILIACOES)} — mapeamento sem conciliação é recusado")
     elif conc["tipo"] == "saldo-corrente":
@@ -156,16 +197,34 @@ def validar_mapeamento(mapa: object) -> list[str]:
     else:
         if not isinstance(conc.get("soma"), str) or not conc["soma"]:
             erros.append("total-declarado exige soma (campo ou campo*campo do registro)")
+        else:   # os campos da soma têm que existir no schema de algum destino que o mapa produz
+            destinos = {r.get("destino") for r in regras
+                        if isinstance(r, dict) and isinstance(r.get("destino"), str)} & DESTINOS_TABELA
+            conhecidos = {c for d in destinos for c in SCHEMAS[d]}
+            fora = [c for c in (x.strip() for x in conc["soma"].split("*"))
+                    if not em_vocabulario(c, conhecidos)]
+            if destinos and fora:
+                erros.append(f"conciliacao.soma cita {fora}, que não é campo de nenhum destino "
+                             f"produzido por este mapa ({sorted(destinos)})")
         origem = conc.get("origem")
-        if origem != "flag" and not (isinstance(origem, dict) and origem.get("linha-contem") and origem.get("coluna")):
-            erros.append("total-declarado exige origem: flag, ou {linha-contem: texto, coluna: nome da coluna}")
+        if origem == "flag":
+            pass
+        elif not isinstance(origem, dict):
+            erros.append("total-declarado exige origem: flag, ou {linha-contem: texto, coluna: apelido}")
+        else:
+            erros.extend(_desconhecidas(origem, {"linha-contem", "coluna"}, "conciliacao.origem"))
+            linha_contem = origem.get("linha-contem")
+            if not isinstance(linha_contem, str) or not linha_contem:
+                erros.append("conciliacao.origem.linha-contem deve ser o texto que marca a linha de total")
+            if not em_vocabulario(origem.get("coluna"), colunas):   # apelido, como o resto da DSL
+                erros.append("conciliacao.origem.coluna deve ser um apelido de colunas")
     return erros
 
 
 def carregar_mapeamento(caminho: str | Path) -> dict:
     """Lê e valida um arquivo de mapeamento. ValueError com os erros em pt-BR."""
     caminho = Path(caminho)
-    if not caminho.exists():
+    if not caminho.is_file():   # exists() é verdade para diretório, e aí o open vazaria OSError
         raise FileNotFoundError(f"mapeamento {caminho} não encontrado")
     try:
         texto = caminho.read_text(encoding="utf-8-sig")

@@ -15,7 +15,7 @@ def _fmt(linha) -> str:
 
 def inspecionar(caminho: str | Path, aba: str | int | None = None, n: int = N_PADRAO) -> str:
     caminho = Path(caminho)
-    if not caminho.exists():
+    if not caminho.is_file():   # exists() é verdade para diretório
         return f"{caminho}: arquivo não encontrado"
     if caminho.suffix.lower() == ".xlsx":
         return _xlsx(caminho, aba, n)

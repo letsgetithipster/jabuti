@@ -62,6 +62,7 @@ def test_diretorio_no_lugar_do_arquivo(tmp_path):
         ler_tabela(tmp_path / "umdir", {"formato": "csv"})
     with pytest.raises(FileNotFoundError):
         ler_tabela(tmp_path / "umdir", {"formato": "xlsx"})
+    assert "não encontrado" in inspecionar(tmp_path / "umdir")
 
 
 def test_xlsx_mantem_tipos_das_celulas(tmp_path):
@@ -103,6 +104,31 @@ def test_xlsx_sem_openpyxl_e_dependencia_ausente(tmp_path, monkeypatch):
     p.write_bytes(b"PK")
     with pytest.raises(DependenciaAusente, match="requirements-xlsx.txt"):
         ler_tabela(p, {"formato": "xlsx"})
+
+
+def test_formula_sem_valor_calculado_nao_vira_celula_vazia(tmp_path):
+    """data_only=True devolve None para fórmula sem cache: uma coluna Total viraria coluna vazia,
+    e com fim-em-vazio uma linha inteira de fórmulas truncaria a tabela sem erro nenhum."""
+    openpyxl = pytest.importorskip("openpyxl")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Ativo", "Qtd", "PM", "Total"])
+    ws.append(["PETR4", 100, 30, "=B2*C2"])
+    p = tmp_path / "com_formula.xlsx"
+    wb.save(p)
+    with pytest.raises(ValueError, match="fórmula sem valor calculado"):
+        ler_tabela(p, {"formato": "xlsx"})
+
+
+def test_planilha_sem_formula_continua_lendo(tmp_path):
+    openpyxl = pytest.importorskip("openpyxl")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Ativo", "Qtd"])
+    ws.append(["PETR4", 100])
+    p = tmp_path / "normal.xlsx"
+    wb.save(p)
+    assert ler_tabela(p, {"formato": "xlsx"}).linhas == [["PETR4", 100]]
 
 
 def test_inspecionar_csv_mostra_encoding_delimitador_e_amostra(tmp_path):

@@ -1,0 +1,2 @@
+# Opcional: leitor de extrato .xlsx e cockpit xlsx. O validador e o instanciador não precisam disto.
+openpyxl>=3.1,<4

@@ -67,7 +67,26 @@ def _linhas_xlsx(caminho: Path, cfg: dict) -> list[list]:
         ws = wb.worksheets[aba] if isinstance(aba, int) else wb[aba]
     except (IndexError, KeyError):
         raise ValueError(f"{caminho.name}: aba {aba!r} não existe (abas: {wb.sheetnames})")
-    return [[_celula(c) for c in linha] for linha in ws.iter_rows(values_only=True)]
+    linhas = [[_celula(c) for c in linha] for linha in ws.iter_rows(values_only=True)]
+    _recusar_formula_sem_valor(caminho, wb, aba, linhas)
+    return linhas
+
+
+def _recusar_formula_sem_valor(caminho: Path, wb, aba, linhas: list[list]) -> None:
+    """Com data_only=True, uma fórmula sem valor em cache volta None — indistinguível de célula
+    vazia. Uma coluna Total que é fórmula viraria coluna vazia, e com 'fim-em-vazio' uma linha
+    inteira de fórmulas truncaria a tabela sem erro nenhum. Melhor parar e mandar recalcular."""
+    import openpyxl
+    bruto = openpyxl.load_workbook(caminho, data_only=False)
+    ws = bruto.worksheets[aba] if isinstance(aba, int) else bruto[aba]
+    for linha in ws.iter_rows():
+        for c in linha:
+            if isinstance(c.value, str) and c.value.startswith("="):
+                calculada = linhas[c.row - 1][c.column - 1] if c.row - 1 < len(linhas) else ""
+                if calculada == "":
+                    raise ValueError(
+                        f"{caminho.name}: célula {c.coordinate} é fórmula sem valor calculado "
+                        "— abra e salve a planilha no Excel/LibreOffice, ou exporte como CSV")
 
 
 def ler_tabela(caminho: str | Path, cfg: dict) -> Tabela:
