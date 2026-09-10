@@ -1,4 +1,4 @@
-"""Tipos canônicos de cotação. Cotacao espelha a linha de cotacoes.csv."""
+"""Tipos canônicos de cotação e a derivação dos pedidos a partir de posicoes.csv."""
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -37,12 +37,17 @@ class ProviderCotacoes(Protocol):
 
     def cotar(self, pedidos: list[Pedido]) -> tuple[list[Cotacao], list[str]]:
         """Retorna (cotações obtidas, falhas em pt-BR, uma por pedido não atendido).
-        Levanta SemRede se a rede caiu — nunca devolve preço parcial nesse caso."""
+        Levanta SemRede se a rede caiu — nunca devolve preço parcial nesse caso: as
+        cotações já coletadas na chamada são descartadas, porque quem chama grava tudo
+        de uma vez só no final."""
         ...
 
 
 def pedidos_de_posicoes(posicoes: list[dict]) -> list[Pedido]:
-    """Um pedido por (ticker, moeda) das posições + um par de câmbio por moeda ≠ BRL."""
+    """Um pedido por (ticker, moeda) das posições + um par de câmbio por moeda ≠ BRL.
+    A chave de dedup é (ticker, moeda): o mesmo ticker classificado de formas diferentes
+    em duas contas mantém a primeira classe, e um ticker literalmente chamado USDBRL
+    colidiria com o par sintetizado."""
     vistos, pedidos = set(), []
     for p in posicoes:
         chave = (p["ticker"], p["moeda"])

@@ -2,8 +2,10 @@ from po.cotacoes.tipos import Cotacao, Pedido, pedidos_de_posicoes
 
 
 def test_cotacao_vira_linha_do_schema():
+    from po.csvs import SCHEMAS, validar_linha
     c = Cotacao("2026-09-08", "18:00", "PETR4", 40.0, "BRL", "yahoo")
-    assert list(c.como_linha()) == ["data", "hora", "ticker", "preco", "moeda", "fonte"]
+    assert set(c.como_linha()) == set(SCHEMAS["cotacoes"])
+    assert validar_linha("cotacoes", dict(c.como_linha()), "teste") == []   # é sempre linha anexável
 
 
 def test_pedidos_de_posicoes_deduplica_e_adiciona_cambio():
