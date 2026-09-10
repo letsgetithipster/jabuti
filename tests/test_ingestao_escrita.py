@@ -5,7 +5,7 @@ import pytest
 from po.csvs import ler_csv
 from po.frontmatter import extrair_frontmatter
 from po.ingestao.engine import Resultado
-from po.ingestao.escrita import conferir, gravar
+from po.ingestao.escrita import GravacaoParcial, conferir, gravar
 from po.validar import validar
 from test_validar_dados import copia_exemplo
 
@@ -106,7 +106,7 @@ def test_conferir_compara_sem_gravar(tmp_path):
         {"ticker": "PETR4", "classe": "acoes-br", "conta": "corretora-br", "qty": 100.0, "pm": 30.0, "moeda": "BRL", "_data": "2026-09-01"},
         {"ticker": "VALE3", "classe": "acoes-br", "conta": "corretora-br", "qty": 10.0, "pm": 60.0, "moeda": "BRL", "_data": "2026-09-01"},
     ], proventos=[_prov("2026-09-05", "HGLG11", 55.00)])
-    linhas, divergiu = conferir(ws, res)
+    linhas, divergiu, _novos = conferir(ws, res)
     texto = "\n".join(linhas)
     assert divergiu is True   # HGLG11 está em dados/ e não no documento
     assert "PETR4 (corretora-br): OK" in texto and "VALE3 (corretora-br): NOVA" in texto
@@ -121,7 +121,7 @@ def test_conferir_sem_divergencia_nao_diverge(tmp_path):
     ws = copia_exemplo(tmp_path)
     res = _res(posicoes=[_pos("PETR4", 100, 30.0), _pos("HGLG11", 50, 155.0, classe="fiis")],
                proventos=[_prov("2026-10-05", "HGLG11", 56.00)])
-    linhas, divergiu = conferir(ws, res)
+    linhas, divergiu, _novos = conferir(ws, res)
     assert divergiu is False
     assert "proventos: 1 nova(s), 0 já presente(s)" in "\n".join(linhas)
 
@@ -172,6 +172,108 @@ def test_documento_com_duas_iguais_e_dados_com_uma_grava_so_a_que_falta(tmp_path
     assert len(_iguais_em(ws)) == 2
 
 
+# --- posicoes é chave única: o documento não pode trazer a mesma posição duas vezes ---------
+
+def _dados(ws):
+    return {p.name: p.read_text(encoding="utf-8") for p in sorted((ws / "dados").glob("*.csv"))}
+
+
+def _grava_pos(ws, *posicoes):
+    return gravar(ws, _res(posicoes=list(posicoes)), **KW)
+
+
+def test_posicao_repetida_igual_e_depois_divergente_nao_grava_nada(tmp_path):
+    """A regressão que o multiconjunto abriu. A primeira linha casava com dados/ e virava
+    duplicada; a segunda não achava par no contador e entrava como linha nova, sem nunca ser
+    comparada com a primeira. `check_dados` então via PETR4 duas vezes e o patrimônio dobrava.
+    Só a ordem das linhas decidia isso, o que já é sintoma."""
+    ws = copia_exemplo(tmp_path)
+    antes = _dados(ws)
+    with pytest.raises(ValueError, match="duas vezes"):
+        _grava_pos(ws, _pos("PETR4", 100, 30.0), _pos("PETR4", 120, 30.0))
+    assert _dados(ws) == antes
+    assert not (ws / "logs" / "importacoes").exists()
+
+
+def test_posicao_repetida_divergente_e_depois_igual_nao_grava_nada(tmp_path):
+    """Ordem inversa da anterior. As duas linhas viram conflito: a primeira contra dados/,
+    a segunda contra a primeira. Ordem do documento não pode mudar o veredito."""
+    ws = copia_exemplo(tmp_path)
+    antes = _dados(ws)
+    with pytest.raises(ValueError) as exc:
+        _grava_pos(ws, _pos("PETR4", 120, 30.0), _pos("PETR4", 100, 30.0))
+    texto = str(exc.value)
+    assert "já existe em posicoes.csv" in texto and "duas vezes" in texto
+    assert _dados(ws) == antes
+
+
+def test_ticker_novo_duas_vezes_identicas_nao_grava_nada(tmp_path):
+    """Ticker que nem está em dados/: sem a guarda, as duas linhas entravam e nasciam duas
+    posições de VALE3, que é exatamente o que `check_dados` recusa."""
+    ws = copia_exemplo(tmp_path)
+    antes = _dados(ws)
+    with pytest.raises(ValueError, match="duas vezes"):
+        _grava_pos(ws, _pos("VALE3", 10, 60.0), _pos("VALE3", 10, 60.0))
+    assert _dados(ws) == antes
+
+
+def test_ticker_novo_duas_vezes_divergentes_nao_grava_nada(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    antes = _dados(ws)
+    with pytest.raises(ValueError) as exc:
+        _grava_pos(ws, _pos("VALE3", 10, 60.0), _pos("VALE3", 20, 60.0))
+    assert "duas vezes" in str(exc.value) and "consolide no mapeamento" in str(exc.value)
+    assert _dados(ws) == antes
+
+
+def test_controle_posicao_unica_continua_gravando(tmp_path):
+    """Controle: a guarda de unicidade não pode passar a barrar o caso normal."""
+    ws = copia_exemplo(tmp_path)
+    r = _grava_pos(ws, _pos("VALE3", 10, 60.0))
+    assert r["gravadas"]["posicoes"] == 1 and r["duplicadas"]["posicoes"] == 0
+
+
+def test_controle_posicao_ja_em_dados_e_igual_continua_duplicada(tmp_path):
+    """Controle: 'já está em dados/, igual' continua sendo duplicada pulada, não conflito."""
+    ws = copia_exemplo(tmp_path)
+    r = _grava_pos(ws, _pos("PETR4", 100, 30.0))
+    assert r["gravadas"]["posicoes"] == 0 and r["duplicadas"]["posicoes"] == 1
+
+
+def test_ledger_continua_multiconjunto_ao_lado_da_posicao_unica(tmp_path):
+    """As duas semânticas convivem na mesma gravação: `posicoes` é chave única, o ledger é
+    multiconjunto. Duas compras idênticas no mesmo documento continuam virando duas linhas."""
+    ws = copia_exemplo(tmp_path)
+    res = _res(posicoes=[_pos("VALE3", 20, 31.0)],
+               fills=[_fill("2026-09-10", "VALE3", 10, 31.00), _fill("2026-09-10", "VALE3", 10, 31.00)])
+    r = gravar(ws, res, **KW)
+    assert r["gravadas"]["posicoes"] == 1 and r["gravadas"]["fills"] == 2
+    fills, _ = ler_csv("fills", ws / "dados" / "fills.csv")
+    assert [f["tipo"] for f in fills if f["ticker"] == "VALE3"] == ["compra", "compra"]
+
+
+# --- conferir: 'sem divergência' e 'nada a fazer' são coisas diferentes ----------------------
+
+def test_conferir_conta_os_registros_novos(tmp_path):
+    """O terceiro valor de `conferir`. Sem ele o CLI dizia 'o documento bate com dados/'
+    contradizendo a linha logo acima, que anunciava lançamento novo a gravar."""
+    ws = copia_exemplo(tmp_path)
+    _linhas, divergiu, novos = conferir(ws, _res(proventos=[_prov("2026-10-05", "HGLG11", 56.00)]))
+    assert divergiu is False and novos == 1
+    _linhas, divergiu, novos = conferir(ws, _res(proventos=[_prov("2026-09-05", "HGLG11", 55.00)]))
+    assert divergiu is False and novos == 0
+
+
+def test_conferir_recusa_resultado_com_erro(tmp_path):
+    """Mesma guarda de `gravar`: prévia sobre resultado que a gravação recusaria mente."""
+    ws = copia_exemplo(tmp_path)
+    res = _res(proventos=[_prov("2026-10-05", "HGLG11", 1.0)])
+    res.erros.append("linha 7: valor_bruto não numérico ('abc')")
+    with pytest.raises(ValueError, match="nada a conferir") as exc:
+        conferir(ws, res)
+    assert "linha 7" in str(exc.value)
+
+
 # --- gravação parcial e a abertura que ficou faltando ---------------------------------------
 
 def _falha_em_fills(monkeypatch):
@@ -192,7 +294,7 @@ def test_gravacao_parcial_levanta_e_o_log_nomeia_o_que_entrou(tmp_path, monkeypa
     """A rodada que mais precisa de registro é justamente a que morreu no meio."""
     ws = copia_exemplo(tmp_path)
     _falha_em_fills(monkeypatch)
-    with pytest.raises(OSError):
+    with pytest.raises(GravacaoParcial):
         gravar(ws, _res(posicoes=[_pos("VALE3", 20, 60.0, data="2026-09-10")]), **KW)
     logs = sorted((ws / "logs" / "importacoes").glob("*.md"))
     assert len(logs) == 1
@@ -210,7 +312,7 @@ def test_rodada_seguinte_completa_o_saldo_inicial_que_faltou(tmp_path, monkeypat
     seguinte a via como duplicada e o saldo-inicial nunca nascia."""
     ws = copia_exemplo(tmp_path)
     _falha_em_fills(monkeypatch)
-    with pytest.raises(OSError):
+    with pytest.raises(GravacaoParcial):
         gravar(ws, _res(posicoes=[_pos("VALE3", 20, 60.0, data="2026-09-10")]), **KW)
     monkeypatch.undo()
     r = gravar(ws, _res(posicoes=[_pos("VALE3", 20, 60.0, data="2026-09-10")]), **KW)
@@ -249,7 +351,7 @@ def test_workspace_continua_valido_depois_da_parcial_e_da_rodada_que_completou(t
     só para o check do total ter o que conferir."""
     ws = copia_exemplo(tmp_path)
     _falha_em_fills(monkeypatch)
-    with pytest.raises(OSError):
+    with pytest.raises(GravacaoParcial):
         gravar(ws, _res(posicoes=[_pos("VALE3", 20, 60.0, data="2026-09-10")]), **KW)
     monkeypatch.undo()
     gravar(ws, _res(posicoes=[_pos("VALE3", 20, 60.0, data="2026-09-10")]), **KW)

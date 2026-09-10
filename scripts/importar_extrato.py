@@ -9,7 +9,9 @@ nada entra em dados/. Sem --mapeamento, tenta detectar pelo cabeçalho entre os
 mapeamentos do workspace (mapeamentos/) e do motor.
 
 Códigos de saída: 0 importou (ou --dry-run/--conferir sem divergência)
-· 1 erro que impediu a rodada: config, mapeamento, leitura, conciliação ou gravação (nada gravado)
+· 1 erro que impediu a rodada: config, mapeamento, leitura, conciliação ou gravação. Nada entra em
+  dados/ sem a conciliação passar; a única exceção é a gravação que morre no meio (arquivo travado,
+  disco cheio), e aí o texto e o log de importação nomeiam tabela por tabela o que chegou a entrar
 · 2 uso inválido da linha de comando (argparse)
 · 3 --conferir achou divergência entre o documento e dados/ (nada gravado; não é erro de execução)
 """
@@ -25,7 +27,7 @@ if hasattr(sys.stderr, "reconfigure"):
 from po.config import carregar_config, moedas_por_conta  # noqa: E402
 from po.ingestao.conciliacao import conciliar  # noqa: E402
 from po.ingestao.engine import executar  # noqa: E402
-from po.ingestao.escrita import conferir, gravar  # noqa: E402
+from po.ingestao.escrita import GravacaoParcial, conferir, gravar  # noqa: E402
 from po.ingestao.leitores import DependenciaAusente, ler_tabela  # noqa: E402
 from po.ingestao.mapeamento import carregar_mapeamento, detectar_mapeamento, resolver_mapeamento  # noqa: E402
 from po.numeros import parse_valor  # noqa: E402
@@ -113,7 +115,9 @@ def main():
     for linha in _descrever(mapa, caminho_mapa):
         print(linha)
     res = executar(mapa, tabela, conta=conta, data_padrao=args.data)
-    if res.linhas_lidas == 0:
+    # `res.erros` primeiro: documento vazio E coluna renomeada mostraria a frase genérica de vazio
+    # no lugar do erro preciso, que é o que resolve o problema do usuário.
+    if res.linhas_lidas == 0 and not res.erros:
         # sem isto o usuário via "0 lidas · 0 classificadas", a conciliação passava vazia e a
         # rodada terminava dizendo que nada havia a gravar — como se o documento estivesse em dia
         print(f"\nerro: nenhuma linha de dados abaixo do cabeçalho em {arquivo.name} — nada a importar. "
@@ -147,7 +151,7 @@ def main():
     if args.conferir:
         print("\nConferência contra dados/ (nada gravado):")
         try:
-            linhas, divergiu = conferir(raiz, res)
+            linhas, divergiu, n_novos = conferir(raiz, res)
         except ValueError as e:
             print(f"erro: {e}")
             sys.exit(1)
@@ -161,13 +165,27 @@ def main():
             # separado existe para quem chama ramificar sem parsear texto.
             print("\nDivergência entre o documento e dados/ — nada gravado. Resolva antes de importar.")
             sys.exit(3)
-        print("\nSem divergência: o documento bate com dados/.")
+        print("\nSem divergência: nada em dados/ conflita com o documento"
+              + (f", e há {n_novos} registro(s) novo(s) a gravar." if n_novos
+                 else ". Não há registro novo: rodar sem --conferir não muda dados/."))
         return
     if args.dry_run:
         print("\n--dry-run: nada gravado.")
         return
     try:
         r = gravar(raiz, res, mapeamento=mapa["nome"], arquivo=arquivo.name, conciliacao=descricao, conta=conta)
+    except GravacaoParcial as e:
+        entrou = ", ".join(f"{t} +{n}" for t, n in e.gravadas.items() if n) or "nada"
+        # a causa vira a MESMA frase acionável do resto do CLI (caminho relativo ao
+        # workspace, "aberto no Excel?"), não o repr cru do OSError
+        causa = _mensagem_os(e.causa, raiz) if isinstance(e.causa, OSError) else f"erro: {e}"
+        print(f"\nA gravação falhou no meio. {causa}")
+        print(f"O que chegou a entrar em dados/: {entrou}. O resto não entrou.")
+        if e.log is not None:
+            print(f"Log: {e.log.relative_to(raiz).as_posix()}")
+        print("Resolva a causa (feche o arquivo no Excel, libere espaço) e rode de novo: "
+              "a importação é idempotente, o que já entrou não duplica.")
+        sys.exit(1)
     except ValueError as e:
         print(f"erro: {e}")
         sys.exit(1)
@@ -179,6 +197,14 @@ def main():
     print("\n" + (f"Gravado em dados/: {novas}" if novas else "Nada novo para gravar (tudo já estava em dados/)")
           + (f" · duplicadas puladas: {dup}" if dup else ""))
     print(f"Log: {r['log'].relative_to(raiz).as_posix()}")
+    if res.registros.get("posicoes"):
+        # posição sem cotação deixa o validador vermelho, e inventar preço a partir do PM seria
+        # fabricar número de mercado. Então o CLI manda cotar antes de validar. A condição é "o
+        # documento trouxe posição", não "gravou posição": numa rodada de recuperação a posição já
+        # entrou na tentativa anterior, e é justamente aí que o lembrete some se ele olhar gravadas.
+        tickers = sorted({p["ticker"] for p in res.registros["posicoes"]})
+        print(f"Posição(ões) no documento: {', '.join(tickers)}. Cote antes de validar: "
+              f"python {motor / 'scripts' / 'atualizar_cotacoes.py'} {raiz}")
     print(f"Agora rode: python {motor / 'scripts' / 'validar_workspace.py'} {raiz}")
 
 

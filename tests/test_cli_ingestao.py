@@ -4,6 +4,7 @@ A Task 15 transforma este output em contrato de skill: quem chama precisa ramifi
 código de saída, sem parsear texto. Por isso cada código documentado tem um teste aqui.
 """
 import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -64,7 +65,7 @@ conciliacao: {tipo: total-declarado, soma: 'qty*pm', origem: flag}
 
 EXTRATO = """\
 Data,Histórico,Valor,Saldo
-05/10/2026,RENDIMENTO HGLG11,"56,00","1.356,00"
+05/10/2026,RENDIMENTO HGLG11,"1.234,56","2.534,56"
 04/10/2026,SALDO ANTERIOR,,"1.300,00"
 """
 
@@ -78,6 +79,13 @@ POSICOES_DIVERGENTES = """\
 Ativo,Classe,Quantidade,Preco
 PETR4,acoes-br,120,30.00
 HGLG11,fiis,50,155.00
+"""
+
+# Posição que dados/ ainda não tem: assim a gravação tem duas tabelas para morrer no meio de,
+# posicoes e o saldo-inicial em fills.
+POSICOES_NOVAS = """\
+Ativo,Classe,Quantidade,Preco
+VALE3,acoes-br,10,60.00
 """
 
 
@@ -107,7 +115,10 @@ def test_caminho_feliz_importa_e_sai_0(tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     assert "Gravado em dados/: proventos +1" in r.stdout
     proventos = (ws / "dados" / "proventos.csv").read_text(encoding="utf-8")
-    assert "2026-10-05,HGLG11,,rendimento,56,56,corretora-br,BRL" in proventos
+    # 1.234,56 e não 56,00: prova ponto de milhar E vírgula decimal de uma vez. Com 56,
+    # um parser que devolvesse inteiro passaria — e foi assim que --manual PETR4=41.50
+    # gravou 4.150,00 numa task anterior.
+    assert "2026-10-05,HGLG11,,rendimento,1234.56,1234.56,corretora-br,BRL" in proventos
 
 
 def test_log_de_importacao_real_registra_acertos_por_regra(tmp_path):
@@ -141,6 +152,9 @@ def test_conferir_sem_divergencia_sai_0(tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     assert "PETR4 (corretora-br): OK" in r.stdout and "HGLG11 (corretora-br): OK" in r.stdout
     assert "Sem divergência" in r.stdout
+    # e, não havendo registro novo, a frase diz isso. Antes era "o documento bate com dados/",
+    # que contradizia a linha logo acima quando havia lançamento novo esperando gravação
+    assert "Não há registro novo" in r.stdout and "não muda dados/" in r.stdout
     assert instantaneo(ws) == antes
 
 
@@ -195,3 +209,54 @@ def test_sobrevive_a_console_cp1252(tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     assert "UnicodeEncodeError" not in r.stderr and "Traceback" not in r.stderr
     assert "Gravado em dados/" in r.stdout
+
+
+def test_conferir_sem_divergencia_mas_com_registro_novo_diz_quantos(tmp_path):
+    """O outro lado da I2: nada em dados/ conflita com o documento e ainda assim há o que
+    gravar. A frase final tem que dizer isso, não "o documento bate com dados/"."""
+    ws, doc = prepara(tmp_path)
+    antes = instantaneo(ws)
+    r = roda(ws, doc, "--conferir")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "proventos: 1 nova(s), 0 já presente(s)" in r.stdout
+    assert "há 1 registro(s) novo(s) a gravar" in r.stdout
+    assert instantaneo(ws) == antes
+    assert not (ws / "logs" / "importacoes").exists()
+
+
+def test_gravacao_parcial_nomeia_o_que_entrou_e_a_rodada_seguinte_completa(tmp_path):
+    """I1 de ponta a ponta, com um arquivo de verdade travado. O código de saída 1 era
+    documentado como "nada gravado", e isso é falso quando a gravação morre no meio: aqui
+    posicoes já entrou e fills não. O CLI tem que nomear a tabela, apontar o log e dizer como
+    se recuperar, e a promessa "a importação é idempotente" tem que ser verdade na rodada
+    seguinte, senão o texto é conselho ruim."""
+    ws, doc = prepara(tmp_path, POSICOES_NOVAS, MAPA_POSICOES, "pos.csv")
+    conferencia = ["--data", "2026-09-08", "--total-declarado", "600,00"]
+    alvo = ws / "dados" / "fills.csv"
+    os.chmod(alvo, stat.S_IREAD)
+    try:
+        r = roda(ws, doc, *conferencia)
+    finally:
+        os.chmod(alvo, stat.S_IWRITE)   # sem devolver a escrita o tmp_path não consegue limpar
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "A gravação falhou no meio" in r.stdout
+    # a causa vira a MESMA frase acionável do resto do CLI, não o repr cru do OSError
+    assert "dados/fills.csv" in r.stdout and "aberto no Excel" in r.stdout
+    assert "OSError" not in r.stdout and "Traceback" not in r.stderr
+    assert "O que chegou a entrar em dados/: posicoes +1" in r.stdout
+    assert "a importação é idempotente" in r.stdout
+    logs = sorted((ws / "logs" / "importacoes").glob("*.md"))
+    assert len(logs) == 1
+    assert f"Log: logs/importacoes/{logs[0].name}" in r.stdout
+    corpo = logs[0].read_text(encoding="utf-8")
+    assert "**A gravação falhou no meio**" in corpo
+    assert "| posicoes | 1 | 0 |" in corpo and "| fills | 0 | 0 |" in corpo
+
+    r2 = roda(ws, doc, *conferencia)                     # a rodada de recuperação
+    assert r2.returncode == 0, r2.stdout + r2.stderr
+    assert "Gravado em dados/: fills +1" in r2.stdout
+    posicoes = (ws / "dados" / "posicoes.csv").read_text(encoding="utf-8").splitlines()
+    assert sum(1 for linha in posicoes if linha.startswith("VALE3,")) == 1     # não duplicou
+    fills = (ws / "dados" / "fills.csv").read_text(encoding="utf-8").splitlines()
+    abertura = [linha for linha in fills if ",VALE3," in linha]                # e a abertura nasceu
+    assert abertura == ["2026-09-08,VALE3,saldo-inicial,10,60,0,corretora-br,BRL"]

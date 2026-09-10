@@ -8,6 +8,17 @@ from pathlib import Path
 from po.csvs import anexar_csv, ler_csv
 from po.ingestao.engine import Resultado
 
+class GravacaoParcial(Exception):
+    """A gravação morreu no meio do laço de tabelas. Carrega o que chegou a entrar em `dados/` e o
+    caminho do log, para que o CLI possa dizer isso em vez de repetir "nada gravado" — que seria
+    falso. Não herda de OSError nem de ValueError de propósito: quem trata precisa distinguir
+    "nada entrou" de "entrou parte", e herdar faria a guarda genérica engolir o caso."""
+
+    def __init__(self, causa: Exception, gravadas: dict[str, int], log):
+        super().__init__(str(causa))
+        self.causa, self.gravadas, self.log = causa, gravadas, log
+
+
 TABELAS = ("posicoes", "fills", "proventos", "eventos")
 CHAVES = {
     "proventos": lambda r: (r["data"], r["ticker"], r["tipo"], r["conta"], round(float(r["valor_bruto"]), 2)),
@@ -34,20 +45,36 @@ def _mesma_posicao(a: dict, b: dict) -> bool:
 def separar(existentes: dict[str, list[dict]], res: Resultado) -> tuple[dict[str, list[dict]], dict[str, int], list[str]]:
     """(novos por tabela, duplicadas por tabela, conflitos de posição).
 
-    A comparação é de MULTICONJUNTO contra o que já está em dados/, nunca do documento contra
-    ele mesmo: duas execuções parciais da mesma ordem no mesmo dia, pelo mesmo preço, são dois
-    eventos reais e rotineiros em B3 e Schwab. Deduplicar o documento contra si mesmo perderia
-    a segunda em silêncio — e a conciliação já tinha abençoado as duas."""
+    Duas semânticas, porque as tabelas são de naturezas diferentes:
+
+    - **Ledger** (`fills`, `proventos`, `eventos`): MULTICONJUNTO contra o que já está em `dados/`,
+      nunca do documento contra ele mesmo. Duas execuções parciais da mesma ordem no mesmo dia,
+      pelo mesmo preço, são dois eventos reais e rotineiros em B3 e Schwab; deduplicar o documento
+      contra si mesmo perderia a segunda em silêncio, e a conciliação já tinha abençoado as duas.
+    - **`posicoes`**: `(ticker, conta)` é restrição de UNICIDADE, e `check_dados` trata a segunda
+      linha com a mesma chave como erro. Tabela de chave única não é multiconjunto: o documento que
+      traz a mesma posição duas vezes (quebra por lote ou por agente de custódia, como B3 e Schwab
+      às vezes exportam) é conflito, nunca duas linhas. Aplicar o multiconjunto aqui deixava passar
+      uma segunda linha divergente sem nunca comparar com a primeira, e o patrimônio dobrava."""
     novos, duplicadas, conflitos = {}, {}, []
     for nome in TABELAS:
         chave = CHAVES[nome]
+        unica = nome == "posicoes"
         restantes = Counter(chave(e) for e in existentes[nome])
         por_chave = {chave(e): e for e in existentes[nome]}
         novos[nome], duplicadas[nome] = [], 0
+        vistas = set()
         for r in res.registros.get(nome, []):
             k = chave(r)
+            if unica and k in vistas:
+                conflitos.append(f"{r['ticker']} ({r['conta']}): o documento traz esta posição duas vezes — "
+                                 "posicoes.csv é uma linha por ticker/conta. Se a sua corretora quebra a "
+                                 "posição por lote ou por agente de custódia, consolide no mapeamento "
+                                 "antes de importar")
+                continue
+            vistas.add(k)
             if restantes[k] > 0:
-                if nome == "posicoes" and not _mesma_posicao(por_chave[k], r):
+                if unica and not _mesma_posicao(por_chave[k], r):
                     e = por_chave[k]
                     conflitos.append(f"{r['ticker']} ({r['conta']}): já existe em posicoes.csv com qty {e['qty']:g} "
                                      f"@ {e['pm']:.2f}; o documento diz {r['qty']:g} @ {r['pm']:.2f}. Ou a corretora "
@@ -64,7 +91,11 @@ def separar(existentes: dict[str, list[dict]], res: Resultado) -> tuple[dict[str
 def gravar(raiz: str | Path, res: Resultado, *, mapeamento: str, arquivo: str, conciliacao: str,
            conta: str, hoje: datetime.date | None = None) -> dict:
     """Grava os registros novos e o log. Retorna {'gravadas': {...}, 'duplicadas': {...}, 'log': Path}.
-    ValueError em conflito de posição ou dados/ sujo — nada é gravado nesses casos."""
+
+    ValueError em conflito de posição, em dados/ sujo ou em Resultado com erro: nada é gravado
+    nesses casos, e a checagem acontece antes de qualquer escrita. `GravacaoParcial` se o laço de
+    tabelas morrer no meio (arquivo travado no Excel, disco cheio): aí parte entrou, e a exceção
+    diz qual parte e onde está o log. É a única saída de erro em que dados/ mudou."""
     raiz = Path(raiz)
     hoje = hoje or datetime.date.today()
     if res.erros:   # o contrato do módulo é este; sem a guarda ele valia só por disciplina
@@ -93,9 +124,12 @@ def gravar(raiz: str | Path, res: Resultado, *, mapeamento: str, arquivo: str, c
                 gravadas[nome] = anexar_csv(nome, raiz / "dados" / f"{nome}.csv", novos[nome])
     except (OSError, ValueError) as e:
         # A rodada que mais precisa de registro é justamente a que morreu no meio.
-        _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, gravadas, duplicadas,
-                      falha=str(e))
-        raise
+        try:
+            log = _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, gravadas,
+                                duplicadas, falha=str(e))
+        except OSError:
+            log = None   # logs/ também travado: a causa original vale mais que o registro dela
+        raise GravacaoParcial(e, gravadas, log) from e
     log = _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, gravadas, duplicadas)
     return {"gravadas": gravadas, "duplicadas": duplicadas, "log": log}
 
@@ -140,12 +174,16 @@ def _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, grav
     return caminho
 
 
-def conferir(raiz: str | Path, res: Resultado) -> tuple[list[str], bool]:
-    """Compara o documento com dados/ sem gravar. (linhas de texto, houve divergência).
+def conferir(raiz: str | Path, res: Resultado) -> tuple[list[str], bool, int]:
+    """Compara o documento com dados/ sem gravar. (linhas, houve divergência, registros novos).
 
     Usa o MESMO `separar` da gravação, para que a prévia não possa prometer um número que a
-    gravação não vai cumprir — foi o que acontecia quando cada um contava do seu jeito."""
+    gravação não vai cumprir — foi o que acontecia quando cada um contava do seu jeito. O terceiro
+    valor existe porque "sem divergência" e "nada a fazer" são coisas diferentes: um documento pode
+    bater com dados/ em tudo que já existe e ainda trazer lançamento novo para gravar."""
     raiz = Path(raiz)
+    if res.erros:   # mesmo contrato de `gravar`: prévia sobre resultado que a gravação recusaria mente
+        raise ValueError("a ingestão reportou erro — nada a conferir: " + res.erros[0])
     existentes = _existentes(raiz)
     novos, duplicadas, conflitos = separar(existentes, res)
     linhas, divergiu = [], bool(conflitos)
@@ -175,4 +213,4 @@ def conferir(raiz: str | Path, res: Resultado) -> tuple[list[str], bool]:
             linhas.append(f"  {nome}: {len(novos[nome])} nova(s), {duplicadas[nome]} já presente(s)")
     if not linhas:
         linhas.append("  nada a comparar: o documento não trouxe posição nem lançamento")
-    return linhas, divergiu
+    return linhas, divergiu, sum(len(v) for v in novos.values())
