@@ -20,10 +20,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-if hasattr(sys.stdout, "reconfigure"):   # console cp1252 do Windows não escreve ≤ nem →
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-if hasattr(sys.stderr, "reconfigure"):
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+from po.cli import mensagem_os, preparar_console  # noqa: E402
 from po.config import carregar_config, moedas_por_conta  # noqa: E402
 from po.ingestao.conciliacao import conciliar  # noqa: E402
 from po.ingestao.engine import executar  # noqa: E402
@@ -32,19 +29,7 @@ from po.ingestao.leitores import DependenciaAusente, ler_tabela  # noqa: E402
 from po.ingestao.mapeamento import carregar_mapeamento, detectar_mapeamento, resolver_mapeamento  # noqa: E402
 from po.numeros import parse_valor  # noqa: E402
 
-
-def _mensagem_os(e: OSError, raiz: str | Path) -> str:
-    """PermissionError/IsADirectoryError etc. viram frase acionável, com caminho relativo ao
-    workspace quando possível — não um repr de exceção nem um traceback. FileNotFoundError é
-    irmã de PermissionError (não mãe): quem chama tem que pegar OSError, não só a primeira."""
-    caminho = e.filename or str(e)
-    try:
-        caminho = Path(caminho).resolve().relative_to(Path(raiz).resolve()).as_posix()
-    except (ValueError, TypeError, OSError):
-        pass
-    motivo = e.strerror or str(e)
-    return (f"erro: não consegui ler/gravar {caminho} ({motivo}). "
-           "O arquivo está aberto no Excel ou o OneDrive está sincronizando?")
+preparar_console()
 
 
 def _motor(raiz: Path, cfg: dict) -> Path:
@@ -109,7 +94,7 @@ def main():
         print(f"erro: {e}")
         sys.exit(1)
     except OSError as e:
-        print(_mensagem_os(e, raiz))
+        print(mensagem_os(e, raiz))
         sys.exit(1)
 
     for linha in _descrever(mapa, caminho_mapa):
@@ -156,7 +141,7 @@ def main():
             print(f"erro: {e}")
             sys.exit(1)
         except OSError as e:
-            print(_mensagem_os(e, raiz))
+            print(mensagem_os(e, raiz))
             sys.exit(1)
         for linha in linhas:
             print(linha)
@@ -178,7 +163,7 @@ def main():
         entrou = ", ".join(f"{t} +{n}" for t, n in e.gravadas.items() if n) or "nada"
         # a causa vira a MESMA frase acionável do resto do CLI (caminho relativo ao
         # workspace, "aberto no Excel?"), não o repr cru do OSError
-        causa = _mensagem_os(e.causa, raiz) if isinstance(e.causa, OSError) else f"erro: {e}"
+        causa = mensagem_os(e.causa, raiz) if isinstance(e.causa, OSError) else f"erro: {e}"
         print(f"\nA gravação falhou no meio. {causa}")
         print(f"O que chegou a entrar em dados/: {entrou}. O resto não entrou.")
         if e.log is not None:
@@ -190,7 +175,7 @@ def main():
         print(f"erro: {e}")
         sys.exit(1)
     except OSError as e:
-        print(_mensagem_os(e, raiz))
+        print(mensagem_os(e, raiz))
         sys.exit(1)
     novas = ", ".join(f"{t} +{n}" for t, n in r["gravadas"].items() if n)
     dup = ", ".join(f"{t} {n}" for t, n in r["duplicadas"].items() if n)

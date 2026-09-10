@@ -1,13 +1,13 @@
 ---
 tipo: estado
-gerado-por: registrar-aporte
+gerado-por: gerar-estado
 data-referencia: 2026-09-08
 ---
 
 # ESTADO — leitura de 1 tela
 
-> GERADO por skill. Nunca editar à mão. Primeira leitura para qualquer
-> pergunta de alocação.
+> GERADO por scripts/gerar_estado.py a partir de dados/ e da política. Nunca editar à mão.
+> Primeira leitura para qualquer pergunta de alocação.
 
 Total investido: R$ 12.000,00
 
@@ -17,7 +17,8 @@ Total investido: R$ 12.000,00
 | fiis | R$ 8.000,00 | 67 | 20-40 | acima |
 | rf-br | R$ 0,00 | 0 | 25-45 | abaixo |
 
+Cotações: mais antiga de 2026-09-08 · 2 manual(is) de 2
+
 ## Pendências
-- fiis acima da banda máxima: rebalancear via aporte em acoes-br/rf-br (exemplo didático)
-- rf-br abaixo do mínimo: priorizar nos próximos aportes
-- PETR4 sem tese validada: rodar /aprofundar-tese PETR4 antes do próximo aporte (regra do funil)
+- fiis acima da banda máxima (67% vs 40%): rebalancear via aporte nos blocos abaixo
+- rf-br abaixo do mínimo (0% vs 25%): priorizar nos próximos aportes

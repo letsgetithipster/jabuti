@@ -8,12 +8,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-if hasattr(sys.stdout, "reconfigure"):   # console cp1252 do Windows não escreve ≤ nem →
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-if hasattr(sys.stderr, "reconfigure"):
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+from po.cli import mensagem_os, preparar_console  # noqa: E402
 from po.ingestao.inspecao import N_PADRAO, inspecionar  # noqa: E402
 from po.ingestao.leitores import DependenciaAusente  # noqa: E402
+
+preparar_console()
 
 
 def main():
@@ -29,10 +28,7 @@ def main():
         print(f"erro: {e}")
         sys.exit(1)
     except OSError as e:   # PermissionError é irmã de FileNotFoundError, não filha — pega as duas
-        caminho = e.filename or args.arquivo
-        motivo = e.strerror or str(e)
-        print(f"erro: não consegui ler {caminho} ({motivo}). O arquivo está aberto no Excel "
-             "ou o OneDrive está sincronizando?")
+        print(mensagem_os(e, padrao=args.arquivo))
         sys.exit(1)
 
 
