@@ -56,7 +56,7 @@ CHAVES_TOPO = {"nome", "versao", "descricao", "observacoes", "verificado-contra-
 CHAVES_ARQUIVO = {"formato", "aba", "encoding", "delimitador", "cabecalho-contem", "fim-em-vazio"}
 CHAVES_DATAS = {"formatos", "extrair"}
 CHAVES_REGRA = {"quando", "destino", "campos", "motivo", "aplica-em", "campo", "chave", "valor"}
-CHAVES_CONCILIACAO = {"tipo", "valor", "saldo", "ordem", "proventos", "soma", "origem"}
+CHAVES_CONCILIACAO = {"tipo", "valor", "saldo", "ordem", "proventos", "soma", "origem", "tolerancia"}
 PREENCHIDOS_PELO_MAPA = {"conta", "moeda"}
 DESTINOS = DESTINOS_TABELA | {"ignorar", "ajuste"}
 FORMATOS = {"csv", "xlsx"}
@@ -207,6 +207,10 @@ def validar_mapeamento(mapa: object) -> list[str]:
     conc = mapa.get("conciliacao")
     if isinstance(conc, dict):
         erros.extend(_desconhecidas(conc, CHAVES_CONCILIACAO, "conciliacao"))
+        tolerancia = conc.get("tolerancia")
+        if tolerancia is not None and (isinstance(tolerancia, bool)
+                                        or not isinstance(tolerancia, (int, float)) or tolerancia <= 0):
+            erros.append(f"conciliacao.tolerancia deve ser um número positivo (veio {tolerancia!r})")
     if not isinstance(conc, dict) or not em_vocabulario(conc.get("tipo"), CONCILIACOES):
         erros.append(f"conciliacao.tipo deve ser um de {sorted(CONCILIACOES)} — mapeamento sem conciliação é recusado")
     elif conc["tipo"] == "saldo-corrente":

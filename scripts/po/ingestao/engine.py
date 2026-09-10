@@ -23,6 +23,7 @@ class Resultado:
     ignoradas: list[tuple[int, str]] = field(default_factory=list)
     erros: list[str] = field(default_factory=list)
     linhas_lidas: int = 0
+    acertos: dict[int, int] = field(default_factory=dict)   # regra (1-based) -> linhas que casaram
 
     @property
     def classificadas(self) -> int:
@@ -118,7 +119,7 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
             if m:
                 ctx.update({k: v for k, v in m.groupdict().items() if v is not None})
         escolhida = None
-        for regra, padroes in regras:
+        for ordem, (regra, padroes) in enumerate(regras, start=1):
             grupos, ok = {}, True
             for ap, rx in padroes.items():
                 m = rx.search(str(ctx.get(ap, "")))
@@ -129,6 +130,7 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
             if ok:
                 ctx.update(grupos)
                 escolhida = regra
+                res.acertos[ordem] = res.acertos.get(ordem, 0) + 1
                 break
         if escolhida is None:
             res.erros.append(f"linha {n}: não classificada por nenhuma regra — {_resumo(linha)}")
@@ -209,5 +211,22 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
             res.erros.append(f"linha {n}: ajuste sem linha principal única em {alvo} para {chave} "
                              f"(encontradas: {len(alvos)})")
             continue
-        alvos[0][campo] = round(alvos[0][campo] + quantia, 6)
+        alvos[0][campo] = round(alvos[0][campo] + quantia, 8)   # 8 = precisão canônica do projeto
+        # O registro já tinha passado pelo validar_linha antes do ajuste; depois do ajuste ele
+        # pode ter saído da regra (qty de fill zerada por estorno, por exemplo). Sem reconferir,
+        # o erro só apareceria lá no anexar_csv, como exceção e sem a linha do documento.
+        res.erros.extend(validar_linha(alvo, dict(alvos[0]), f"linha {n}: depois do ajuste"))
+    # A regra "nenhuma linha some em silêncio" é o que sustenta a ingestão agnóstica de
+    # corretora: sem parser por corretora, um tipo de lançamento que o mapa não menciona só é
+    # detectável aqui. Até agora ela valia por inspeção do fluxo; esta conta a torna verificada.
+    com_erro = {int(m.group(1)) for e in res.erros
+                if (m := re.match(r"linha (\d+):", e))}
+    contadas = res.classificadas + len(res.ignoradas) + len(ajustes) + len(com_erro - _linhas_de_ajuste(ajustes))
+    if not res.erros and contadas != res.linhas_lidas:
+        res.erros.append(f"erro interno da ingestão: {res.linhas_lidas} linhas lidas mas "
+                         f"{contadas} classificadas — alguma linha se perdeu, não grave nada")
     return res
+
+
+def _linhas_de_ajuste(ajustes: list) -> set:
+    return {n for n, _, _ in ajustes}

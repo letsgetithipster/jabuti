@@ -154,6 +154,58 @@ def test_linha_mais_larga_que_o_cabecalho_e_erro():
     assert any("5 células" in e and "4 colunas" in e for e in r.erros)
 
 
+def test_ajuste_que_invalida_o_registro_e_erro():
+    """O registro passou pelo validar_linha ANTES do ajuste; depois dele pode ter saído da regra.
+    Sem reconferir, o erro só apareceria no anexar_csv, como exceção e sem a linha do documento."""
+    m = dict(MAPA_OK, linhas=[
+        {"quando": {"descricao": r"^COMPRA (?P<ticker>[A-Z0-9]+) (?P<qty>\d+) (?P<preco>[\d,\.]+)$"},
+         "destino": "fills", "campos": {"tipo": "compra", "taxa": "0"}},
+        {"quando": {"descricao": r"^ESTORNO (?P<ticker>[A-Z0-9]+)$"}, "destino": "ajuste",
+         "aplica-em": "fills", "campo": "qty", "chave": ["data", "ticker"], "valor": "{valor}"}],
+        conciliacao={"tipo": "valor-da-linha"})
+    r = executar(m, _tab([["20/08/2026", "COMPRA PETR4 10 30,00", "300,00", "1"],
+                          ["20/08/2026", "ESTORNO PETR4", "-10", "1"]]))
+    assert any("depois do ajuste" in e and "positiva" in e for e in r.erros)
+
+
+def test_saldo_anterior_sem_valor_ancora_a_cadeia():
+    """Linha de saldo de abertura (Valor vazio, Saldo preenchido) é o formato real de Clear e B3."""
+    m = dict(MAPA_OK, linhas=list(MAPA_OK["linhas"]) + [
+        {"quando": {"descricao": "^SALDO ANTERIOR$"}, "destino": "ignorar", "motivo": "saldo de abertura"}])
+    t = _tab([["20/08/2026", "RENDIMENTO HGLG11", "99,00", "1.099,00"],
+              ["19/08/2026", "TED SAIDA", "-500,00", "1.000,00"],
+              ["18/08/2026", "SALDO ANTERIOR", "", "1.500,00"]])
+    erros, desc = conciliar(m, t, executar(m, t))
+    assert erros == [] and "âncora" in desc
+
+
+def test_documento_de_uma_linha_nao_passa_vazio():
+    t = _tab([["20/08/2026", "RENDIMENTO HGLG11", "99,00", "1.099,00"]])
+    erros, _ = conciliar(MAPA_OK, t, executar(MAPA_OK, t))
+    assert any("não provou" in e for e in erros)
+
+
+def test_tolerancia_do_total_escala_com_arredondamento_do_preco():
+    """A corretora exibe PM com 2 casas e calcula o total com o PM cheio: em 300 posições de
+    1.000 ações a diferença legítima chega a alguns reais, e um centavo reprovaria."""
+    m = dict(MAPA_OK, colunas={"ticker": "Ativo", "classe": "Classe", "qty": "Qtd", "pm": "PM"},
+             linhas=[{"quando": {"ticker": "^[A-Z0-9]{4,6}$"}, "destino": "posicoes"}],
+             conciliacao={"tipo": "total-declarado", "soma": "qty*pm", "origem": "flag"})
+    t = _tab([[f"AAA{i % 10}", "acoes-br", "1000", "10,50"] for i in range(300)],
+             cab=["Ativo", "Classe", "Qtd", "PM"])
+    r = executar(m, t, data_padrao="2026-08-01")
+    assert conciliar(m, t, r, total_declarado=3150005.38)[0] == []
+    assert any("passa da tolerância" in e for e in conciliar(m, t, r, total_declarado=3200000.00)[0])
+
+
+def test_acertos_contam_linhas_por_regra():
+    """Sem isso, uma regra genérica acima de uma específica engole linhas sem ninguém notar."""
+    t = _tab([["20/08/2026", "RENDIMENTO HGLG11", "99,00", "1.099,00"],
+              ["19/08/2026", "TED SAIDA", "-500,00", "1.000,00"]])
+    r = executar(MAPA_OK, t)
+    assert r.acertos == {1: 1, 2: 1}
+
+
 def test_total_declarado_de_linha_do_documento():
     mapa = dict(MAPA_OK, colunas={"ticker": "Ativo", "classe": "Classe", "qty": "Qtd", "pm": "PM", "total": "Investido"},
                 linhas=[{"quando": {"ticker": "^Total$"}, "destino": "ignorar", "motivo": "linha de total"},

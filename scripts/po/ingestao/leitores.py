@@ -5,7 +5,7 @@ células. Nada é convertido aqui — número e data são assunto do engine, pel
 openpyxl é opcional: só o caminho .xlsx o importa (lazy), com erro acionável se faltar.
 """
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -22,9 +22,16 @@ class Tabela:
     cabecalho: list[str]
     linhas: list[list]
     linha_cabecalho: int   # número da linha do cabeçalho no documento (1-based), para mensagens
+    numeros: list[int] = field(default_factory=list)   # linha física de cada linha de dados
 
     def numero_da_linha(self, indice: int) -> int:
-        """Número no documento da i-ésima linha de dados (0-based)."""
+        """Número FÍSICO no documento da i-ésima linha de dados (0-based).
+
+        Não dá pra derivar por aritmética: linha em branco no meio do documento é pulada
+        (quando 'fim-em-vazio' é falso), e aí o índice deixa de acompanhar a linha do arquivo.
+        Mensagem que aponta a linha errada é pior que mensagem nenhuma."""
+        if self.numeros:
+            return self.numeros[indice]
         return self.linha_cabecalho + 1 + indice
 
 
@@ -119,7 +126,7 @@ def ler_tabela(caminho: str | Path, cfg: dict) -> Tabela:
     if indice is None:
         raise ValueError(f"{caminho.name}: cabeçalho não encontrado (procurei uma linha com {contem})")
     cabecalho = [str(c).strip() for c in linhas[indice]]
-    dados, examinadas = [], {indice}
+    dados, numeros, examinadas = [], [], {indice}
     for n, linha in enumerate(linhas[indice + 1:], start=indice + 1):
         examinadas.add(n)          # inclui a linha vazia que encerra a leitura: se ela só parece
         if _vazia(linha):          # vazia por ser fórmula sem valor, é ela que trunca a tabela
@@ -128,6 +135,7 @@ def ler_tabela(caminho: str | Path, cfg: dict) -> Tabela:
             continue
         linha = list(linha) + [""] * max(0, len(cabecalho) - len(linha))
         dados.append(linha)
+        numeros.append(n + 1)          # 1-based, a linha física do arquivo
     if formulas:   # só importa fórmula vazia DENTRO da região que este mapeamento examina
         # largura lógica = última coluna com nome; o iter_rows preenche o cabeçalho até a
         # largura da planilha, então uma fórmula solta à direita não é coluna desta tabela
@@ -139,4 +147,4 @@ def ler_tabela(caminho: str | Path, cfg: dict) -> Tabela:
             raise ValueError(
                 f"{caminho.name}: célula {dentro[0]} é fórmula sem valor calculado "
                 "— abra e salve a planilha no Excel/LibreOffice, ou exporte como CSV")
-    return Tabela(cabecalho, dados, indice + 1)
+    return Tabela(cabecalho, dados, indice + 1, numeros)

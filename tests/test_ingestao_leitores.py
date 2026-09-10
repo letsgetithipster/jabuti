@@ -170,3 +170,16 @@ def test_inspecionar_xlsx_marca_cabecalho_candidato(tmp_path):
     wb.save(p)
     saida = inspecionar(p)
     assert "Planilha1" in saida and "cabeçalho candidato" in saida
+
+
+def test_numero_da_linha_e_a_linha_fisica_mesmo_com_branco_no_meio(tmp_path):
+    """Linha em branco no meio é pulada quando fim-em-vazio é falso; derivar o número por
+    aritmética passaria a apontar a linha errada, e mensagem errada é pior que nenhuma."""
+    p = tmp_path / "x.csv"
+    p.write_text("Data,Valor\n20/08,1\n\n19/08,2\n\n\n18/08,3\n", encoding="utf-8")
+    t = ler_tabela(p, {"formato": "csv"})
+    assert [t.numero_da_linha(i) for i in range(3)] == [2, 4, 7]
+
+
+def test_tabela_construida_a_mao_mantem_a_aritmetica():
+    assert [Tabela(["a"], [["x"], ["y"]], 1).numero_da_linha(i) for i in range(2)] == [2, 3]

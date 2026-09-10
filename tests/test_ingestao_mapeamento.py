@@ -79,6 +79,14 @@ def test_total_declarado_exige_origem():
     assert any("origem" in e for e in validar_mapeamento(m))
 
 
+def test_conciliacao_tolerancia_declarada_e_valida_ou_erro():
+    m = dict(MAPA_OK, conciliacao=dict(MAPA_OK["conciliacao"], tolerancia=0.5))
+    assert validar_mapeamento(m) == []
+    for ruim in (0, -1, "0.5", [0.5], True, False):
+        m = dict(MAPA_OK, conciliacao=dict(MAPA_OK["conciliacao"], tolerancia=ruim))
+        assert any("conciliacao.tolerancia" in e for e in validar_mapeamento(m))
+
+
 def test_datas_extrair_exige_um_grupo():
     m = dict(MAPA_OK, datas={"formatos": ["%m/%d/%Y"], "extrair": r"^\S+"})
     assert any("datas.extrair" in e and "um grupo" in e for e in validar_mapeamento(m))
