@@ -1,6 +1,7 @@
 """Checa frontmatter dos .md do workspace: vocabulário fechado de tipos, aliases proibidos e regras por tipo (tese-semente, nota-final)."""
 from pathlib import Path
 
+from po.csvs import em_vocabulario
 from po.frontmatter import extrair_frontmatter
 
 TIPOS = {
@@ -39,7 +40,7 @@ def checar_frontmatter(raiz: str | Path) -> tuple[list[str], list[str]]:
             tipo = meta.get("tipo")
             if "tipo" not in meta:
                 erros.append(f"{rel}: sem chave tipo no frontmatter")
-            elif tipo not in TIPOS:
+            elif not em_vocabulario(tipo, TIPOS):
                 erros.append(f"{rel}: tipo {tipo!r} fora do vocabulário")
             usados = ALIASES_PROIBIDOS & set(meta)
             if usados:

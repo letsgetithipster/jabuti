@@ -90,3 +90,16 @@ def test_sem_chave_tipo_mensagem_clara(tmp_path):
     (doc / "x.md").write_text("---\ndata-criacao: 2026-09-08\n---\ncorpo", encoding="utf-8")
     erros, _ = checar_frontmatter(tmp_path)
     assert any("sem chave tipo" in e for e in erros)
+
+
+def test_tipo_lista_vira_frase_e_nao_typeerror(tmp_path):
+    """`tipo` é frontmatter YAML do usuário: `elif tipo not in TIPOS` (TIPOS é set) chama
+    hash(tipo), e um `tipo:\n  - a\n  - b` derrubava o validador com TypeError em produção,
+    dentro de CHECKS. em_vocabulario existe exatamente para matar essa classe de defeito —
+    o vocabulário fechado nunca pode virar traceback."""
+    doc = tmp_path / "politica"
+    doc.mkdir()
+    (doc / "x.md").write_text(
+        "---\ntipo:\n  - a\n  - b\ndata-criacao: 2026-09-08\n---\ncorpo", encoding="utf-8")
+    erros, _ = checar_frontmatter(tmp_path)
+    assert any("fora do vocabulário" in e for e in erros)
