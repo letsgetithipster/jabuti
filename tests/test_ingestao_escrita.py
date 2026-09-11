@@ -59,6 +59,22 @@ def test_log_nao_sobrescreve_no_mesmo_dia(tmp_path):
     assert r1["log"].name == "2026-10-08-m.md" and r2["log"].name == "2026-10-08-m-2.md"
 
 
+def test_terceira_importacao_no_mesmo_dia_continua_subindo(tmp_path):
+    """Contraprova do helper compartilhado (`po.ingestao.artefatos.caminho_datado_livre`), que
+    agora nomeia tanto o log de documento (aqui) quanto o payload de provider
+    (`test_ingestao_provider.py`). Ela não impede re-duplicação — cada rodada continua gravando
+    seu próprio log, igual antes. O que ela impede é DIVERGÊNCIA: enquanto a regra de sufixo
+    vivia copiada nos dois arquivos, mudar o esquema de um lado (`-2`, `-3`, ...) podia deixar o
+    outro para trás em silêncio. Com os dois lados chamando o mesmo helper, um teste que muda a
+    regra em `artefatos.py` quebra esta ponta também, em vez de só a de provider."""
+    ws = copia_exemplo(tmp_path)
+    kw = dict(mapeamento="m", arquivo="a.csv", conciliacao="x", conta="corretora-br", hoje=datetime.date(2026, 10, 8))
+    r1 = gravar(ws, _res(proventos=[_prov("2026-10-05", "HGLG11", 1.0)]), **kw)
+    r2 = gravar(ws, _res(proventos=[_prov("2026-11-05", "HGLG11", 1.0)]), **kw)
+    r3 = gravar(ws, _res(proventos=[_prov("2026-12-05", "HGLG11", 1.0)]), **kw)
+    assert [r["log"].name for r in (r1, r2, r3)] == ["2026-10-08-m.md", "2026-10-08-m-2.md", "2026-10-08-m-3.md"]
+
+
 def test_posicao_nova_nasce_com_saldo_inicial_e_valida(tmp_path):
     ws = copia_exemplo(tmp_path)
     pos = {"ticker": "VALE3", "classe": "acoes-br", "conta": "corretora-br", "qty": 10.0, "pm": 60.0, "moeda": "BRL",

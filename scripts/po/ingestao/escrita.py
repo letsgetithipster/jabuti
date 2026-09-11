@@ -6,6 +6,7 @@ from collections import Counter
 from pathlib import Path
 
 from po.csvs import anexar_csv, ler_csv
+from po.ingestao.artefatos import caminho_datado_livre
 from po.ingestao.engine import Resultado
 
 class GravacaoParcial(Exception):
@@ -136,13 +137,8 @@ def gravar(raiz: str | Path, res: Resultado, *, mapeamento: str, arquivo: str, c
 
 def _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, gravadas, duplicadas,
                   falha: str = "") -> Path:
-    pasta = raiz / "logs" / "importacoes"
-    pasta.mkdir(parents=True, exist_ok=True)
-    base = f"{hoje.isoformat()}-{mapeamento}"
-    caminho, k = pasta / f"{base}.md", 2
-    while caminho.exists():
-        caminho = pasta / f"{base}-{k}.md"
-        k += 1
+    caminho = caminho_datado_livre(raiz / "logs" / "importacoes",
+                                   f"{hoje.isoformat()}-{mapeamento}", ".md")
     motivos = {}
     for _, motivo in res.ignoradas:
         motivos[motivo] = motivos.get(motivo, 0) + 1
