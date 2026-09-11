@@ -1,4 +1,4 @@
-# PatrimônioOS
+# Mesa Própria
 
 **O sistema operacional do seu patrimônio.** Um repo open source que você
 clona e opera com a LLM que já usa para tocar a própria carteira com a
@@ -46,8 +46,8 @@ Requisitos: Python 3.11+ e git. openpyxl é opcional (extrato .xlsx e cockpit).
 (macOS/Linux: troque os caminhos, ex. `python3 scripts/criar_workspace.py ~/meu-vault`)
 
 ```powershell
-git clone <url> patrimonio-os
-cd patrimonio-os
+git clone <url> personal-finance-br
+cd personal-finance-br
 python -m pip install -r requirements.txt          # pyyaml + pytest
 python -m pip install -r requirements-xlsx.txt     # opcional: openpyxl
 python -m pytest                                   # suíte verde
@@ -107,7 +107,7 @@ completo em [GUARDRAILS.md](GUARDRAILS.md).
 
 ## English
 
-**PatrimônioOS** ("WealthOS") is an open-source, LLM-operated personal
+**Mesa Própria** is an open-source, LLM-operated personal
 portfolio system for Brazilian investors, built under strict anti-hallucination
 guardrails: prices only via scripts with source and timestamp, broker
 statements ingested through declarative YAML mappings with arithmetic

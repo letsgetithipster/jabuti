@@ -60,7 +60,7 @@ def gerar_cockpit(raiz: str | Path, agora: datetime.datetime | None = None) -> P
     ws.title = "LEIAME"
     ws.column_dimensions["A"].width = 110
     texto_leiame = [
-        "PatrimônioOS — cockpit",
+        "Mesa Própria — cockpit",
         f"Gerado em {agora:%d/%m/%Y %H:%M} por scripts/gerar_cockpit.py a partir de dados/ e da política declarada.",
         "Este arquivo é VISÃO, não fonte: regenerável, não versionado. A fonte de verdade é dados/ (CSVs) + politica/.",
         "Única célula editável: 'Aporte do mês' na aba Aporte (amarela). Tudo o mais é gerado ou fórmula; edição à mão se perde na próxima geração.",

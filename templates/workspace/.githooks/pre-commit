@@ -1,5 +1,5 @@
 #!/bin/sh
-# PatrimonioOS — validador obrigatório. Falha ALTO, nunca passa em silêncio.
+# Mesa Própria — validador obrigatório. Falha ALTO, nunca passa em silêncio.
 PY=""
 for c in python3 python py; do
   if command -v "$c" >/dev/null 2>&1 && "$c" -c "import sys;sys.exit(sys.version_info[0]!=3)" >/dev/null 2>&1; then

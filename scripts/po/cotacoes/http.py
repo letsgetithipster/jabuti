@@ -7,7 +7,7 @@ import urllib.request
 
 from po.cotacoes.tipos import RespostaInvalida, SemRede
 
-UA = {"User-Agent": "Mozilla/5.0 (PatrimonioOS)"}
+UA = {"User-Agent": "Mozilla/5.0 (mesa-propria)"}
 TENTATIVAS = 2           # a fonte pública responde 429 em rajada; uma segunda chance basta
 PAUSA_RETENTATIVA = 2.0  # segundos
 TRANSITORIOS = {429, 500, 502, 503, 504}

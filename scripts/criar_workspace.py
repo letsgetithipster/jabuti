@@ -1,4 +1,4 @@
-"""Instancia um workspace PatrimonioOS a partir de templates/workspace.
+"""Instancia um workspace Mesa Própria a partir de templates/workspace.
 
 Uso: python scripts/criar_workspace.py C:\\caminho\\meu-vault [--sem-git] [--data AAAA-MM-DD]
         [--motor CAMINHO] [--so-skills]
