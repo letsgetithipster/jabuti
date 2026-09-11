@@ -56,9 +56,9 @@ Frases típicas: "atualiza as cotações", "refresh de preços", "/atualizar-cot
 
 ## O que esta skill NÃO faz
 
-- **Não decide onde aportar** (→ `/consultar-aporte`, Fase 4)
-- **Não registra compra nem venda** (→ `/registrar-aporte`, Fase 4)
-- **Não confirma evento corporativo** — só propõe; confirmar e aplicar em qty/PM é do usuário e da Fase 4
+- **Não decide onde aportar** (→ `/consultar-aporte`, Fase 5)
+- **Não registra compra nem venda** (→ `/registrar-aporte`, Fase 5)
+- **Não confirma evento corporativo** — só propõe; confirmar e aplicar em qty/PM é do usuário e da Fase 5
 - **Não altera posição, nota, tese ou política**
 - **Não estima preço**: sem rede ou sem cotação = declarar
 - **Não gera ESTADO.md nem cockpit sozinha** (→ `gerar_estado.py`, `gerar_cockpit.py`)

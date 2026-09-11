@@ -2,12 +2,38 @@
 repo — nenhuma afirmação no presente sem código que a cumpra — precisa de check mecânico, senão
 ele vale só por disciplina e a auditoria da Fase 1 já mostrou que não basta."""
 import re
+import subprocess
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
+ESTE_ARQUIVO = Path(__file__).resolve()
 README = (RAIZ / "README.md").read_text(encoding="utf-8")
 
 IGNORADAS = {".git", ".github", ".githooks", "__pycache__", ".pytest_cache", ".venv"}
+
+EXTENSOES_DE_TEXTO = {".py", ".md", ".yaml", ".template"}
+
+FASE_DO_COMANDO = {
+    "atualizar-cotacoes": 2, "importar-extrato": 2,
+    "init": 4, "definir-macro": 4, "refinar-micro": 4, "aprofundar-tese": 4,
+    "registrar-aporte": 5, "consultar-aporte": 5, "fechar-mes": 5,
+    "preparar-ir": 6,
+}
+
+
+def _versionados_de_texto():
+    """Arquivos de texto versionados (`.py`, `.md`, `.yaml`, `.template`), via `git ls-files` —
+    não `Path.rglob`, que enxergaria arquivo ignorado ou apagado só no working tree."""
+    saida = subprocess.run(["git", "ls-files", "-z"], cwd=RAIZ, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace")
+    if saida.returncode != 0:
+        raise RuntimeError(
+            "varredura da guarda não pôde ser feita: `git ls-files` falhou "
+            f"(returncode {saida.returncode}): {saida.stderr.strip()}. "
+            "Rode a suíte dentro de um clone git (com .git), não numa árvore copiada sem ele."
+        )
+    return [p for p in saida.stdout.split("\0")
+            if p and Path(p).suffix in EXTENSOES_DE_TEXTO]
 
 
 def _pastas_de_topo():
@@ -89,3 +115,40 @@ def test_guardrails_nao_promete_provider_sem_chamador():
         f"a ressalva de que nenhum provider está ligado {'está' if tem_ressalva else 'não está'} "
         f"no GUARDRAILS, e os chamadores da camada de provider são {chamadores or 'nenhum'}. "
         "Ela tem que existir enquanto não houver chamador, e sair quando houver")
+
+
+def test_numero_de_fase_citado_bate_com_o_roadmap():
+    """A numeração de fase é um fato afirmado em vários lugares do repo, e a reordenação da spec
+    deixou 13 deles errados — um na mensagem que todo usuário novo lê ao criar workspace. Este
+    teste prende a citação ao mapa canônico.
+
+    Mede CLÁUSULA, não linha: `skills/README.md` cita funil e rotina na mesma linha, com fases
+    diferentes, e medir linha daria falso positivo.
+
+    Ponto cego declarado: cobre só citação que nomeia um comando. Cláusula que cita fase por
+    conceito ("compilador multi-LLM (Fase 3)", "pacotes tributários (Fase 5)") fica de fora, e
+    são 6 lugares hoje. Fechar isso exigiria mapear conceito para fase, que é vocabulário fuzzy
+    e daria teste frágil; preferi guarda parcial e honesta a guarda ampla e quebradiça.
+    """
+    fase_re = re.compile(r"[Ff]ase (\d)")
+    clausula_re = re.compile(r"[;.\n—]")
+    achados = []
+    for rel in _versionados_de_texto():
+        caminho = RAIZ / rel
+        if caminho.resolve() == ESTE_ARQUIVO:
+            continue
+        try:
+            texto = caminho.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for n, linha in enumerate(texto.splitlines(), start=1):
+            for clausula in clausula_re.split(linha):
+                fases = {int(x) for x in fase_re.findall(clausula)}
+                if not fases:
+                    continue
+                for comando, esperada in FASE_DO_COMANDO.items():
+                    if comando in clausula:
+                        for f in fases - {esperada}:
+                            achados.append(f"{rel}:{n}: {comando} citado com Fase {f}, "
+                                           f"devia ser {esperada}")
+    assert achados == [], "numeração de fase divergente do roadmap:\n  " + "\n  ".join(achados)

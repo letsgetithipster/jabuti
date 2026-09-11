@@ -1,7 +1,7 @@
 """Gerador mínimo de estado/ESTADO.md a partir de dados/ e da política declarada.
 
 ESTADO.md é gerado, nunca editado à mão (camada de consistência, regra 3). O fechar-mes
-da Fase 4 absorve este gerador; até lá, ele roda depois de importar/cotar.
+da Fase 5 absorve este gerador; até lá, ele roda depois de importar/cotar.
 Formato pinado pelo check_estado: a linha 'Total investido: R$ x'. A tabela de blocos é
 conferida só pelos testes deste módulo.
 """

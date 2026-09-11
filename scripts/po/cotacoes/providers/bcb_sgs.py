@@ -2,7 +2,7 @@
 
 Fonte diária sem hora: grava hora 00:00 (convenção a documentar no mapeamentos/README e no
 LEIAME do cockpit quando eles nascerem). cotar() atende só USDBRL; serie() é consumida pelo
-fechar-mes (Fase 4).
+fechar-mes (Fase 5).
 """
 import datetime
 import math

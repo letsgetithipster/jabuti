@@ -23,7 +23,7 @@ SKILLS = MOTOR / "skills"
 
 def instalar_skills(destino: str | Path) -> int:
     """Copia skills/<nome>/SKILL.md do motor para <destino>/.claude/skills/<nome>/SKILL.md.
-    Cópia simples (Claude Code descobre por convenção); o compilador da Fase 3 substitui.
+    Cópia simples (Claude Code descobre por convenção); o compilador da Fase 4 substitui.
     Retorna quantas instalou."""
     destino = Path(destino).resolve()
     if not (destino / "vault.config.yaml").exists():
@@ -108,7 +108,7 @@ def main():
     destino = criar(args.destino, com_git=not args.sem_git, data=args.data, motor=args.motor)
     print(f"Workspace criado em {destino}")
     print("Próximos passos: abra o Claude Code na pasta; /importar-extrato e "
-          "/atualizar-cotacoes já funcionam. O /init chega na Fase 3.")
+          "/atualizar-cotacoes já funcionam. O /init chega na Fase 4.")
     print("Este workspace é PRIVADO por desenho: não publique este repositório.")
 
 

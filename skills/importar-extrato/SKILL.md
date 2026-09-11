@@ -71,6 +71,6 @@ Frases típicas: "importa o extrato da Clear", "sobe o CSV da Schwab", "/importa
 - **Não digita número**: nem posição, nem provento, nem fill, nem total declarado
 - **Não escreve parser Python por corretora** — só mapeamento YAML
 - **Não grava com conciliação falhando** e não "corrige" o documento para bater
-- **Não aplica evento corporativo em qty/PM** (só registra a proposta; Fase 4)
+- **Não aplica evento corporativo em qty/PM** (só registra a proposta; Fase 5)
 - **Não busca cotação** (→ `/atualizar-cotacoes`) nem regenera ESTADO/cockpit sozinha (→ `gerar_estado.py`, `gerar_cockpit.py`)
 - **Não commita**
