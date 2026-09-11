@@ -2,6 +2,7 @@ import re
 import shutil
 from pathlib import Path
 
+from po import csvs
 from po.validar.check_dados import checar_dados
 
 EXEMPLO = Path(__file__).resolve().parent.parent / "exemplos" / "workspace-exemplo"
@@ -315,6 +316,34 @@ def test_tabela_ausente_diz_como_criar(tmp_path):
     (ws / "dados" / "movimentacoes.csv").unlink()
     erros, _ = checar_dados(ws)
     assert any("movimentacoes.csv ausente" in e and "data,descricao,valor" in e for e in erros)
+
+
+def test_movimentacao_duplicada_por_origem_e_id_externo_e_erro(tmp_path):
+    """Sem esta régua, id_externo é obrigatório mas não tem consumidor: reimportar a mesma
+    movimentação passa verde e conta dinheiro duas vezes."""
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/movimentacoes.csv",
+           "2026-09-01,PIX RECEBIDO,1500.0,BRL,corretora-br,Transferências,manual,ext-1,2026-09-02")
+    _anexa(ws, "dados/movimentacoes.csv",
+           "2026-09-01,PIX RECEBIDO (dup),1500.0,BRL,corretora-br,Transferências,manual,ext-1,2026-09-02")
+    erros, _ = checar_dados(ws)
+    assert any("movimentacoes.csv:3" in e and "ext-1" in e and "manual" in e and "linha 2" in e
+               for e in erros)
+
+
+def test_movimentacao_mesmo_id_externo_origens_diferentes_nao_e_erro(tmp_path, monkeypatch):
+    """A chave é (origem, id_externo), não id_externo sozinho: dois providers diferentes podem
+    emitir a mesma string de id sem que isso seja colisão. ORIGENS_MOVIMENTACAO hoje só tem
+    'manual' (nenhum provider tem adaptador ainda), então o segundo valor é injetado só para
+    este teste provar a chave composta, sem prometer um provider que não existe no repo."""
+    monkeypatch.setitem(csvs.VOCABULARIOS, ("movimentacoes", "origem"), {"manual", "pluggy"})
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/movimentacoes.csv",
+           "2026-09-01,PIX RECEBIDO,1500.0,BRL,corretora-br,Transferências,manual,ext-1,2026-09-02")
+    _anexa(ws, "dados/movimentacoes.csv",
+           "2026-09-02,TED RECEBIDA,200.0,BRL,corretora-br,Transferências,pluggy,ext-1,2026-09-03")
+    erros, _ = checar_dados(ws)
+    assert not any("id_externo" in e for e in erros)
 
 
 def test_mesmo_ticker_em_duas_moedas_e_erro(tmp_path):

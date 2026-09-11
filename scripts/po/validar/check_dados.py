@@ -73,6 +73,7 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
     proventos = tabelas.get("proventos", [])
     cotacoes = tabelas.get("cotacoes", [])
     eventos = tabelas.get("eventos", [])
+    movimentacoes = tabelas.get("movimentacoes", [])
 
     # Conta é texto: seguro ler mesmo com erro de formato em outro campo da linha.
     for nome_csv, linhas in (("posicoes.csv", posicoes), ("fills.csv", fills), ("proventos.csv", proventos)):
@@ -173,4 +174,20 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
             if ev["confirmado"] == "sim" and ev["tipo"] in ("split", "grupamento", "bonificacao") and not ev["razao"]:
                 avisos.append(f"eventos.csv:{i}: {ev['ticker']} {ev['tipo']} confirmado sem razão "
                               "(ex.: 2:1) — o preparar-ir precisa dela")
+
+    # Dedup de reimportação: a chave é (origem, id_externo), não id_externo sozinho — dois
+    # providers diferentes podem emitir a mesma string de id, e isso não é colisão. Movimentação
+    # importada duas vezes é dinheiro contado duas vezes, então isto é erro, não aviso.
+    if limpos("movimentacoes"):
+        vistos = {}
+        for i, mv in enumerate(movimentacoes, start=2):
+            chave = (mv["origem"], mv["id_externo"])
+            anterior = vistos.get(chave)
+            if anterior is not None:
+                erros.append(
+                    f"movimentacoes.csv:{i}: id_externo {mv['id_externo']!r} da origem "
+                    f"{mv['origem']!r} repete a linha {anterior} — confira se a mesma "
+                    "movimentação foi importada duas vezes antes de manter as duas")
+            else:
+                vistos[chave] = i
     return erros, avisos

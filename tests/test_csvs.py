@@ -1,3 +1,5 @@
+import csv
+
 import pytest
 
 from po.csvs import SCHEMAS, anexar_csv, ler_csv, ultimas_cotacoes, validar_linha
@@ -450,3 +452,25 @@ def test_nenhum_campo_canonico_carrega_nome_de_fornecedor():
         for campo in campos:
             assert not any(f in campo.lower() for f in fornecedores), \
                 f"{tabela}.{campo} carrega nome de fornecedor no NOME do campo"
+
+
+def test_movimentacao_sinal_sobrevive_ao_round_trip_pelo_arquivo(tmp_path):
+    """O caminho unitário (validar_linha) e o caminho de arquivo (anexar_csv → ler_csv) podem
+    divergir — é a lição de test_provento_invariante_tambem_vale_lendo_do_csv e
+    test_preco_nao_positivo_recusado_tambem_vindo_da_ingestao. Para movimentacoes o sinal É o
+    dado: gasto negativo tem que sobreviver a _celula → formatar_canonico → CSV → ler_csv, e
+    -0.0 tem que normalizar para 0 sem virar um '-0' que confunde leitura humana do CSV."""
+    p = tmp_path / "movimentacoes.csv"
+    anexar_csv("movimentacoes", p, [
+        _mov(descricao="MERCADINHO", valor=-89.90, id_externo="ext-1"),
+        _mov(descricao="ESTORNO", valor=-0.0, id_externo="ext-2"),
+    ])
+    linhas, erros = ler_csv("movimentacoes", p)
+    assert erros == []
+    assert [l["valor"] for l in linhas] == [-89.90, 0.0]
+    linhas_csv = p.read_text(encoding="utf-8").splitlines()
+    campo_valor = SCHEMAS["movimentacoes"].index("valor")
+    valor_gasto = next(csv.reader([linhas_csv[1]]))[campo_valor]
+    valor_estorno = next(csv.reader([linhas_csv[2]]))[campo_valor]
+    assert valor_gasto == "-89.9"
+    assert valor_estorno == "0"  # sem sinal fantasma: -0.0 canoniza para "0", não "-0"

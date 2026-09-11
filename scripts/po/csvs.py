@@ -29,6 +29,8 @@ SCHEMAS = {
     # `valor` carrega o SINAL: gasto é negativo, receita é positiva — ao contrário de qty e
     # preço, onde sinal é erro. `data_referencia` é a data que o PROVIDER declara para o dado,
     # distinta de `data` (quando o lançamento ocorreu) e da data em que a importação rodou.
+    # `id_externo` é a chave de dedup em reimportação (junto com `origem`, ver check_dados):
+    # sem ela, reconhecer que a mesma movimentação já entrou dependeria de heurística frágil.
     "movimentacoes": ["data", "descricao", "valor", "moeda", "conta",
                       "categoria_origem", "origem", "id_externo", "data_referencia"],
 }
@@ -45,7 +47,10 @@ FONTES_COTACAO = {"yahoo", "brapi", "bcb-sgs", "manual", "definicao"}   # regist
 # definicao: valor que decorre da unidade (saldo em conta vale 1,00), não observação de mercado
 # Providers de movimentação. Vocabulário fechado pelo mesmo motivo de FONTES_COTACAO: origem
 # é procedência, e procedência que aceita texto livre não é procedência.
-ORIGENS_MOVIMENTACAO = {"finnest", "pluggy", "manual"}
+# Hoje só existe entrada manual. Cada provider entra aqui no commit que traz o adaptador dele,
+# com o teste-ponte no molde do de FONTES_COTACAO (test_registry_fecha_com_o_vocabulario_de_fonte).
+# Previstos: finnest (Task 9+), pluggy.
+ORIGENS_MOVIMENTACAO = {"manual"}
 VOCABULARIOS = {
     ("posicoes", "classe"): CLASSES,
     ("fills", "tipo"): TIPOS_FILL,
@@ -88,7 +93,12 @@ OPCIONAIS = {
 def validar_linha(nome: str, linha: dict, onde: str) -> list[str]:
     """Valida UMA linha (dict com todos os campos do schema). NUMERICOS em string
     canônica são convertidos in-place para float; int/float passam (int vira float),
-    não-finito é erro; campo de texto exige str. Chaves extras (ex.: '_linha') são ignoradas."""
+    não-finito é erro; campo de texto exige str. Chaves extras (ex.: '_linha') são ignoradas.
+
+    Convenção de nome: campo chamado exatamente `data` OU com prefixo `data_` (ex.:
+    `data_referencia`) é validado como data canônica YYYY-MM-DD. Schema novo não deve usar
+    esse prefixo em campo que carregue outra coisa (datetime, timestamp de provider etc.) —
+    a validação de data reprovaria em silêncio para quem não leu este trecho."""
     schema = SCHEMAS[nome]
     faltam = [c for c in schema if c not in linha]
     if faltam:
@@ -133,10 +143,10 @@ def validar_linha(nome: str, linha: dict, onde: str) -> list[str]:
             if not HORA_RE.match(valor):
                 erros.append(f"{onde}: hora deve ser HH:MM (24h): {valor!r}")
         elif campo == "moeda":
-            if valor not in MOEDAS:
+            if not em_vocabulario(valor, MOEDAS):
                 erros.append(f"{onde}: moeda {valor!r} fora do vocabulário {sorted(MOEDAS)}")
         vocab = VOCABULARIOS.get((nome, campo))
-        if vocab is not None and valor not in vocab:
+        if vocab is not None and not em_vocabulario(valor, vocab):
             erros.append(f"{onde}: {campo} {valor!r} fora do vocabulário {sorted(vocab)}")
     if nome == "fills" and isinstance(linha["qty"], float) and linha["qty"] <= 0:
         erros.append(f"{onde}: qty de fill deve ser positiva (venda usa tipo=venda, não sinal)")
