@@ -1,16 +1,16 @@
 # Mesa Própria
 
-**O sistema operacional do seu patrimônio.** Um repo open source que você
-clona e opera com a LLM que já usa para tocar a própria carteira com a
-disciplina de um family office — sob guardrails que impedem a LLM de inventar
-número, análise ou decisão. Hoje ele já faz a parte de **dados**: extrato de
-corretora entra em CSVs canônicos com conciliação verificada, cotação entra
-por script com fonte e hora, e sai um cockpit xlsx e um ESTADO de uma tela.
-O funil de perfil e alocação, a rotina mensal, a preparação de IR e a
-compilação para Codex/Cursor/app web chegam nas fases seguintes (abaixo).
+**Sua própria mesa de especialistas.** Um repositório open source que você clona e opera
+com a LLM que já usa, para cuidar do seu dinheiro com a disciplina de um family office —
+sob guardrails que impedem a LLM de inventar número, análise ou decisão.
 
-> Leia **[GUARDRAILS.md](GUARDRAILS.md)** antes de usar. É o contrato que
-> torna este produto confiável — e o motivo de ele existir.
+Os escritórios já usam IA para gerar recomendação. A diferença aqui é de quem a IA
+trabalha: a mesa da corretora trabalha para a corretora, esta é sua.
+
+De brasileiros, para brasileiros.
+
+> Leia **[GUARDRAILS.md](GUARDRAILS.md)** antes de usar. É o contrato que torna este
+> produto confiável — e o motivo de ele existir.
 
 ## Por que isso existe
 
@@ -21,11 +21,16 @@ método, memória e guardrails. É isso que este repo entrega: *um family
 office de uma pessoa só, com a disciplina que a LLM sozinha não tem.* O
 custo é a assinatura de LLM que você já paga.
 
+**Declaração de vínculo:** o autor deste repositório é co-founder da Finnest, cujo MCP é a
+primeira integração de open finance prevista (Fase 3). O motor não pertence a nenhum
+fornecedor: o contrato de ingestão é escrito contra a especificação pública do Open Finance
+Brasil, e qualquer provider entra como adaptador.
+
 ## Estado atual
 
-**Fase 1 (fundação) — concluída:** camada de dados canônica (6 CSVs com
-schema), config de workspace, validador com testes, instanciador de
-workspace e workspace-exemplo.
+**Fase 1 (fundação) — concluída:** camada de dados canônica (`posicoes`,
+`cotacoes`, `fills`, `proventos`, `eventos`, `indices`, com schema), config de
+workspace, validador com testes, instanciador de workspace e workspace-exemplo.
 
 **Fase 2 (motor de dados) — concluída:** ingestão de extrato agnóstica de
 corretora (mapeamento YAML + conciliação declarada, com `clear-extrato`,
@@ -35,10 +40,22 @@ de variação anômala; validador v2 (vocabulários, moeda por conta, ledger
 cronológico com PM, bandas somando 100); gerador de `ESTADO.md`; cockpit
 xlsx; skills `/atualizar-cotacoes` e `/importar-extrato`.
 
-**Próximas fases:** método destilado + funil `/init` → `/definir-macro` →
-`/refinar-micro` → `/aprofundar-tese` + compilador multi-LLM (3); skills de
-rotina `/registrar-aporte`, `/consultar-aporte`, `/fechar-mes` (4); pacote
-fiscal e `/preparar-ir` (5).
+**Fase 3 (gastos e open finance por provider) — parcial:** o que está em
+código, commitado e testado é a fundação de ingestão por provider MCP, não
+nenhum provider ligado nela. Entregue: tabela canônica `movimentacoes.csv`
+(sétima tabela, com sinal no valor e `data_referencia` própria do provider);
+quarto tipo de conciliação, `soma-da-resposta`, declaradamente mais fraco que
+os três de documento; camada de procedência de dado de API (payload cru
+arquivado, status de sincronização como precondição de leitura); `check_segredos`
+no validador e, por consequência, no pre-commit. **Não entregue:** nenhum
+adaptador de provider — nada chama essa camada ainda. O adaptador da Finnest
+(ver "Declaração de vínculo" acima) depende de descobrir o esquema do MCP dela,
+o que é escopo de outra fase.
+
+**Próximas fases:** método destilado, funil `/init` → `/definir-macro` →
+`/refinar-micro` → `/aprofundar-tese` e compilador multi-LLM (4); skills de
+rotina `/registrar-aporte`, `/consultar-aporte`, `/fechar-mes` (5); `/preparar-ir`
+e `fiscal/` (6).
 
 ## Começando
 
@@ -81,11 +98,12 @@ Seu workspace é **privado por desenho** — não o publique. Extratos ficam em
 | `templates/` | árvore de workspace + esqueletos de documentos | 1 |
 | `scripts/` | validador, instanciador, cotações, ingestão, geradores — com testes | 1-2 |
 | `mapeamentos/` | mapeamentos documento → `dados/` por corretora (YAML); superfície de contribuição | 2 |
-| `skills/` | procedimentos operacionais: cotações e ingestão prontas; funil e rotina | 2 (3-4) |
+| `skills/` | procedimentos operacionais: cotações e ingestão prontas; funil e rotina | 2 (4-5) |
 | `exemplos/` | workspace fictício completo, validado em todo commit | 1 |
-| `metodo/` | rubricas e frameworks do método (sem número pessoal) | 3 |
-| `rules/` | núcleo de voz e personas, fontes do compilador multi-LLM | 3 |
-| `fiscal/` | pacotes tributários por ano-fiscal, com validade declarada | 5 |
+| `metodo/` | rubricas e frameworks do método (sem número pessoal) | 4 |
+| `rules/` | núcleo de voz e personas, fontes do compilador multi-LLM | 4 |
+| `tests/` | suíte do motor, rodada pelo pre-commit em todo commit | 1-2 |
+| `fiscal/` | pacotes tributários por ano-fiscal, com validade declarada | 6 |
 
 ## Contribuindo
 
