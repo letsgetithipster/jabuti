@@ -1,4 +1,4 @@
-"""Checa a config, os 6 CSVs canônicos e a coerência entre eles.
+"""Checa a config, os 7 CSVs canônicos e a coerência entre eles.
 
 v2: conta e moeda da linha × conta; ledger cronológico (qty E pm contra
 posicoes.csv; venda acima do saldo; abertura única via saldo-inicial); quando
@@ -54,7 +54,10 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
     for nome in SCHEMAS:
         caminho = raiz / "dados" / f"{nome}.csv"
         if not caminho.exists():
-            erros.append(f"dados/{nome}.csv ausente")
+            # Tabela nova numa versão nova do motor: um workspace antigo não a tem, e "ausente"
+            # sozinho não diz o que fazer. O cabeçalho é a resposta inteira.
+            erros.append(f"dados/{nome}.csv ausente — crie o arquivo com a linha de cabeçalho: "
+                         + ",".join(SCHEMAS[nome]))
             leitura_suja[nome] = True
             continue
         linhas, errs = ler_csv(nome, caminho)

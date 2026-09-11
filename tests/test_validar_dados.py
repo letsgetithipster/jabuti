@@ -309,6 +309,14 @@ def test_pm_de_ativo_de_fracao_de_centavo_nao_e_engolido_pelo_piso(tmp_path):
     assert any("SHIB" in e and "pm" in e for e in erros)   # 75x errado: o piso de 1 centavo escondia
 
 
+def test_tabela_ausente_diz_como_criar(tmp_path):
+    """Workspace criado antes da tabela existir precisa de frase acionável, não só de 'ausente'."""
+    ws = copia_exemplo(tmp_path)
+    (ws / "dados" / "movimentacoes.csv").unlink()
+    erros, _ = checar_dados(ws)
+    assert any("movimentacoes.csv ausente" in e and "data,descricao,valor" in e for e in erros)
+
+
 def test_mesmo_ticker_em_duas_moedas_e_erro(tmp_path):
     ws = copia_exemplo(tmp_path)
     cfg = ws / "vault.config.yaml"

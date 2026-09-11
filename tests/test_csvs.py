@@ -9,8 +9,9 @@ def escreve(tmp_path, nome, conteudo):
     return p
 
 
-def test_schemas_cobrem_os_6_csvs():
-    assert set(SCHEMAS) == {"posicoes", "cotacoes", "fills", "proventos", "eventos", "indices"}
+def test_schemas_cobrem_os_7_csvs():
+    assert set(SCHEMAS) == {"posicoes", "cotacoes", "fills", "proventos", "eventos", "indices",
+                            "movimentacoes"}
 
 
 def test_posicoes_ok(tmp_path):
@@ -396,3 +397,56 @@ def test_ultimas_cotacoes_mesma_hora_ainda_desempata_pela_ultima_linha():
         {"data": "2026-09-08", "hora": "18:00", "ticker": "PETR4", "preco": 41.0},
     ]
     assert ultimas_cotacoes(cot)["PETR4"]["preco"] == 41.0
+
+
+def _mov(**campos):
+    linha = {"data": "2026-09-01", "descricao": "PIX RECEBIDO", "valor": 1500.0, "moeda": "BRL",
+             "conta": "corretora-br", "categoria_origem": "Transferências", "origem": "manual",
+             "id_externo": "abc-123", "data_referencia": "2026-09-02"}
+    linha.update(campos)
+    return linha
+
+
+def test_movimentacao_aceita_valor_negativo():
+    """Gasto é negativo e receita é positiva: é o ponto da tabela. Ao contrário de qty e preço,
+    aqui o sinal carrega significado e não pode ser barrado."""
+    assert validar_linha("movimentacoes", _mov(valor=-89.90), "x:2") == []
+
+
+def test_movimentacao_exige_data_de_referencia_do_provider():
+    """Número de API sem idade declarada é pior que número de planilha, porque parece fresco."""
+    erros = validar_linha("movimentacoes", _mov(data_referencia=""), "x:2")
+    assert any("data_referencia" in e and "vazio" in e for e in erros)
+
+
+def test_data_de_referencia_e_validada_como_data():
+    erros = validar_linha("movimentacoes", _mov(data_referencia="02/09/2026"), "x:2")
+    assert any("YYYY-MM-DD" in e for e in erros)
+
+
+def test_movimentacao_exige_id_externo():
+    """Sem ele, a reimportação depende de heurística de chave natural, que é frágil quando o
+    mesmo lançamento volta em duas sincronizações."""
+    erros = validar_linha("movimentacoes", _mov(id_externo=""), "x:2")
+    assert any("id_externo" in e and "vazio" in e for e in erros)
+
+
+def test_descricao_e_categoria_sao_opcionais():
+    """Provider pode devolver lançamento sem descrição ou sem categoria. Isso não é erro de dado."""
+    assert validar_linha("movimentacoes", _mov(descricao="", categoria_origem=""), "x:2") == []
+
+
+def test_origem_tem_vocabulario_fechado():
+    erros = validar_linha("movimentacoes", _mov(origem="banco-do-fulano"), "x:2")
+    assert any("origem" in e and "vocabulário" in e for e in erros)
+
+
+def test_nenhum_campo_canonico_carrega_nome_de_fornecedor():
+    """O CSV canônico é o produto e o provider é acessório. No dia em que um campo se chamar
+    como um fornecedor, trocar de fornecedor deixa de ser barato — e a spec §6.1 inteira cai.
+    `origem` guarda o nome do fornecedor como VALOR, que é o lugar certo dele."""
+    fornecedores = ("finnest", "pluggy", "belvo", "klavi", "yahoo", "brapi", "openfinance")
+    for tabela, campos in SCHEMAS.items():
+        for campo in campos:
+            assert not any(f in campo.lower() for f in fornecedores), \
+                f"{tabela}.{campo} carrega nome de fornecedor no NOME do campo"

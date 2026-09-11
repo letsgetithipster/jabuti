@@ -1,4 +1,4 @@
-"""Schemas, leitura validada e escrita canônica dos 6 CSVs do workspace (spec §4).
+"""Schemas, leitura validada e escrita canônica dos 7 CSVs do workspace (spec §4).
 
 Contrato: os CSVs canônicos são escritos por máquina, então número aceita SÓ
 o formato canônico (-?d+(.d+)?, decimal com ponto, sem separador de milhar).
@@ -25,6 +25,12 @@ SCHEMAS = {
     "proventos": ["data", "ticker", "cnpj", "tipo", "valor_bruto", "valor_liquido", "conta", "moeda"],
     "eventos": ["data", "ticker", "tipo", "razao", "confirmado"],
     "indices": ["data", "indice", "valor", "fonte"],
+    # Movimentação de caixa (entrada e saída), de provider de open finance ou digitada à mão.
+    # `valor` carrega o SINAL: gasto é negativo, receita é positiva — ao contrário de qty e
+    # preço, onde sinal é erro. `data_referencia` é a data que o PROVIDER declara para o dado,
+    # distinta de `data` (quando o lançamento ocorreu) e da data em que a importação rodou.
+    "movimentacoes": ["data", "descricao", "valor", "moeda", "conta",
+                      "categoria_origem", "origem", "id_externo", "data_referencia"],
 }
 NUMERICOS = {"qty", "pm", "preco", "taxa", "valor_bruto", "valor_liquido", "valor"}
 CLASSES = {"acoes-br", "fiis", "rv-int", "reits-us", "rf-br", "cripto", "caixa", "commodities"}
@@ -37,6 +43,9 @@ CONFIRMADO = {"sim", "nao"}
 INDICES = {"ibov", "sp500", "usdbrl", "cdi", "ipca", "selic"}
 FONTES_COTACAO = {"yahoo", "brapi", "bcb-sgs", "manual", "definicao"}   # registry de providers + manual
 # definicao: valor que decorre da unidade (saldo em conta vale 1,00), não observação de mercado
+# Providers de movimentação. Vocabulário fechado pelo mesmo motivo de FONTES_COTACAO: origem
+# é procedência, e procedência que aceita texto livre não é procedência.
+ORIGENS_MOVIMENTACAO = {"finnest", "pluggy", "manual"}
 VOCABULARIOS = {
     ("posicoes", "classe"): CLASSES,
     ("fills", "tipo"): TIPOS_FILL,
@@ -48,6 +57,7 @@ VOCABULARIOS = {
     # sentido aqui (nenhum índice é definicional), só ainda não vale a pena um set separado.
     ("indices", "fonte"): FONTES_COTACAO,
     ("cotacoes", "fonte"): FONTES_COTACAO,
+    ("movimentacoes", "origem"): ORIGENS_MOVIMENTACAO,
 }
 
 
@@ -68,6 +78,10 @@ NUMERO_CANONICO = re.compile(r"^-?\d+(\.\d+)?$")
 OPCIONAIS = {
     "proventos": {"cnpj"},
     "eventos": {"razao"},
+    # Provider pode devolver lançamento sem descrição ou sem categoria; isso não é erro de dado.
+    # `categoria_origem` é texto livre DE PROPÓSITO (spec §6.2): categorizar gasto é julgamento,
+    # e congelar taxonomia agora faria o motor herdar a opinião do primeiro fornecedor.
+    "movimentacoes": {"descricao", "categoria_origem"},
 }
 
 
@@ -107,7 +121,7 @@ def validar_linha(nome: str, linha: dict, onde: str) -> list[str]:
                     f"(decimal com ponto, sem milhar): {valor!r}")
             else:
                 linha[campo] = float(valor)
-        elif campo == "data":
+        elif campo == "data" or campo.startswith("data_"):
             if not DATA_RE.match(valor):
                 erros.append(f"{onde}: data deve ser YYYY-MM-DD: {valor!r}")
             else:
