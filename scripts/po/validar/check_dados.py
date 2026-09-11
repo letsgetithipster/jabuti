@@ -19,6 +19,12 @@ from po.config import carregar_config, moedas_por_conta
 from po.csvs import SCHEMAS, ler_csv, ultimas_cotacoes
 from po.ledger import TOLERANCIA_QTY, calcular_saldos
 
+# Derivado do schema, não literal: toda tabela com coluna `conta` entra aqui, EXCETO
+# `movimentacoes` (também tem `conta`) — excluída de propósito, porque a mensagem do laço usa
+# `linha['ticker']`, e movimentacoes não tem ticker (é lançamento de caixa, não posição). Conferir
+# movimentacoes.conta é passo próprio, ainda não feito; até lá, incluí-la aqui daria KeyError.
+TABELAS_COM_CONTA_E_TICKER = [n for n in SCHEMAS if "conta" in SCHEMAS[n] and n != "movimentacoes"]
+
 TOLERANCIA_PM = 0.01           # piso absoluto em BRL, limitado a 5% do PM (ver abaixo)
 TOLERANCIA_PM_RELATIVA = 1e-7  # domina acima de PM 100.000 (o cruzamento é 0,01 / 1e-7)
 # Por que estes números: o piso absorve PM de corretora arredondado a 2 casas (erro ≤ 0,005);
@@ -76,8 +82,9 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
     movimentacoes = tabelas.get("movimentacoes", [])
 
     # Conta é texto: seguro ler mesmo com erro de formato em outro campo da linha.
-    for nome_csv, linhas in (("posicoes.csv", posicoes), ("fills.csv", fills), ("proventos.csv", proventos)):
-        for linha in linhas:
+    for nome in TABELAS_COM_CONTA_E_TICKER:
+        nome_csv = f"{nome}.csv"
+        for linha in tabelas.get(nome, []):
             conta = linha.get("conta")
             if conta is None:
                 continue

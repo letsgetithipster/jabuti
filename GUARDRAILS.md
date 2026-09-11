@@ -50,6 +50,13 @@ Este documento é o contrato de TODAS as fases do produto; o que já está const
 
 ## Dado que vem de API
 
+> **Estado hoje:** <!-- sentinela: nenhum-provider-ligado -->
+> as três regras abaixo são o contrato, e o motor já tem as peças que as cumprem
+> (o arquivador de payload, a coluna obrigatória de data de referência, a conferência de status).
+> Mas **nenhum provider está ligado ainda** — nenhum adaptador existe, e portanto nada nesta seção
+> descreve algo que você possa rodar hoje. O dia em que um adaptador entrar, esta ressalva sai, e
+> há teste que cobra as duas coisas: a presença dela agora e a remoção dela depois.
+
 A ingestão de documento tem uma garantia que a ingestão por API não tem: o arquivo que você
 baixou é prova de si mesmo. Ele é imutável, reexecutável e auditável por um terceiro, e os três
 tipos de conciliação comparam o documento contra a aritmética do próprio documento.
@@ -71,15 +78,6 @@ outras três, porque compara a resposta contra uma afirmação de fora dela. Qua
 `soma-da-resposta` no relatório, é isso que ela quer dizer.
 
 **Segredo nunca vai para argumento de tool MCP**, porque argumento entra no transcript do modelo.
-
-> **Estado hoje:** as três regras acima são o contrato, e o motor já tem as peças que as cumprem
-> (o arquivador de payload, a coluna obrigatória de data de referência, a conferência de status).
-> Mas **nenhum provider está ligado ainda** — nenhum adaptador existe, e portanto nada nesta seção
-> descreve algo que você possa rodar hoje. O dia em que um adaptador entrar, esta ressalva sai, e
-> há teste que cobra as duas coisas: a presença dela agora e a remoção dela depois.
-
-A frase "nenhum provider" acima não é estilo: `test_guardrails_nao_promete_provider_sem_chamador`
-procura por ela. Se você reescrever o parágrafo, mantenha a expressão ou ajuste o teste junto.
 
 ## Modo mínimo viável (honestidade sobre cadência)
 

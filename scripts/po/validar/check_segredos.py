@@ -10,6 +10,7 @@ espelho de `.gitignore` diverge em silêncio, e este divergiu antes mesmo do có
 Workspace criado com `--sem-git` não tem `.gitignore` a honrar nem commit a bloquear: ali a
 varredura cobre tudo. O que ela nunca cobre é `.env*`, que existe para guardar segredo.
 """
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -29,10 +30,25 @@ PADROES_DE_FORMA = [
 CREDENCIAL_POR_NOME = re.compile(
     r"""(client[_-]?secret|api[_-]?key|apikey|senha|password)\s*[:=]\s*["']([^"'\s]{8,})["']""",
     re.I)
+# Sem \b: `.search()` puro. Vetor conhecido e aceito — um segredo que contenha "fake", "todo",
+# "sample" ou "example" como SUBSTRING acidental escaparia da detecção (ex.: um token que por
+# acaso contém a sequência "todo"). Não é consertável com \b: `_` conta como caractere de
+# palavra, então \b nunca dispara dentro de `COLE_AQUI_SUA_CHAVE`, e é exatamente essa forma de
+# placeholder (maiúsculas com underscore) que a escotilha existe para reconhecer — \b quebraria
+# a detecção de placeholder, que é o ponto todo. Em chave HEXADECIMAL o vetor é impossível: "k",
+# "t", "o", "s" não são dígitos hex, então nenhuma dessas palavras cabe dentro de um valor
+# hex. Sobra token alfanumérico ou base64 com uma dessas sequências embutida por acaso,
+# probabilidade na casa de 1 em 10 mil (4 letras fixas numa distribuição de ~62-70 símbolos por
+# posição). Não "consertar" isso com \b sem reler este comentário primeiro.
 PREENCHIMENTO = re.compile(
     r"aqui|here|your|seu|sua|exemplo|example|sample|cole|troque|change|placeholder|"
     r"todo|fixme|dummy|fake|xxx|\.\.\.", re.I)
 SUFIXOS_BINARIOS = {".xlsx", ".png", ".jpg", ".pdf", ".zip", ".ico"}
+# Só diretório de ferramenta (git interno, cache de bytecode, cache de teste, venv), nunca
+# regra do usuário — isso NÃO é espelho de .gitignore, que é justo o que este módulo evita
+# manter à mão (ver docstring do arquivo). Sem isso, o fallback sem-git varria 1038 arquivos
+# de .git/ e 80 de __pycache__/ à toa: nem incorreto, nem barato.
+DIRETORIOS_IGNORADOS_NO_FALLBACK = {".git", "__pycache__", ".pytest_cache", ".venv"}
 
 
 def parece_credencial(valor: str) -> bool:
@@ -66,6 +82,14 @@ def _rotulo(linha: str) -> str:
     return ""
 
 
+def _rglob_sem_diretorios_de_ferramenta(raiz: Path):
+    """rglob("*") plano, mas podando DIRETORIOS_IGNORADOS_NO_FALLBACK na travessia."""
+    for dirpath, dirnames, filenames in os.walk(raiz):
+        dirnames[:] = [d for d in dirnames if d not in DIRETORIOS_IGNORADOS_NO_FALLBACK]
+        for nome in filenames:
+            yield Path(dirpath) / nome
+
+
 def _versionaveis(raiz: Path):
     """Arquivos que o git versiona ou versionaria. `.env*` fica de fora sempre."""
     saida = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
@@ -74,7 +98,7 @@ def _versionaveis(raiz: Path):
     if saida.returncode == 0:
         candidatos = (raiz / p for p in saida.stdout.split("\0") if p)
     else:
-        candidatos = raiz.rglob("*")     # --sem-git: não há gitignore a honrar
+        candidatos = _rglob_sem_diretorios_de_ferramenta(raiz)   # --sem-git: não há gitignore a honrar
     for caminho in candidatos:
         if not caminho.is_file() or caminho.suffix.lower() in SUFIXOS_BINARIOS:
             continue

@@ -1,6 +1,8 @@
-"""O README é o único documento que promete coisa para quem não leu o código. O invariante do
-repo — nenhuma afirmação no presente sem código que a cumpra — precisa de check mecânico, senão
-ele vale só por disciplina e a auditoria da Fase 1 já mostrou que não basta."""
+"""Nenhum documento do repo promete no presente o que o código não cumpre. É um só invariante
+espalhado por dois arquivos: o README (estrutura de pastas, vínculo com a Finnest, fase de cada
+comando) e o GUARDRAILS (a garantia menor do dado de API, a ressalva de que nenhum provider está
+ligado ainda). Ele vale só por disciplina até virar check mecânico, e a auditoria da Fase 1 já
+mostrou que não basta."""
 import re
 import subprocess
 from pathlib import Path
@@ -8,6 +10,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 ESTE_ARQUIVO = Path(__file__).resolve()
 README = (RAIZ / "README.md").read_text(encoding="utf-8")
+GUARDRAILS = (RAIZ / "GUARDRAILS.md").read_text(encoding="utf-8")
 
 IGNORADAS = {".git", ".github", ".githooks", "__pycache__", ".pytest_cache", ".venv"}
 
@@ -73,16 +76,43 @@ def test_nao_promete_no_presente_o_que_e_de_fase_futura():
 
 def test_guardrails_declara_a_garantia_menor_do_dado_de_api():
     """Se o GUARDRAILS descrevesse só a ingestão de documento, ele estaria prometendo para o
-    dado de API uma garantia que o dado de API não tem."""
-    texto = (RAIZ / "GUARDRAILS.md").read_text(encoding="utf-8")
-    assert "soma-da-resposta" in texto
-    assert "payload" in texto.lower() or "resposta crua" in texto.lower()
+    dado de API uma garantia que o dado de API não tem.
+
+    Mede o PARÁGRAFO que cita `soma-da-resposta`, não a presença da string em qualquer lugar do
+    arquivo: uma reescrita que invertesse o sentido — dizendo que essa conciliação é tão forte
+    quanto as outras três — manteria a string 'soma-da-resposta' e passaria pelo assert antigo
+    mesmo mentindo sobre a garantia que a seção existe para não prometer."""
+    assert "payload" in GUARDRAILS.lower() or "resposta crua" in GUARDRAILS.lower()
+    paragrafos_da_conciliacao = [p for p in GUARDRAILS.split("\n\n") if "soma-da-resposta" in p]
+    assert paragrafos_da_conciliacao, "nenhum parágrafo do GUARDRAILS cita soma-da-resposta"
+    assert any("mais fraca" in p for p in paragrafos_da_conciliacao), (
+        "soma-da-resposta é citado sem declarar que é mais fraca que as outras três "
+        "conciliações — a seção existe para prometer essa garantia MENOR, não uma garantia igual")
 
 
 def _chamadores_de_provider():
     """Arquivos que USAM a camada de provider, fora da definição dela. Enquanto esta lista está
     vazia, a ingestão por provider é capacidade sem pipeline: as funções existem e ninguém as
-    chama."""
+    chama.
+
+    Grep sobre AST, com dois limites conhecidos e aceitos, não consertados de propósito:
+
+    1. Falso positivo que dói: um comentário como
+       `# TODO: quando o adaptador existir, chamar arquivar_payload` em qualquer arquivo de
+       scripts/ conta como chamador. Isso empurra quem vir a falha a apagar a ressalva do
+       GUARDRAILS — a correção errada — em vez de perceber que é só um comentário. É a direção
+       de erro mais cara desta guarda: falso negativo deixa a suíte calada, falso positivo aponta
+       a correção para o lado errado (fazer o documento mentir em vez de corrigir o comentário).
+    2. Falso negativo que importa: o skip é por basename (`provider.py`), então um chamador
+       escrito DENTRO do próprio `provider.py` — o lugar mais natural para o primeiro
+       orquestrador, já que é o módulo onde as duas funções moram — nunca é achado. AST não
+       resolve isso sozinho: é um problema de escopo (chamador e definição no mesmo arquivo),
+       não de sintaxe.
+
+    A escolha de grep sobre AST só se sustenta enquanto ninguém escrever um TODO com o nome da
+    função, e TODO com nome de função é exatamente o tipo de coisa que aparece num repo que
+    acabou de deixar essa camada sem chamador de propósito.
+    """
     alvos = ("arquivar_payload", "conferir_status")
     achados = []
     for caminho in (RAIZ / "scripts").rglob("*.py"):
@@ -97,6 +127,23 @@ def _chamadores_de_provider():
     return sorted(achados)
 
 
+def _ressalva_coerente(tem_ressalva: bool, chamadores: list[str]) -> bool:
+    """A ressalva tem que existir enquanto não houver chamador, e sair quando houver."""
+    return tem_ressalva == (not chamadores)
+
+
+def test_ressalva_coerente_nas_quatro_combinacoes():
+    """A lógica de `test_guardrails_nao_promete_provider_sem_chamador` só é testada, hoje, contra
+    o estado atual do repo — ressalva presente, zero chamadores — onde `tem_ressalva == (not
+    chamadores)` e `tem_ressalva or not chamadores` dão o mesmo resultado. Uma mutação que trocasse
+    `==` por `or` sobreviveria em silêncio até o dia em que um chamador aparecesse. Testar a
+    função pura nas quatro combinações prende a lógica antes desse dia, não depois."""
+    assert _ressalva_coerente(True, []) is True
+    assert _ressalva_coerente(False, []) is False
+    assert _ressalva_coerente(True, ["scripts/x.py"]) is False
+    assert _ressalva_coerente(False, ["scripts/x.py"]) is True
+
+
 def test_guardrails_nao_promete_provider_sem_chamador():
     """Guarda de DUAS VIAS, e as duas importam.
 
@@ -107,11 +154,19 @@ def test_guardrails_nao_promete_provider_sem_chamador():
     E quando o adaptador existir, este teste falha e cobra a REMOÇÃO da ressalva. Ressalva que
     sobrevive ao fato que ela descreve é a mesma dívida ao contrário: o leitor passa a duvidar de
     uma garantia que já vale.
+
+    A presença da ressalva é medida por uma SENTINELA em comentário HTML
+    (`<!-- sentinela: nenhum-provider-ligado -->`) dentro do blockquote, não por prosa em
+    português. Antes, o teste procurava a frase "nenhum provider", que também aparecia numa nota
+    meta logo abaixo do blockquote explicando a própria guarda — e quem apagasse o blockquote
+    inteiro mantendo só a nota meta via a suíte passar com a ressalva de fato ausente do
+    documento. A nota meta foi removida junto com a troca: era o segundo lugar onde a frase podia
+    morar, e um comentário HTML dentro do blockquote não sobrevive a uma reescrita da prosa nem
+    aparece no markdown renderizado.
     """
     chamadores = _chamadores_de_provider()
-    texto = (RAIZ / "GUARDRAILS.md").read_text(encoding="utf-8").lower()
-    tem_ressalva = "nenhum provider" in texto
-    assert tem_ressalva == (not chamadores), (
+    tem_ressalva = "sentinela: nenhum-provider-ligado" in GUARDRAILS
+    assert _ressalva_coerente(tem_ressalva, chamadores), (
         f"a ressalva de que nenhum provider está ligado {'está' if tem_ressalva else 'não está'} "
         f"no GUARDRAILS, e os chamadores da camada de provider são {chamadores or 'nenhum'}. "
         "Ela tem que existir enquanto não houver chamador, e sair quando houver")
@@ -126,9 +181,11 @@ def test_numero_de_fase_citado_bate_com_o_roadmap():
     diferentes, e medir linha daria falso positivo.
 
     Ponto cego declarado: cobre só citação que nomeia um comando. Cláusula que cita fase por
-    conceito ("compilador multi-LLM (Fase 3)", "pacotes tributários (Fase 5)") fica de fora, e
-    são 6 lugares hoje. Fechar isso exigiria mapear conceito para fase, que é vocabulário fuzzy
-    e daria teste frágil; preferi guarda parcial e honesta a guarda ampla e quebradiça.
+    conceito ("compilador multi-LLM", "pacotes tributários por ano-fiscal") fica de fora — e é
+    lugar-comum no repo: a maior parte dessas menções descreve corretamente quando algo nasceu
+    (a Fase 2 do cockpit, a Fase 1 do brainstorming de providers), não promete um comando. Mapear
+    conceito para fase fecharia essa lacuna, mas o vocabulário é fuzzy o bastante pra dar teste
+    frágil; prefiro guarda parcial e honesta a guarda ampla e quebradiça.
     """
     fase_re = re.compile(r"[Ff]ase (\d)")
     clausula_re = re.compile(r"[;.\n—]")

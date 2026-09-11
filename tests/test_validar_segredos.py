@@ -80,6 +80,21 @@ def test_workspace_sem_git_ainda_e_conferido(tmp_path):
     assert any("x.txt" in e for e in erros)
 
 
+def test_fallback_sem_git_poda_diretorio_de_ferramenta(tmp_path):
+    """Medido num pré-voo: o fallback sem-git (`rglob("*")` plano) varria 1038 arquivos de
+    `.git/` e 80 de `__pycache__/` à toa, em 3,81s — não incorreto, só desperdício. A poda por
+    diretório não é espelho de `.gitignore` (ver docstring do módulo): só corta ferramenta
+    (`.git`, `__pycache__`, `.pytest_cache`, `.venv`), nunca regra do usuário. Este teste prende
+    o comportamento: segredo dentro de `__pycache__/` não deve ser achado."""
+    ws = copia_exemplo(tmp_path)
+    pycache = ws / "dados" / "__pycache__"
+    pycache.mkdir()
+    (pycache / "x.txt").write_text("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.aaaaaaaaaaaa",
+                                   encoding="utf-8")
+    erros, _ = checar_segredos(ws)
+    assert not any("__pycache__" in e for e in erros)
+
+
 def test_linha_que_ensina_o_usuario_nao_derruba_o_commit():
     """Medido no pré-voo: a deny-list de seis strings deixava passar 9 de 12 destas. O check
     roda no pre-commit, então falso positivo aqui treina o usuário a burlar a guarda."""
