@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from criar_workspace import criar
+from criar_workspace import MOTOR, criar, instalar_skills
 
 
 def test_cria_workspace_completo(tmp_path):
@@ -72,3 +72,35 @@ def test_destino_e_arquivo(tmp_path):
     arq.write_text("x")
     with pytest.raises(SystemExit, match="não é uma pasta"):
         criar(arq, com_git=False)
+
+
+def test_instala_skills_no_workspace(tmp_path):
+    destino = tmp_path / "ws"
+    criar(destino, com_git=False, data="2026-09-08")
+    instaladas = sorted(p.parent.name for p in (destino / ".claude" / "skills").glob("*/SKILL.md"))
+    esperadas = sorted(p.parent.name for p in (MOTOR / "skills").glob("*/SKILL.md"))
+    assert instaladas == esperadas and "atualizar-cotacoes" in instaladas and "importar-extrato" in instaladas
+    texto = (destino / ".claude" / "skills" / "importar-extrato" / "SKILL.md").read_text(encoding="utf-8")
+    assert texto == (MOTOR / "skills" / "importar-extrato" / "SKILL.md").read_text(encoding="utf-8")
+
+
+def test_so_skills_reinstala_em_workspace_existente(tmp_path):
+    destino = tmp_path / "ws"
+    criar(destino, com_git=False, data="2026-09-08")
+    alvo = destino / ".claude" / "skills" / "importar-extrato" / "SKILL.md"
+    alvo.write_text("velho", encoding="utf-8")
+    n = instalar_skills(destino)
+    assert n >= 2 and alvo.read_text(encoding="utf-8") != "velho"
+
+
+def test_so_skills_exige_workspace(tmp_path):
+    with pytest.raises(SystemExit, match="não é um workspace"):
+        instalar_skills(tmp_path)
+
+
+def test_workspace_novo_valida_sem_erros(tmp_path):
+    from po.validar import validar
+    destino = tmp_path / "ws"
+    criar(destino, com_git=False, data="2026-09-08")
+    erros, avisos = validar(destino)
+    assert erros == [] and avisos == ["politica: nenhuma banda declarada ainda (o /definir-macro preenche a tabela)"]

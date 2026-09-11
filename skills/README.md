@@ -1,1 +1,1 @@
-# skills/ — procedimentos operacionais (funil na Fase 3, rotina na Fase 4). Toda skill declara "O que esta skill NÃO faz".
+# skills/ — procedimentos operacionais. Prontas (Fase 2): atualizar-cotacoes, importar-extrato. Funil (/init, /definir-macro, /refinar-micro, /aprofundar-tese) na Fase 3; rotina (/registrar-aporte, /consultar-aporte, /fechar-mes) na Fase 4. Toda skill declara "O que esta skill NÃO faz". O criar_workspace.py copia estas pastas para .claude/skills/ do workspace (--so-skills reinstala).

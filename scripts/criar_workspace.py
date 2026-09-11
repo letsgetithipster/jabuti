@@ -1,6 +1,7 @@
 """Instancia um workspace PatrimonioOS a partir de templates/workspace.
 
-Uso: python scripts/criar_workspace.py C:\\caminho\\meu-vault [--sem-git] [--data AAAA-MM-DD] [--motor CAMINHO]
+Uso: python scripts/criar_workspace.py C:\\caminho\\meu-vault [--sem-git] [--data AAAA-MM-DD]
+        [--motor CAMINHO] [--so-skills]
 """
 import argparse
 import datetime
@@ -17,6 +18,23 @@ if hasattr(sys.stderr, "reconfigure"):
 
 MOTOR = Path(__file__).resolve().parent.parent
 TEMPLATE = MOTOR / "templates" / "workspace"
+SKILLS = MOTOR / "skills"
+
+
+def instalar_skills(destino: str | Path) -> int:
+    """Copia skills/<nome>/SKILL.md do motor para <destino>/.claude/skills/<nome>/SKILL.md.
+    Cópia simples (Claude Code descobre por convenção); o compilador da Fase 3 substitui.
+    Retorna quantas instalou."""
+    destino = Path(destino).resolve()
+    if not (destino / "vault.config.yaml").exists():
+        raise SystemExit(f"erro: {destino} não é um workspace (vault.config.yaml ausente)")
+    n = 0
+    for skill in sorted(SKILLS.glob("*/SKILL.md")):
+        alvo = destino / ".claude" / "skills" / skill.parent.name / "SKILL.md"
+        alvo.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(skill, alvo)
+        n += 1
+    return n
 
 
 def criar(destino: str | Path, com_git: bool = True, data: str | None = None,
@@ -52,6 +70,7 @@ def criar(destino: str | Path, com_git: bool = True, data: str | None = None,
             texto = md.read_text(encoding="utf-8")
             if "__DATA__" in texto:
                 md.write_text(texto.replace("__DATA__", data), encoding="utf-8")
+        instalar_skills(destino)
         os.chmod(destino / ".githooks" / "pre-commit", 0o755)
         if com_git:
             try:
@@ -79,10 +98,17 @@ def main():
     ap.add_argument("--data", help="data AAAA-MM-DD gravada nos documentos (default: hoje)")
     ap.add_argument("--motor",
                     help="valor de caminhos.motor (default: este motor; fixture usa relativo)")
+    ap.add_argument("--so-skills", action="store_true",
+                    help="só (re)instala as skills em .claude/skills/ de um workspace existente")
     args = ap.parse_args()
+    if args.so_skills:
+        n = instalar_skills(args.destino)
+        print(f"{n} skill(s) instalada(s) em {Path(args.destino).resolve() / '.claude' / 'skills'}")
+        return
     destino = criar(args.destino, com_git=not args.sem_git, data=args.data, motor=args.motor)
     print(f"Workspace criado em {destino}")
-    print("Próximos passos: abra seu agente (Claude Code) na pasta e rode /init (Fase 3).")
+    print("Próximos passos: abra o Claude Code na pasta; /importar-extrato e "
+          "/atualizar-cotacoes já funcionam. O /init chega na Fase 3.")
     print("Este workspace é PRIVADO por desenho: não publique este repositório.")
 
 
