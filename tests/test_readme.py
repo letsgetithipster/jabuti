@@ -43,3 +43,49 @@ def test_nao_promete_no_presente_o_que_e_de_fase_futura():
             if termo in bloco:
                 assert re.search(r"[Ff]ase|Próximas", bloco), \
                     f"{termo} citado sem marcar a fase: {bloco.strip()[:120]}"
+
+
+def test_guardrails_declara_a_garantia_menor_do_dado_de_api():
+    """Se o GUARDRAILS descrevesse só a ingestão de documento, ele estaria prometendo para o
+    dado de API uma garantia que o dado de API não tem."""
+    texto = (RAIZ / "GUARDRAILS.md").read_text(encoding="utf-8")
+    assert "soma-da-resposta" in texto
+    assert "payload" in texto.lower() or "resposta crua" in texto.lower()
+
+
+def _chamadores_de_provider():
+    """Arquivos que USAM a camada de provider, fora da definição dela. Enquanto esta lista está
+    vazia, a ingestão por provider é capacidade sem pipeline: as funções existem e ninguém as
+    chama."""
+    alvos = ("arquivar_payload", "conferir_status")
+    achados = []
+    for caminho in (RAIZ / "scripts").rglob("*.py"):
+        if caminho.name == "provider.py":
+            continue
+        try:
+            texto = caminho.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        if any(a in texto for a in alvos):
+            achados.append(caminho.relative_to(RAIZ).as_posix())
+    return sorted(achados)
+
+
+def test_guardrails_nao_promete_provider_sem_chamador():
+    """Guarda de DUAS VIAS, e as duas importam.
+
+    Enquanto `arquivar_payload` e `conferir_status` não tiverem chamador, o GUARDRAILS descreve
+    contrato, não comportamento corrente, e **precisa** dizer isso — senão promete um pipeline que
+    ninguém pode executar, que é o invariante do repo violado no documento onde ele mais pesa.
+
+    E quando o adaptador existir, este teste falha e cobra a REMOÇÃO da ressalva. Ressalva que
+    sobrevive ao fato que ela descreve é a mesma dívida ao contrário: o leitor passa a duvidar de
+    uma garantia que já vale.
+    """
+    chamadores = _chamadores_de_provider()
+    texto = (RAIZ / "GUARDRAILS.md").read_text(encoding="utf-8").lower()
+    tem_ressalva = "nenhum provider" in texto
+    assert tem_ressalva == (not chamadores), (
+        f"a ressalva de que nenhum provider está ligado {'está' if tem_ressalva else 'não está'} "
+        f"no GUARDRAILS, e os chamadores da camada de provider são {chamadores or 'nenhum'}. "
+        "Ela tem que existir enquanto não houver chamador, e sair quando houver")

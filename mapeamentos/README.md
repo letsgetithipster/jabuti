@@ -19,6 +19,13 @@ Esta pasta é superfície de contribuição, como `fiscal/`.
 Nada entra em `dados/` sem a **conciliação declarada** passar. Linha que não casa
 regra nenhuma PARA a importação; não existe descarte silencioso.
 
+## Provider não é mapeamento
+
+Mapeamento existe para documento que o usuário baixou. Provider de open finance é outra camada:
+o contrato dos campos vem da especificação pública do Open Finance Brasil, e um provider é um
+adaptador que preenche o tipo canônico. Nenhum campo de `dados/` pode ter nome ou semântica
+herdada de um fornecedor — no dia em que tiver, a troca de fornecedor deixa de ser barata.
+
 ## Prontos
 
 | Mapeamento | Documento | Verificado contra export real | Conciliação |
