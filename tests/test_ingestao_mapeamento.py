@@ -415,7 +415,11 @@ def test_yaml_com_soma_da_resposta_nao_chega_ao_conciliar(tmp_path):
 
 
 def test_total_declarado_continua_exigindo_soma():
-    """Contraprova do ramo else: o quarto tipo não pode ter engolido a validação do terceiro.
-    Esta classe de bug já apareceu nesta base — um `elif True` que engolia a cadeia de tipos."""
+    """Prova que a validação de total-declarado continua rodando depois da troca do `else` por
+    `elif conc["tipo"] == "total-declarado"`: o quarto tipo não engoliu a validação do terceiro.
+    (Não é contraprova do `elif` em si — com três tipos em CONCILIACOES e o vocabulário barrado
+    antes, `elif` e `else` são semanticamente idênticos hoje; a troca vale pelo quinto tipo que
+    ainda não existe. Esta classe de bug já apareceu nesta base — um `elif True` que engolia a
+    cadeia de tipos.)"""
     m = dict(MAPA_OK, conciliacao={"tipo": "total-declarado", "origem": "flag"})
     assert any("total-declarado exige soma" in e for e in validar_mapeamento(m))

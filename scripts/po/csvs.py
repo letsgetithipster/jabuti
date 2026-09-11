@@ -18,6 +18,12 @@ from pathlib import Path
 
 from po.numeros import formatar_canonico
 
+# Formato de campo é decidido por NOME, não declarado aqui (ver docstring de validar_linha):
+# campo `data` ou com prefixo `data_` vira validação de data canônica (falha FECHADA — deixar de
+# registrar o prefixo apenas perde a validação de data de graça); campo listado em NUMERICOS
+# abaixo vira validação/conversão numérica (falha ABERTA e pior — esquecer de listar um campo
+# numérico aqui o valida como texto livre, em silêncio). Schema novo: escolha o nome do campo
+# ciente disso, e registre em NUMERICOS se for quantia ou quantidade.
 SCHEMAS = {
     "posicoes": ["ticker", "classe", "conta", "qty", "pm", "moeda"],
     "cotacoes": ["data", "hora", "ticker", "preco", "moeda", "fonte"],
@@ -49,7 +55,7 @@ FONTES_COTACAO = {"yahoo", "brapi", "bcb-sgs", "manual", "definicao"}   # regist
 # é procedência, e procedência que aceita texto livre não é procedência.
 # Hoje só existe entrada manual. Cada provider entra aqui no commit que traz o adaptador dele,
 # com o teste-ponte no molde do de FONTES_COTACAO (test_registry_fecha_com_o_vocabulario_de_fonte).
-# Previstos: finnest (Task 9+), pluggy.
+# Previstos: finnest, pluggy.
 ORIGENS_MOVIMENTACAO = {"manual"}
 VOCABULARIOS = {
     ("posicoes", "classe"): CLASSES,

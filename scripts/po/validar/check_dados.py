@@ -184,10 +184,17 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
             chave = (mv["origem"], mv["id_externo"])
             anterior = vistos.get(chave)
             if anterior is not None:
+                # A causa provável difere por origem: hoje só `manual` existe, e quem lançou à
+                # mão não importou nada — reusou um id_externo em dois lançamentos distintos sem
+                # saber que ele precisa ser único. "importada duas vezes" é o diagnóstico certo
+                # só quando a origem é de fato um provider (reimportação de um mesmo evento).
+                pista = ("o mesmo id_externo foi usado em dois lançamentos manuais diferentes — "
+                         "id_externo precisa ser único por origem"
+                         if mv["origem"] == "manual" else
+                         "confira se a mesma movimentação foi importada duas vezes antes de manter as duas")
                 erros.append(
                     f"movimentacoes.csv:{i}: id_externo {mv['id_externo']!r} da origem "
-                    f"{mv['origem']!r} repete a linha {anterior} — confira se a mesma "
-                    "movimentação foi importada duas vezes antes de manter as duas")
+                    f"{mv['origem']!r} repete a linha {anterior} — {pista}")
             else:
                 vistos[chave] = i
     return erros, avisos

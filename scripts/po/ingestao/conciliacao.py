@@ -30,10 +30,18 @@ ROUNDING_POR_UNIDADE = 0.005   # meia casa: quanto um preço exibido com 2 decim
 # exibe o PM com 2 casas mas calcula o total com o PM cheio, então o erro cresce com a
 # quantidade — 300 posições de 1.000 ações erram até R$ 1.500 sem que nada esteja errado. Ali o
 # default escala com a soma do primeiro fator.
-# Isso são DEFAULTS. Qualquer mapeamento, de qualquer um dos três tipos, declara a sua própria
-# em `conciliacao.tolerancia` e justifica o número em `observacoes` — inclusive para apertar: o
-# default de total-declarado é o limite teórico, largo o bastante para uma posição inteira de
-# R$ 1.200 sumir sem acusar, que é justamente o que total-declarado existe para pegar.
+# Um centavo também é a medida certa para `soma-da-resposta`: não é soma de produto, é soma de N
+# quantias já finais (a resposta do provider, não um preço unitário a multiplicar), então não há
+# arredondamento exibido que escale com a quantidade — o erro ali é ruído de ponto flutuante
+# sobre N termos, que um centavo cobre com folga. O chamador só precisa apertar essa tolerância
+# se `total` vier de uma base de arredondamento diferente da das linhas (ex.: total em centavos
+# inteiros contra linhas com mais casas).
+# Isso são DEFAULTS. Qualquer mapeamento, de qualquer um dos quatro tipos, declara a sua própria
+# (os três de documento em `conciliacao.tolerancia`, justificada em `observacoes`; o quarto via
+# o parâmetro `tolerancia` de `conciliar_resposta`, porque não é declarável em mapeamento) —
+# inclusive para apertar: o default de total-declarado é o limite teórico, largo o bastante para
+# uma posição inteira de R$ 1.200 sumir sem acusar, que é justamente o que total-declarado existe
+# para pegar.
 
 
 def _motivos_fora(mapa: dict) -> set[str]:
@@ -229,6 +237,17 @@ def conciliar_resposta(linhas: list[dict], total: float, tolerancia: float = TOL
     comparam o documento contra a aritmética do próprio documento, e este compara a resposta
     contra uma afirmação de fora dela. A descrição diz isso, porque "conciliado" não pode
     significar coisas diferentes em lugares diferentes sem avisar.
+
+    Contrato de `linhas`: já normalizadas pelo adaptador do provider, no schema canônico de
+    `dados/` (o mesmo dict que a ingestão de documento produz), com `campo` sempre presente —
+    é isso que impede a Task 6 de passar payload cru do provider para cá. `validar_linha`
+    (`po.csvs`) é a régua única a montante; esta função não reprova formato, só aritmética.
+
+    Política de falha diferente de `conciliar()`, de propósito: `conciliar()` engole registro
+    sem o campo da soma e segue (linha pode legitimamente não ter aquele campo). Aqui uma linha
+    sem `campo` propaga o KeyError em vez de ser pulada — pular corromperia a soma e faria a
+    conciliação aprovar sobre menos linhas do que a resposta trouxe, o oposto do que este tipo,
+    já o mais fraco dos quatro, pode se permitir.
     """
     if not linhas:
         return (["a resposta não trouxe nenhuma linha — conexão sem sincronizar devolve lista "

@@ -353,10 +353,14 @@ def test_rodape_marcado_fora_da_cadeia_fecha_limpo():
 def test_soma_da_resposta_confere_e_declara_a_garantia_menor():
     """Resposta de API não traz total declarado como extrato traz: a soma é do próprio payload
     contra o que o chamador afirma ter pedido. A descrição tem que dizer que a garantia é menor,
-    senão o usuário lê 'conciliado' e entende a mesma coisa que num extrato."""
+    senão o usuário lê 'conciliado' e entende a mesma coisa que num extrato.
+
+    `qty` entra em cada linha (e vem ANTES de `valor` na ordem do dict) para prender o parâmetro
+    `campo`: uma implementação que lesse a primeira chave do dict, ignorando `campo`, somaria
+    qty (7 + 3 = 10) em vez de valor (1000 + 500 = 1500) e este teste apanharia a divergência."""
     from po.ingestao.conciliacao import conciliar_resposta
 
-    linhas = [{"valor": 1000.0}, {"valor": 500.0}]
+    linhas = [{"qty": 7.0, "valor": 1000.0}, {"qty": 3.0, "valor": 500.0}]
     erros, descricao = conciliar_resposta(linhas, total=1500.0, tolerancia=0.011)
     assert erros == []
     assert "soma-da-resposta" in descricao and "1500.00" in descricao
@@ -366,7 +370,7 @@ def test_soma_da_resposta_confere_e_declara_a_garantia_menor():
 def test_soma_da_resposta_reprova_divergencia():
     from po.ingestao.conciliacao import conciliar_resposta
 
-    erros, _ = conciliar_resposta([{"valor": 1000.0}], total=1500.0, tolerancia=0.011)
+    erros, _ = conciliar_resposta([{"qty": 7.0, "valor": 1000.0}], total=1500.0, tolerancia=0.011)
     assert any("1000.00" in e and "1500.00" in e for e in erros)
 
 
@@ -376,3 +380,14 @@ def test_soma_da_resposta_com_resposta_vazia_nao_passa_calada():
 
     erros, _ = conciliar_resposta([], total=0.0, tolerancia=0.011)
     assert any("nenhuma linha" in e for e in erros)
+
+
+def test_soma_da_resposta_usa_tolerancia_default_de_um_centavo():
+    """Sem `tolerancia` explícita (todos os outros testes passam 0.011 na mão), o default do
+    parâmetro (`TOL`, um centavo) tem que reprovar uma divergência de verdade. Mutação
+    confirmada: trocar `tolerancia: float = TOL` por `= 1e9` passa na suíte inteira sem este
+    teste, porque os demais nunca exercitam o default."""
+    from po.ingestao.conciliacao import conciliar_resposta
+
+    erros, _ = conciliar_resposta([{"valor": 1000.0}], total=1001.0)
+    assert any("1000.00" in e and "1001.00" in e for e in erros)

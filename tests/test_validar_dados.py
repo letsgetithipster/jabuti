@@ -346,6 +346,36 @@ def test_movimentacao_mesmo_id_externo_origens_diferentes_nao_e_erro(tmp_path, m
     assert not any("id_externo" in e for e in erros)
 
 
+def test_duplicata_manual_sugere_id_reusado_nao_reimportacao():
+    """`manual` é a única origem que existe hoje: quem dispara esta mensagem não importou nada,
+    lançou duas linhas à mão com o mesmo id_externo. "confira se foi importado duas vezes" seria
+    o diagnóstico errado — ele não importou nada e ficaria sem conduta."""
+    pista = "id_externo precisa ser único por origem"
+    assert pista in _mensagem_duplicata(origem="manual")
+    assert "importada duas vezes" not in _mensagem_duplicata(origem="manual")
+
+
+def test_duplicata_de_provider_sugere_reimportacao(monkeypatch):
+    """Origem que não é `manual` é (hoje só hipoteticamente, sem adaptador no repo) um provider:
+    aí sim "confira se foi importado duas vezes" é o diagnóstico certo."""
+    monkeypatch.setitem(csvs.VOCABULARIOS, ("movimentacoes", "origem"), {"manual", "pluggy"})
+    assert "importada duas vezes" in _mensagem_duplicata(origem="pluggy")
+
+
+def _mensagem_duplicata(origem: str) -> str:
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        ws = copia_exemplo(Path(td))
+        _anexa(ws, "dados/movimentacoes.csv",
+               f"2026-09-01,PIX RECEBIDO,1500.0,BRL,corretora-br,Transferências,{origem},ext-1,2026-09-02")
+        _anexa(ws, "dados/movimentacoes.csv",
+               f"2026-09-01,PIX RECEBIDO (dup),1500.0,BRL,corretora-br,Transferências,{origem},ext-1,2026-09-02")
+        erros, _ = checar_dados(ws)
+        achados = [e for e in erros if "id_externo" in e]
+        assert achados, f"esperava erro de id_externo duplicado para origem={origem}"
+        return achados[0]
+
+
 def test_mesmo_ticker_em_duas_moedas_e_erro(tmp_path):
     ws = copia_exemplo(tmp_path)
     cfg = ws / "vault.config.yaml"
