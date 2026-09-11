@@ -2,10 +2,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from criar_workspace import criar
 
 MOTOR = Path(__file__).resolve().parent.parent
 FIX = MOTOR / "tests" / "fixtures" / "extratos"
+
+pytestmark = pytest.mark.slow
 
 
 def _roda(script, *args):

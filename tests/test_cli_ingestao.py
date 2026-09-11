@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from test_validar_dados import copia_exemplo
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -88,6 +90,8 @@ POSICOES_NOVAS = """\
 Ativo,Classe,Quantidade,Preco
 VALE3,acoes-br,10,60.00
 """
+
+pytestmark = pytest.mark.slow
 
 
 def prepara(tmp_path, documento=EXTRATO, mapa=MAPA_EXTRATO, nome="doc.csv"):

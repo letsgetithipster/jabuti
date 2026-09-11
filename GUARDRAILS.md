@@ -12,8 +12,10 @@ Este documento é o contrato de TODAS as fases do produto; o que já está const
 - O modelo NÃO digita preço. Todo número de mercado entra por script, com
   fonte, data e hora gravadas em `dados/cotacoes.csv` (append-only).
 - Sem internet na sessão: a skill PARA e declara. Nunca preço de memória.
-- Extrato de corretora só entra em `dados/` após o script conferir a soma
-  contra o total declarado no próprio documento.
+- Extrato de corretora só entra em `dados/` depois que o script confere a
+  aritmética declarada no próprio documento (saldo corrente, valor da linha
+  ou total declarado). O mapeamento do documento é um arquivo que você vê
+  antes de rodar; linha que nenhuma regra explica PARA a importação.
 - Imposto de renda é cálculo determinístico sobre `dados/`, com regras de
   um pacote fiscal versionado por ano (`fiscal/<ano>.yaml`) com validade
   estampada. A LLM nunca aplica alíquota de memória.

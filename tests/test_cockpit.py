@@ -171,6 +171,7 @@ def _roda(*args, env=None):
                           encoding="utf-8", errors="replace", env=env)
 
 
+@pytest.mark.slow
 def test_cli_gera_e_sai_0(tmp_path):
     ws_raiz = copia_exemplo(tmp_path)
     r = _roda(str(ws_raiz))
@@ -179,12 +180,14 @@ def test_cli_gera_e_sai_0(tmp_path):
     assert (ws_raiz / "planilhas" / "cockpit.xlsx").exists()
 
 
+@pytest.mark.slow
 def test_cli_raiz_inexistente_sai_1_sem_traceback(tmp_path):
     r = _roda(str(tmp_path / "nao-existe"))
     assert r.returncode == 1
     assert "não existe" in r.stdout and "Traceback" not in r.stderr
 
 
+@pytest.mark.slow
 def test_cli_dados_sujos_sai_1_com_frase(tmp_path):
     ws_raiz = copia_exemplo(tmp_path)
     _anexa(ws_raiz, "dados/posicoes.csv", "VALE3,acoes-br,corretora-br,10,60.00,BRL")
@@ -194,11 +197,13 @@ def test_cli_dados_sujos_sai_1_com_frase(tmp_path):
     assert "VALE3 sem cotação" in r.stdout and "Traceback" not in r.stderr
 
 
+@pytest.mark.slow
 def test_cli_uso_invalido_sai_2():
     r = _roda()
     assert r.returncode == 2
 
 
+@pytest.mark.slow
 def test_cli_diretorio_no_lugar_do_arquivo_vira_frase(tmp_path):
     """No Windows isso dá PermissionError e em Linux IsADirectoryError: pegar só a primeira
     deixava a outra virar traceback num projeto que roda nos dois."""
@@ -211,6 +216,7 @@ def test_cli_diretorio_no_lugar_do_arquivo_vira_frase(tmp_path):
     assert "não consegui ler/gravar" in r.stdout and "Traceback" not in r.stderr
 
 
+@pytest.mark.slow
 def test_cli_sobrevive_a_console_cp1252(tmp_path):
     """O output tem × e ç, que cp1252 até aceita, mas a frase de erro tem ≤ e →."""
     ws_raiz = copia_exemplo(tmp_path)

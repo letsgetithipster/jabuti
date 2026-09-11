@@ -1,1 +1,1 @@
-# .githooks/ — pre-commit do motor: valida o workspace-exemplo e roda a suíte em todo commit. Ativar num clone novo: git config core.hooksPath .githooks
+# .githooks/ — pre-commit do motor: valida o workspace-exemplo e roda a suíte INTEIRA em todo commit (~15 s). Os testes de subprocesso são justamente os que fixam o contrato de saída dos CLIs, então o hook NÃO pula o marker `slow`. Ativar num clone novo: git config core.hooksPath .githooks

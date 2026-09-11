@@ -12,4 +12,7 @@ if [ -z "$PY" ]; then
   exit 1
 fi
 "$PY" scripts/validar_workspace.py exemplos/workspace-exemplo --errors-only || exit 1
+# Suite INTEIRA, incluindo os testes marcados `slow`: sao eles que fixam o contrato de
+# saida dos CLIs (codigo por situacao, frase acionavel, console cp1252), que as skills
+# leem em execucao. Laco interno de desenvolvimento: python -m pytest -m "not slow".
 "$PY" -m pytest -q || exit 1

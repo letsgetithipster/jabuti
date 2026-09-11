@@ -4,10 +4,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 RAIZ = Path(__file__).resolve().parent.parent
 EXEMPLO = RAIZ / "exemplos" / "workspace-exemplo"
 CLI = RAIZ / "scripts" / "validar_workspace.py"
 MOTOR = EXEMPLO.parent.parent
+
+pytestmark = pytest.mark.slow
 
 
 def roda(*args):

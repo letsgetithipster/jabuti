@@ -232,6 +232,7 @@ def test_carteira_so_caixa_no_segundo_dia_nao_diz_que_nao_tem_posicoes(tmp_path)
     assert rel2.pedidos == 1 and rel2.obtidas == [] and rel2.falhas == [] and rel2.ja_atualizadas == ["CAIXA"]
 
 
+@pytest.mark.slow
 def test_cli_carteira_so_caixa_segundo_dia_diz_nada_novo_a_buscar(tmp_path):
     ws = copia_exemplo(tmp_path)
     cfg = ws / "vault.config.yaml"
@@ -335,6 +336,7 @@ def test_dados_sujos_barram_a_rodada(tmp_path):
         atualizar(ws, provider=ProviderFalso({"PETR4": 41.0}))
 
 
+@pytest.mark.slow
 def test_cli_dry_run_com_manual(tmp_path):
     ws = copia_exemplo(tmp_path)
     r = subprocess.run([sys.executable, str(CLI), str(ws), "--dry-run", "--manual", "PETR4=41,50", "HGLG11=160"],
@@ -343,6 +345,7 @@ def test_cli_dry_run_com_manual(tmp_path):
     assert "PETR4" in r.stdout and "41,50" in r.stdout and "--dry-run" in r.stdout
 
 
+@pytest.mark.slow
 def test_cli_sem_cotacao_obtida_exit_1(tmp_path):
     ws = copia_exemplo(tmp_path)
     r = subprocess.run([sys.executable, str(CLI), str(ws)], capture_output=True, text=True,
@@ -350,6 +353,7 @@ def test_cli_sem_cotacao_obtida_exit_1(tmp_path):
     assert r.returncode == 1 and "FALHA" in r.stdout and "Nada gravado" in r.stdout
 
 
+@pytest.mark.slow
 def test_cli_posicoes_vazio_mensagem_clara(tmp_path):
     ws = copia_exemplo(tmp_path)
     (ws / "dados" / "posicoes.csv").write_text("ticker,classe,conta,qty,pm,moeda\n", encoding="utf-8")
@@ -359,6 +363,7 @@ def test_cli_posicoes_vazio_mensagem_clara(tmp_path):
     assert "não tem posições ainda" in r.stdout
 
 
+@pytest.mark.slow
 def test_cli_parcial_exit_3(tmp_path):
     ws = copia_exemplo(tmp_path)   # provider: manual — HGLG11 fica sem cotação, PETR4 é gravado
     r = subprocess.run([sys.executable, str(CLI), str(ws), "--manual", "PETR4=41,00"],
@@ -367,6 +372,7 @@ def test_cli_parcial_exit_3(tmp_path):
     assert "Gravado" in r.stdout and "FALHA" in r.stdout
 
 
+@pytest.mark.slow
 def test_cli_manual_valor_ambiguo_rejeitado(tmp_path):
     """Correção fina da sugestão (a leitura decimal sugerida tem que ser lida como decimal por
     quem recusou) é coberta por test_a_sugestao_da_recusa_e_aceita_por_quem_recusou, unitário.
@@ -414,6 +420,7 @@ def test_manual_com_prefixo_de_moeda_nao_furta_a_checagem_de_ambiguidade(tmp_pat
         cli_mod._preco_digitado("R$ 5.432")
 
 
+@pytest.mark.slow
 def test_cli_dry_run_relata_quantidade_de_propostas(tmp_path):
     ws = copia_exemplo(tmp_path)
     r = subprocess.run([sys.executable, str(CLI), str(ws), "--dry-run",
@@ -423,6 +430,7 @@ def test_cli_dry_run_relata_quantidade_de_propostas(tmp_path):
     assert "1 proposta(s) de anomalia seriam criadas" in r.stdout
 
 
+@pytest.mark.slow
 def test_cli_preco_satoshi_nao_vira_0_00(tmp_path):
     ws = copia_exemplo(tmp_path)
     pos = ws / "dados" / "posicoes.csv"
@@ -440,6 +448,7 @@ def test_cli_preco_satoshi_nao_vira_0_00(tmp_path):
     assert "0,00 " not in linhas_shib[0]
 
 
+@pytest.mark.slow
 def test_cli_proposta_nao_gravada_imprime_linha_para_colar_e_sai_parcial(tmp_path):
     """Nível CLI do Critical: eventos.csv trancado no disco de verdade (chmod), não monkeypatch."""
     ws = _ws_yahoo(tmp_path)
@@ -466,6 +475,7 @@ def test_cli_proposta_nao_gravada_imprime_linha_para_colar_e_sai_parcial(tmp_pat
     assert "proposta(s) para confirmar" not in r.stdout
 
 
+@pytest.mark.slow
 def test_cli_diretorio_no_lugar_do_csv_vira_mensagem_nao_traceback(tmp_path):
     """Achado do revisor: qualquer SO levanta OSError ao tentar abrir um diretório como
     arquivo — PermissionError no Windows, IsADirectoryError no POSIX — sem depender de chmod,
@@ -497,6 +507,7 @@ def test_cli_sinaliza_cotacao_que_nao_e_de_hoje(tmp_path, monkeypatch, capsys):
     assert "(não é de hoje)" in capsys.readouterr().out
 
 
+@pytest.mark.slow
 def test_cli_sem_rede_exit_2(tmp_path):
     """O único código documentado que ainda não tinha teste de subprocesso. Não dá para
     desligar a rede da máquina de teste, então o subprocesso derruba urllib antes de rodar o

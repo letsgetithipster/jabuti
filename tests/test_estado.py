@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from po.estado import gerar_estado, render_estado
 from po.validar import validar
 from test_atualizar_cotacoes import CONFIG_DUAS_CONTAS
@@ -71,6 +73,7 @@ def _roda(*args, env=None):
                           env={**os.environ, **(env or {})})
 
 
+@pytest.mark.slow
 def test_cli_regenera_e_imprime_total_e_pendencias(tmp_path):
     ws = copia_exemplo(tmp_path)
     r = _roda(str(ws), "--data", "2026-09-08")
@@ -80,6 +83,7 @@ def test_cli_regenera_e_imprime_total_e_pendencias(tmp_path):
     assert "data-referencia: 2026-09-08" in (ws / "estado" / "ESTADO.md").read_text(encoding="utf-8")
 
 
+@pytest.mark.slow
 def test_cli_caminho_relativo_funciona(tmp_path):
     """O comando documentado passa caminho relativo; o relative_to do print exige raiz resolvida."""
     ws = copia_exemplo(tmp_path)
@@ -89,6 +93,7 @@ def test_cli_caminho_relativo_funciona(tmp_path):
     assert ws.exists()
 
 
+@pytest.mark.slow
 def test_cli_data_malformada_e_frase_e_nao_grava(tmp_path):
     ws = copia_exemplo(tmp_path)
     antes = (ws / "estado" / "ESTADO.md").read_text(encoding="utf-8")
@@ -98,12 +103,14 @@ def test_cli_data_malformada_e_frase_e_nao_grava(tmp_path):
     assert (ws / "estado" / "ESTADO.md").read_text(encoding="utf-8") == antes
 
 
+@pytest.mark.slow
 def test_cli_workspace_inexistente_e_frase(tmp_path):
     r = _roda(str(tmp_path / "nao-existe"))
     assert r.returncode == 1 and "Traceback" not in r.stderr
     assert "não existe" in r.stdout
 
 
+@pytest.mark.slow
 def test_cli_csv_ausente_e_frase_nao_errno_cru(tmp_path):
     ws = copia_exemplo(tmp_path)
     (ws / "dados" / "cotacoes.csv").unlink()
@@ -113,6 +120,7 @@ def test_cli_csv_ausente_e_frase_nao_errno_cru(tmp_path):
     assert "Errno" not in r.stdout
 
 
+@pytest.mark.slow
 def test_cli_estado_travado_vira_frase_de_arquivo_aberto(tmp_path):
     """Pasta no lugar do ESTADO.md: OSError que não é FileNotFoundError, o caso 'aberto no Excel'."""
     ws = copia_exemplo(tmp_path)
@@ -125,6 +133,7 @@ def test_cli_estado_travado_vira_frase_de_arquivo_aberto(tmp_path):
     assert "aberto no Excel" in r.stdout
 
 
+@pytest.mark.slow
 def test_cli_sobrevive_a_console_cp1252(tmp_path):
     """A saída tem — e ·, que não existem em cp1252: sem preparar_console() o CLI morria
     com UnicodeEncodeError em vez de imprimir o total."""

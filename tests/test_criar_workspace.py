@@ -41,6 +41,7 @@ def test_recusa_destino_nao_vazio(tmp_path):
         criar(destino, com_git=False)
 
 
+@pytest.mark.slow
 def test_com_git_configura_hookspath(tmp_path):
     destino = tmp_path / "com-git"
     criar(destino, com_git=True)
