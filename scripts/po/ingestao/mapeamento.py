@@ -75,7 +75,11 @@ CHAVES_CONCILIACAO = {"tipo", "valor", "saldo", "ordem", "proventos", "soma", "o
 PREENCHIDOS_PELO_MAPA = {"conta", "moeda"}
 DESTINOS = DESTINOS_TABELA | {"ignorar", "ajuste"}
 FORMATOS = {"csv", "xlsx"}
-CONCILIACOES = {"saldo-corrente", "valor-da-linha", "total-declarado"}
+CONCILIACOES = {"saldo-corrente", "valor-da-linha", "total-declarado"}   # documento baixado
+# Conciliação do caminho de provider, com executor próprio (conciliar_resposta). Fica FORA de
+# CONCILIACOES de propósito: mapeamento é para documento, e documento não tem "total que o
+# chamador pediu". Declarar este tipo num mapeamento é erro, e a mensagem diz onde ele mora.
+CONCILIACOES_PROVIDER = {"soma-da-resposta"}
 TOKEN = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)(?:\|([^}]*))?\}")
 
 
@@ -254,7 +258,11 @@ def validar_mapeamento(mapa: object) -> list[str]:
             if isinstance(tolerancia, bool) or not isinstance(tolerancia, (int, float)) or tolerancia <= 0:
                 erros.append(f"conciliacao.tolerancia deve ser um número positivo (veio {tolerancia!r})")
     if not isinstance(conc, dict) or not em_vocabulario(conc.get("tipo"), CONCILIACOES):
-        erros.append(f"conciliacao.tipo deve ser um de {sorted(CONCILIACOES)} — mapeamento sem conciliação é recusado")
+        if isinstance(conc, dict) and em_vocabulario(conc.get("tipo"), CONCILIACOES_PROVIDER):
+            erros.append(f"conciliacao.tipo {conc['tipo']!r} é da ingestão por provider, não de "
+                         f"documento baixado: num mapeamento, declare um de {sorted(CONCILIACOES)}")
+        else:
+            erros.append(f"conciliacao.tipo deve ser um de {sorted(CONCILIACOES)} — mapeamento sem conciliação é recusado")
     elif conc["tipo"] == "saldo-corrente":
         for chave in ("valor", "saldo"):
             if not em_vocabulario(conc.get(chave), colunas):
@@ -266,7 +274,7 @@ def validar_mapeamento(mapa: object) -> list[str]:
             erros.append("valor-da-linha exige o apelido 'valor' em colunas")
         if conc.get("proventos", "valor_bruto") not in ("valor_bruto", "valor_liquido"):
             erros.append("conciliacao.proventos deve ser valor_bruto ou valor_liquido")
-    else:
+    elif conc["tipo"] == "total-declarado":
         if not isinstance(conc.get("soma"), str) or not conc["soma"]:
             erros.append("total-declarado exige soma (campo ou campo*campo do registro)")
         else:   # os campos da soma têm que existir no schema de algum destino que o mapa produz

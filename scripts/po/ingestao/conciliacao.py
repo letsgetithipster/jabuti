@@ -1,6 +1,7 @@
-"""Conciliação declarada: o documento prova a própria aritmética antes de qualquer gravação.
+"""Conciliação declarada: o documento (ou a resposta) prova a própria aritmética antes de
+qualquer gravação.
 
-Três tipos (vocabulário fechado, decisão 8):
+Quatro tipos. Os três primeiros são vocabulário fechado do mapeamento de documento (decisão 8):
 - saldo-corrente: saldo[i] = saldo[i-1] + valor[i], linha a linha, sobre TODAS as linhas
   do documento (ordem crescente ou decrescente declarada). Linha com saldo e sem valor é
   âncora: só a primeira da cadeia pode trazer saldo novo (é a abertura); âncora no meio
@@ -9,6 +10,13 @@ Três tipos (vocabulário fechado, decisão 8):
   proventos: valor_bruto (ou valor_liquido, declarado) = |valor| quando a linha traz valor.
 - total-declarado: soma de um campo (ou campo*campo) dos registros = total do documento
   (linha de total) ou --total-declarado digitado pelo usuário.
+
+O quarto, soma-da-resposta (executado por `conciliar_resposta`), é do caminho de ingestão por
+provider, não de documento: NÃO é declarável em `conciliacao.tipo` de um mapeamento (fica fora
+de `CONCILIACOES`, em `CONCILIACOES_PROVIDER`, em `po.ingestao.mapeamento`). É o mais fraco dos
+quatro, de propósito — os três de cima comparam o documento contra a aritmética do próprio
+documento; este compara a resposta contra uma afirmação de fora dela (o total que o chamador
+diz ter pedido), que a resposta não declara sozinha.
 """
 from po.ingestao.engine import Resultado
 from po.ingestao.leitores import Tabela
@@ -211,3 +219,24 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
                      f"({de}); diferença {abs(soma - total):.2f} passa da tolerância {tolerancia:g} ({porque})")
     return erros, (f"total-declarado: soma {soma:.2f} contra {total:.2f} ({de}), "
                    f"diferença {abs(soma - total):.2f} dentro da tolerância {tolerancia:g} ({porque})")
+
+
+def conciliar_resposta(linhas: list[dict], total: float, tolerancia: float = TOL,
+                       campo: str = "valor") -> tuple[list[str], str]:
+    """Confere a soma da resposta do provider contra o total que o chamador afirma ter pedido.
+
+    É o quarto tipo de conciliação e o mais fraco dos quatro, de propósito: os outros três
+    comparam o documento contra a aritmética do próprio documento, e este compara a resposta
+    contra uma afirmação de fora dela. A descrição diz isso, porque "conciliado" não pode
+    significar coisas diferentes em lugares diferentes sem avisar.
+    """
+    if not linhas:
+        return (["a resposta não trouxe nenhuma linha — conexão sem sincronizar devolve lista "
+                 "vazia sem erro, e somar zero contra zero fecharia a conta escondendo isso"], "")
+    soma = sum(float(l[campo]) for l in linhas)
+    if abs(soma - total) > tolerancia:
+        return ([f"soma da resposta {soma:.2f} ≠ total pedido {total:.2f} "
+                 f"(diferença {abs(soma - total):.2f}, tolerância {tolerancia:g})"], "")
+    return [], (f"soma-da-resposta: {len(linhas)} linha(s) somando {soma:.2f} contra {total:.2f} "
+                f"pedido, tolerância {tolerancia:g} — garantia menor que a dos outros três tipos, "
+                "porque a resposta não declara o próprio total")

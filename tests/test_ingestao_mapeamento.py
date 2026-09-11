@@ -385,3 +385,37 @@ def test_fora_da_cadeia_so_vale_em_ignorar():
     assert any("fora-da-cadeia só vale em destino: ignorar" in e for e in validar_mapeamento(grava))
     nao_bool = dict(MAPA_OK, linhas=[dict(MAPA_OK["linhas"][1], **{"fora-da-cadeia": "sim"})])
     assert any("fora-da-cadeia deve ser true ou false" in e for e in validar_mapeamento(nao_bool))
+
+
+def test_soma_da_resposta_nao_e_tipo_de_mapeamento():
+    """O tipo existe, mas é do caminho de provider. Mapeamento é para documento baixado, e um
+    documento não tem "total que o chamador pediu". Recusar aqui é o que impede o CLI de morrer
+    em KeyError: 'origem' no fall-through do conciliar()."""
+    m = dict(MAPA_OK, conciliacao={"tipo": "soma-da-resposta", "total": 1500.00})
+    erros = validar_mapeamento(m)
+    assert any("soma-da-resposta" in e and "provider" in e for e in erros)
+
+
+def test_recusa_de_soma_da_resposta_diz_onde_o_tipo_mora():
+    """Frase acionável: "fora do vocabulário" manda o autor adivinhar. A mensagem tem que dizer
+    que o tipo é de provider e listar os três que valem em documento."""
+    m = dict(MAPA_OK, conciliacao={"tipo": "soma-da-resposta"})
+    erro = " ".join(validar_mapeamento(m))
+    assert "documento" in erro and "total-declarado" in erro
+
+
+def test_yaml_com_soma_da_resposta_nao_chega_ao_conciliar(tmp_path):
+    """Contraprova de ponta a ponta do defeito que o pré-voo achou: antes, este YAML era aceito
+    por carregar_mapeamento e o CLI morria em KeyError: 'origem' dentro de conciliar()."""
+    caminho = tmp_path / "sonda.yaml"
+    caminho.write_text(yaml.safe_dump(dict(MAPA_OK, conciliacao={"tipo": "soma-da-resposta"}),
+                                      allow_unicode=True), encoding="utf-8")
+    with pytest.raises(ValueError, match="soma-da-resposta"):
+        carregar_mapeamento(caminho)
+
+
+def test_total_declarado_continua_exigindo_soma():
+    """Contraprova do ramo else: o quarto tipo não pode ter engolido a validação do terceiro.
+    Esta classe de bug já apareceu nesta base — um `elif True` que engolia a cadeia de tipos."""
+    m = dict(MAPA_OK, conciliacao={"tipo": "total-declarado", "origem": "flag"})
+    assert any("total-declarado exige soma" in e for e in validar_mapeamento(m))

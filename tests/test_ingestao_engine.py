@@ -348,3 +348,31 @@ def test_rodape_marcado_fora_da_cadeia_fecha_limpo():
     # e o rodapé continua ignorado como qualquer outra linha de `ignorar`: fora da cadeia não
     # é fora do documento, ele segue contado e nomeado
     assert (4, "rodapé de saldo disponível, fora do extrato") in r.ignoradas
+
+
+def test_soma_da_resposta_confere_e_declara_a_garantia_menor():
+    """Resposta de API não traz total declarado como extrato traz: a soma é do próprio payload
+    contra o que o chamador afirma ter pedido. A descrição tem que dizer que a garantia é menor,
+    senão o usuário lê 'conciliado' e entende a mesma coisa que num extrato."""
+    from po.ingestao.conciliacao import conciliar_resposta
+
+    linhas = [{"valor": 1000.0}, {"valor": 500.0}]
+    erros, descricao = conciliar_resposta(linhas, total=1500.0, tolerancia=0.011)
+    assert erros == []
+    assert "soma-da-resposta" in descricao and "1500.00" in descricao
+    assert "garantia menor" in descricao
+
+
+def test_soma_da_resposta_reprova_divergencia():
+    from po.ingestao.conciliacao import conciliar_resposta
+
+    erros, _ = conciliar_resposta([{"valor": 1000.0}], total=1500.0, tolerancia=0.011)
+    assert any("1000.00" in e and "1500.00" in e for e in erros)
+
+
+def test_soma_da_resposta_com_resposta_vazia_nao_passa_calada():
+    """Zero linhas somando zero contra zero fecharia a conta e esconderia a conexão quebrada."""
+    from po.ingestao.conciliacao import conciliar_resposta
+
+    erros, _ = conciliar_resposta([], total=0.0, tolerancia=0.011)
+    assert any("nenhuma linha" in e for e in erros)
