@@ -1,13 +1,26 @@
 # jabuti
 
-**Sua própria mesa de especialistas.** Um repositório open source que você clona e opera
-com a LLM que já usa, para cuidar do seu dinheiro com a disciplina de um family office —
-sob guardrails que impedem a LLM de inventar número, análise ou decisão.
+Suas finanças em texto simples, operadas pela LLM que você já usa — e que não consegue
+inventar um número. **Ele zela, não decide:** a decisão continua sua.
 
-Os escritórios já usam IA para gerar recomendação. A diferença aqui é de quem a IA
-trabalha: a mesa da corretora trabalha para a corretora, esta é sua.
+O jabuti não corre. Vive oitenta anos e chega.
 
 De brasileiros, para brasileiros.
+
+Sobre os dados de exemplo que vêm no repo, sem configurar nada:
+
+<!-- demo:start -->
+```
+$ python scripts/gerar_estado.py exemplos/workspace-exemplo
+estado/ESTADO.md regenerado — Total investido: R$ 12.000,00
+Pendências:
+- fiis acima da banda máxima (66,7% vs 40%): rebalancear via aporte nos blocos abaixo
+- rf-br abaixo do mínimo (0,0% vs 25%): priorizar nos próximos aportes
+```
+<!-- demo:end -->
+
+Isso saiu de CSV canônico, com toda cotação carregando fonte e hora. Nenhum número foi
+inventado, e o validador prova isso no pre-commit.
 
 > Leia **[GUARDRAILS.md](GUARDRAILS.md)** antes de usar. É o contrato que torna este
 > produto confiável — e o motivo de ele existir.
@@ -63,8 +76,8 @@ Requisitos: Python 3.11+ e git. openpyxl é opcional (extrato .xlsx e cockpit).
 (macOS/Linux: troque os caminhos, ex. `python3 scripts/criar_workspace.py ~/meu-vault`)
 
 ```powershell
-git clone <url> personal-finance-br
-cd personal-finance-br
+git clone git@github.com:letsgetithipster/jabuti.git
+cd jabuti
 python -m pip install -r requirements.txt          # pyyaml + pytest
 python -m pip install -r requirements-xlsx.txt     # opcional: openpyxl
 python -m pytest                                   # suíte verde

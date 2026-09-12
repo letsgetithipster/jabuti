@@ -5,6 +5,7 @@ ligado ainda). Ele vale só por disciplina até virar check mecânico, e a audit
 mostrou que não basta."""
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -209,3 +210,45 @@ def test_numero_de_fase_citado_bate_com_o_roadmap():
                             achados.append(f"{rel}:{n}: {comando} citado com Fase {f}, "
                                            f"devia ser {esperada}")
     assert achados == [], "numeração de fase divergente do roadmap:\n  " + "\n  ".join(achados)
+
+
+def _bloco_de_demo():
+    """As linhas entre os sentinelas `demo:start` e `demo:end` do README.
+
+    Sentinela em comentário HTML em vez de prosa: sobrevive a qualquer reescrita do texto ao
+    redor, ninguém parafraseia um comentário HTML, e não aparece no markdown renderizado. Mesma
+    convenção da sentinela do GUARDRAILS — e a razão de ser sentinela, e não uma frase, é que
+    uma frase sobre o teste pode satisfazer o próprio teste, o que já aconteceu neste repo.
+    """
+    m = re.search(r"<!-- demo:start -->(.*?)<!-- demo:end -->", README, re.S)
+    assert m, "os sentinelas demo:start/demo:end desapareceram do README"
+    return [l for l in m.group(1).splitlines() if l.strip() and not l.startswith("```")]
+
+
+def test_a_demo_do_readme_roda_e_produz_o_que_o_readme_promete(tmp_path):
+    """A primeira tela do README cola a saída de um comando, e é ela que faz a conexão com quem
+    chega. Se o comando quebrar ou a saída mudar, o README mente na primeira tela — e mentir ali
+    é pior que mentir no meio, porque é a única parte que todo mundo lê.
+
+    Roda sobre uma CÓPIA do workspace-exemplo, não sobre o do repositório: teste não muta o
+    repo. O comando do README aponta para `exemplos/workspace-exemplo` e aqui o caminho é
+    substituído — é a única diferença entre o que se verifica e o que se promete.
+    """
+    from test_validar_dados import copia_exemplo
+
+    linhas = _bloco_de_demo()
+    comandos = [l for l in linhas if l.startswith("$ ")]
+    assert len(comandos) == 1, f"esperava um comando no bloco de demo, achei {len(comandos)}"
+    esperadas = [l for l in linhas if not l.startswith("$ ")]
+    assert esperadas, "o bloco de demo não promete saída nenhuma"
+
+    ws = copia_exemplo(tmp_path)
+    (ws / "estado" / "ESTADO.md").unlink()     # prova que o comando GERA, não que já existia
+    saida = subprocess.run(
+        [sys.executable, str(RAIZ / "scripts" / "gerar_estado.py"), str(ws)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert saida.returncode == 0, f"a demo do README falhou: {saida.stderr.strip()[:300]}"
+    for linha in esperadas:
+        assert linha in saida.stdout, (
+            f"o README promete a linha {linha!r} e a demo não produziu.\n"
+            f"Saída real:\n{saida.stdout}")
