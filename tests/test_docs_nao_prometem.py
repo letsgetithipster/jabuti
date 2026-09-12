@@ -279,7 +279,9 @@ def test_a_demo_do_readme_roda_e_produz_o_que_o_readme_promete(tmp_path):
     assert esperadas, "o bloco de demo não promete saída nenhuma"
 
     ws = copia_exemplo(tmp_path)
-    (ws / "estado" / "ESTADO.md").unlink()     # prova que o comando GERA, não que já existia
+    # Apaga aqui, confere no assert abaixo que o arquivo existe de novo: é o par que prova que
+    # o comando GERA o ESTADO.md. Tirar qualquer uma das duas metades desarma a verificação.
+    (ws / "estado" / "ESTADO.md").unlink()
     saida = subprocess.run(
         _argv_da_demo(linhas, ws),
         capture_output=True, text=True, encoding="utf-8", errors="replace")
