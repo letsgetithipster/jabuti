@@ -1,4 +1,4 @@
-# Mesa Própria
+# jabuti
 
 **Sua própria mesa de especialistas.** Um repositório open source que você clona e opera
 com a LLM que já usa, para cuidar do seu dinheiro com a disciplina de um family office —
@@ -125,7 +125,7 @@ completo em [GUARDRAILS.md](GUARDRAILS.md).
 
 ## English
 
-**Mesa Própria** is an open-source, LLM-operated personal
+**jabuti** is an open-source, LLM-operated personal
 portfolio system for Brazilian investors, built under strict anti-hallucination
 guardrails: prices only via scripts with source and timestamp, broker
 statements ingested through declarative YAML mappings with arithmetic

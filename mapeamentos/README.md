@@ -1,6 +1,6 @@
 # mapeamentos/ — como um documento de corretora vira dados/
 
-A ingestão da Mesa Própria não tem parser por corretora. Tem **um engine** e
+A ingestão do jabuti não tem parser por corretora. Tem **um engine** e
 **arquivos de mapeamento** (YAML). Corretora nova = mapeamento novo, sem código.
 Esta pasta é superfície de contribuição, como `fiscal/`.
 

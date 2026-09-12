@@ -1,11 +1,11 @@
-"""O nome do produto é Mesa Própria. O antigo (PatrimônioOS) não pode voltar por descuido:
-ele aparecia até no User-Agent que o motor manda para o Yahoo e a brapi, ou seja, fora da
-máquina do usuário. Guarda mecânica, no mesmo espírito de test_fixtures_nao_carregam_dado_pessoal.
+"""O nome do produto é `jabuti`. Dois nomes mortos não podem voltar por descuido: PatrimônioOS
+(do nascimento do repo até 11/09/2026) e Mesa Própria (11/09 a 12/09/2026). Um deles chegou a
+aparecer no User-Agent que o motor manda para o Yahoo e a brapi, ou seja, fora da máquina do
+usuário. Guarda mecânica, no mesmo espírito de test_fixtures_nao_carregam_dado_pessoal.
 
-Convenção de grafia: em prosa o produto é "Mesa Própria" (com acento, duas palavras); em
-identificador de código, caminho ou User-Agent é "mesa-propria". O NOTICE é a única exceção
-— ASCII puro hoje, então ali o nome vai sem acento ("Mesa Propria") para não misturar duas
-convenções no mesmo arquivo, regra que test_notice_continua_ascii_puro torna mecânica."""
+Convenção de grafia: `jabuti` é minúsculo, ASCII, uma palavra, em prosa e em identificador.
+Não há exceção. A divisão prosa/identificador e a exceção do NOTICE existiam porque o nome
+anterior tinha acento; com `jabuti` não há acento a tratar."""
 import re
 import subprocess
 from pathlib import Path
@@ -14,12 +14,25 @@ from po.cotacoes.http import UA
 
 RAIZ = Path(__file__).resolve().parent.parent
 ESTE_ARQUIVO = Path(__file__).resolve()
-# hífen e underscore são as variantes que um rename descuidado realmente produz
-# (patrimonio_os num nome de módulo, patrimônio-os num slug). Espaço fica de fora de propósito:
-# "patrimônio os" é sequência que pode aparecer em prosa portuguesa legítima, e ali a guarda
-# passaria a barrar commit de texto correto — ganho nulo (zero ocorrências assim hoje) por
-# risco de falso positivo real.
-ANTIGO = re.compile(r"patrim[oô]nio[-_]?os", re.IGNORECASE)
+
+# Um padrão por nome morto, porque a mensagem de falha precisa dizer QUAL voltou. As variantes
+# com hífen e underscore são as que um rename descuidado realmente produz (patrimonio_os num
+# nome de módulo, mesa-propria num slug).
+#
+# `patrim[oô]nio[-_]?os` deixa o ESPAÇO de fora de propósito: "patrimônio os" aparece em prosa
+# portuguesa legítima ("retira do patrimônio os ativos"), e ali a guarda barraria commit de
+# texto correto. Aquele nome nunca tomou a forma com espaço.
+#
+# `mesa[ _-]?pr[oó]pria` INCLUI o espaço obrigatoriamente, porque "Mesa Própria" com espaço era
+# a forma canônica. E exige "própria" adjacente: guardar `mesa` sozinho barraria prosa legítima,
+# inclusive a frase "a mesa da corretora" que o README tinha.
+#
+# O hífen vai POR ÚLTIMO na classe dos dois padrões. `[ -_]` não é "espaço, hífen ou
+# underscore": é a faixa 0x20-0x5F, que casa mesaXpropria e mesa9propria.
+NOMES_ANTIGOS = [
+    (re.compile(r"patrim[oô]nio[-_]?os", re.IGNORECASE), "PatrimônioOS"),
+    (re.compile(r"mesa[ _-]?pr[oó]pria", re.IGNORECASE), "Mesa Própria"),
+]
 
 
 def _versionados():
@@ -34,7 +47,7 @@ def _versionados():
     return [RAIZ / p for p in saida.stdout.split("\0") if p]
 
 
-def test_nome_antigo_nao_aparece_em_arquivo_versionado():
+def test_nome_morto_nao_aparece_em_arquivo_versionado():
     achados = []
     for caminho in _versionados():
         if caminho.resolve() == ESTE_ARQUIVO or not caminho.is_file():
@@ -44,19 +57,38 @@ def test_nome_antigo_nao_aparece_em_arquivo_versionado():
         except (UnicodeDecodeError, OSError):
             continue           # binário ou ilegível: não é onde o nome mora
         for n, linha in enumerate(texto.splitlines(), start=1):
-            if ANTIGO.search(linha):
-                achados.append(f"{caminho.relative_to(RAIZ).as_posix()}:{n}: {linha.strip()[:80]}")
-    assert achados == [], "nome antigo ainda presente:\n  " + "\n  ".join(achados)
+            for padrao, morto in NOMES_ANTIGOS:
+                if padrao.search(linha):
+                    achados.append(f"{caminho.relative_to(RAIZ).as_posix()}:{n}: "
+                                   f"{morto} — {linha.strip()[:70]}")
+                    break
+    assert achados == [], "nome morto ainda presente:\n  " + "\n  ".join(achados)
+
+
+def test_a_classe_de_caracteres_nao_virou_faixa():
+    """`[ -_]` é a faixa 0x20-0x5F, não "espaço, hífen ou underscore" — o hífen no meio de uma
+    classe vira operador de intervalo. Escrito assim, o padrão casaria `mesaXpropria` e barraria
+    commit de texto que não tem nome morto nenhum. Este teste fixa as duas pontas: as três
+    formas que o nome de fato teve passam, e um separador arbitrário não."""
+    padrao = dict((rotulo, p) for p, rotulo in NOMES_ANTIGOS)["Mesa Própria"]
+    for forma in ("mesa propria", "mesa-propria", "mesa_propria", "mesapropria", "Mesa Própria"):
+        assert padrao.search(forma), f"{forma!r} é forma real do nome morto e escapou da guarda"
+    for arbitrario in ("mesaXpropria", "mesa9propria", "mesa.propria"):
+        assert not padrao.search(arbitrario), (
+            f"{arbitrario!r} casou: a classe de caracteres virou faixa, e a guarda passou a "
+            "barrar texto legítimo")
 
 
 def test_user_agent_carrega_o_nome_novo():
     """O User-Agent sai para fora da máquina, rumo ao Yahoo e à brapi: é o lugar onde um
     nome errado vira constrangimento. Confere o valor importado, não o texto do arquivo —
     um comentário ao lado do literal não é o que sai na rede."""
-    assert "mesa-propria" in UA["User-Agent"]
+    assert "jabuti" in UA["User-Agent"]
 
 
 def test_notice_continua_ascii_puro():
-    """O NOTICE não tem acento em nenhuma palavra, e é por isso que o nome vai sem acento
-    ali. Sem este check, a regra é folclore e o próximo editor 'corrige' a grafia."""
+    """O NOTICE é ASCII puro e deve continuar. Este teste NÃO existe mais para justificar
+    grafia do nome: `jabuti` não tem acento, então não há exceção a documentar. Ele existe
+    porque NOTICE é arquivo de licença, lido por ferramenta e por humano em ambiente que não
+    garante UTF-8, e pureza ASCII ali vale por si."""
     (RAIZ / "NOTICE").read_bytes().decode("ascii")

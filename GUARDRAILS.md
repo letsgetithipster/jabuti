@@ -1,4 +1,4 @@
-# GUARDRAILS — o contrato anti-alucinação da Mesa Própria
+# GUARDRAILS — o contrato anti-alucinação do jabuti
 
 Este documento existe para ser lido ANTES do primeiro uso. Ele responde à
 pergunta certa: "por que eu confiaria numa LLM para operar minha carteira?"
@@ -89,7 +89,7 @@ quando algo está defasado demais para sustentar análise.
 
 ## Aviso legal
 
-A Mesa Própria é uma ferramenta de organização e execução da política de
+O jabuti é uma ferramenta de organização e execução da política de
 investimento declarada pelo próprio usuário. Não é consultoria de valores
 mobiliários, não é análise de valores mobiliários e não é recomendação de
 investimento (Res. CVM 19/2021 e 20/2021). Decisões de investimento são

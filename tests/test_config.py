@@ -17,7 +17,7 @@ CFG_OK = {
     "harness": ["claude-code"],
     "cotacoes": {"provider": "manual"},
     "contas": [{"id": "corretora-br", "nome": "Corretora BR", "moeda": "BRL"}],
-    "caminhos": {"motor": "C:/Workspace/mesa-propria"},
+    "caminhos": {"motor": "C:/Workspace/jabuti"},
 }
 
 
