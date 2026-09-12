@@ -24,10 +24,13 @@ ESTE_ARQUIVO = Path(__file__).resolve()
 # texto correto. Aquele nome nunca tomou a forma com espaço.
 #
 # `mesa[ _-]?pr[oó]pria` INCLUI o espaço obrigatoriamente, porque "Mesa Própria" com espaço era
-# a forma canônica. E exige "própria" adjacente: guardar `mesa` sozinho barraria prosa legítima,
-# inclusive a frase "a mesa da corretora" que o README tinha.
+# a forma canônica. E exige "própria" adjacente: guardar `mesa` sozinho barraria português comum,
+# caso de "a mesa da corretora trabalha para a corretora" — frase que usa "mesa" sem nenhum nome
+# de produto por perto.
 #
-# O hífen vai POR ÚLTIMO na classe dos dois padrões. `[ -_]` não é "espaço, hífen ou
+# O hífen nunca fica NO MEIO da classe dos dois padrões — no meio ele vira operador de
+# intervalo. Vem primeiro em `[-_]` (padrão 1) e por último em `[ _-]` (padrão 2); nas duas
+# posições é lido como literal. `[ -_]`, com o hífen no meio, não é "espaço, hífen ou
 # underscore": é a faixa 0x20-0x5F, que casa mesaXpropria e mesa9propria.
 NOMES_ANTIGOS = [
     (re.compile(r"patrim[oô]nio[-_]?os", re.IGNORECASE), "PatrimônioOS"),
@@ -67,16 +70,32 @@ def test_nome_morto_nao_aparece_em_arquivo_versionado():
 
 def test_a_classe_de_caracteres_nao_virou_faixa():
     """`[ -_]` é a faixa 0x20-0x5F, não "espaço, hífen ou underscore" — o hífen no meio de uma
-    classe vira operador de intervalo. Escrito assim, o padrão casaria `mesaXpropria` e barraria
-    commit de texto que não tem nome morto nenhum. Este teste fixa as duas pontas: as três
-    formas que o nome de fato teve passam, e um separador arbitrário não."""
-    padrao = dict((rotulo, p) for p, rotulo in NOMES_ANTIGOS)["Mesa Própria"]
+    classe vira operador de intervalo. Escrito assim, o padrão sem espaço casaria prosa
+    portuguesa legítima ("retira do patrimônio os ativos") e o padrão com espaço casaria
+    separador arbitrário (mesaXpropria). Este teste fixa as duas pontas nos dois padrões: as
+    formas que cada nome morto de fato teve passam, e separador arbitrário ou prosa legítima
+    não."""
+    padroes = dict((rotulo, p) for p, rotulo in NOMES_ANTIGOS)
+
+    padrao_mesa = padroes["Mesa Própria"]
     for forma in ("mesa propria", "mesa-propria", "mesa_propria", "mesapropria", "Mesa Própria"):
-        assert padrao.search(forma), f"{forma!r} é forma real do nome morto e escapou da guarda"
+        assert padrao_mesa.search(forma), f"{forma!r} é forma real do nome morto e escapou da guarda"
     for arbitrario in ("mesaXpropria", "mesa9propria", "mesa.propria"):
-        assert not padrao.search(arbitrario), (
+        assert not padrao_mesa.search(arbitrario), (
             f"{arbitrario!r} casou: a classe de caracteres virou faixa, e a guarda passou a "
             "barrar texto legítimo")
+
+    padrao_patrimonio = padroes["PatrimônioOS"]
+    for forma in ("patrimonio-os", "patrimonio_os", "patrimonioos", "PatrimônioOS"):
+        assert padrao_patrimonio.search(forma), (
+            f"{forma!r} é forma real do nome morto e escapou da guarda")
+    for arbitrario in ("patrimonioXos", "patrimonio9os"):
+        assert not padrao_patrimonio.search(arbitrario), (
+            f"{arbitrario!r} casou: a classe de caracteres virou faixa, e a guarda passou a "
+            "barrar texto legítimo")
+    assert not padrao_patrimonio.search("retira do patrimônio os ativos"), (
+        "casou prosa portuguesa legítima ('retira do patrimônio os ativos'): o espaço entrou "
+        "na classe do padrão sem espaço, que existe justamente para não barrar esse texto")
 
 
 def test_user_agent_carrega_o_nome_novo():
