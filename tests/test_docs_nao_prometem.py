@@ -4,6 +4,7 @@ comando) e o GUARDRAILS (a garantia menor do dado de API, a ressalva de que nenh
 ligado ainda). Ele vale só por disciplina até virar check mecânico, e a auditoria da Fase 1 já
 mostrou que não basta."""
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -225,27 +226,60 @@ def _bloco_de_demo():
     return [l for l in m.group(1).splitlines() if l.strip() and not l.startswith("```")]
 
 
+WORKSPACE_DA_DEMO = "exemplos/workspace-exemplo"
+
+
+def _argv_da_demo(linhas, ws):
+    """O comando do bloco de demo, traduzido para argv executável contra a cópia `ws`.
+
+    Duas substituições, e só duas: `python` vira o interpretador que roda a suíte (para a demo
+    ser verificada no mesmo ambiente que o teste, não num `python` qualquer do PATH), e o
+    workspace do repositório vira a cópia temporária (para o teste não mutar o repo). O nome do
+    script vem do README e não é substituído — é ele que precisa ser verificado, porque é a
+    linha que o leitor copia e cola.
+
+    As asserções de forma existem para que qualquer mudança no comando falhe alto, em vez de o
+    teste passar a verificar silenciosamente um comando que o README não promete mais.
+    """
+    comandos = [l for l in linhas if l.startswith("$ ")]
+    assert len(comandos) == 1, f"esperava um comando no bloco de demo, achei {len(comandos)}"
+    tokens = shlex.split(comandos[0][2:])
+    assert len(tokens) == 3, (
+        f"o comando da demo tem {len(tokens)} palavras ({comandos[0].strip()!r}) e este teste "
+        "sabe executar exatamente `python <script> <workspace>`. Se o comando do README mudou "
+        "de forma, reveja aqui o que é substituído antes de aceitar o novo formato.")
+    interpretador, script, workspace = tokens
+    assert interpretador == "python", (
+        f"o comando da demo começa com {interpretador!r}: este teste substitui `python` pelo "
+        "interpretador da suíte, e não sabe traduzir outro interpretador.")
+    assert workspace == WORKSPACE_DA_DEMO, (
+        f"o comando da demo aponta para {workspace!r}, e este teste só sabe copiar "
+        f"{WORKSPACE_DA_DEMO!r}. O README estaria prometendo saída de um workspace que o teste "
+        "não verifica.")
+    return [sys.executable, str(RAIZ / script), str(ws)]
+
+
 def test_a_demo_do_readme_roda_e_produz_o_que_o_readme_promete(tmp_path):
     """A primeira tela do README cola a saída de um comando, e é ela que faz a conexão com quem
     chega. Se o comando quebrar ou a saída mudar, o README mente na primeira tela — e mentir ali
     é pior que mentir no meio, porque é a única parte que todo mundo lê.
 
-    Roda sobre uma CÓPIA do workspace-exemplo, não sobre o do repositório: teste não muta o
-    repo. O comando do README aponta para `exemplos/workspace-exemplo` e aqui o caminho é
-    substituído — é a única diferença entre o que se verifica e o que se promete.
+    O comando executado é o do README, traduzido por `_argv_da_demo`: só duas partes são
+    substituídas, o interpretador (para rodar no mesmo ambiente da suíte) e o workspace (uma
+    CÓPIA de `exemplos/workspace-exemplo`, para o teste não mutar o repo). O nome do script não
+    é substituído — é a linha que o leitor copia e cola, e é por isso que precisa ser a que
+    de fato roda aqui.
     """
     from test_validar_dados import copia_exemplo
 
     linhas = _bloco_de_demo()
-    comandos = [l for l in linhas if l.startswith("$ ")]
-    assert len(comandos) == 1, f"esperava um comando no bloco de demo, achei {len(comandos)}"
     esperadas = [l for l in linhas if not l.startswith("$ ")]
     assert esperadas, "o bloco de demo não promete saída nenhuma"
 
     ws = copia_exemplo(tmp_path)
     (ws / "estado" / "ESTADO.md").unlink()     # prova que o comando GERA, não que já existia
     saida = subprocess.run(
-        [sys.executable, str(RAIZ / "scripts" / "gerar_estado.py"), str(ws)],
+        _argv_da_demo(linhas, ws),
         capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert saida.returncode == 0, f"a demo do README falhou: {saida.stderr.strip()[:300]}"
     for linha in esperadas:
