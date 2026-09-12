@@ -1,7 +1,7 @@
 # jabuti
 
-Suas finanças em texto simples, operadas pela LLM que você já usa — e que não consegue
-inventar um número. **Ele zela, não decide:** a decisão continua sua.
+Suas finanças em texto simples, operadas pela LLM que você já usa, sob guardrails
+que não deixam número inventado entrar. **Ele zela, não decide:** a decisão continua sua.
 
 O jabuti não corre. Vive oitenta anos e chega.
 
@@ -19,8 +19,8 @@ Pendências:
 ```
 <!-- demo:end -->
 
-Isso saiu de CSV canônico, com toda cotação carregando fonte e hora. Nenhum número foi
-inventado, e o validador prova isso no pre-commit.
+Isso saiu de CSV canônico: toda cotação carrega fonte, data e hora, e o validador
+recalcula os totais em todo commit.
 
 > Leia **[GUARDRAILS.md](GUARDRAILS.md)** antes de usar. É o contrato que torna este
 > produto confiável — e o motivo de ele existir.

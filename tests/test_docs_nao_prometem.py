@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 RAIZ = Path(__file__).resolve().parent.parent
 ESTE_ARQUIVO = Path(__file__).resolve()
 README = (RAIZ / "README.md").read_text(encoding="utf-8")
@@ -281,8 +283,35 @@ def test_a_demo_do_readme_roda_e_produz_o_que_o_readme_promete(tmp_path):
     saida = subprocess.run(
         _argv_da_demo(linhas, ws),
         capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert (ws / "estado" / "ESTADO.md").exists(), (
+        "a demo nao regenerou o ESTADO.md que o teste apagou antes de rodar")
     assert saida.returncode == 0, f"a demo do README falhou: {saida.stderr.strip()[:300]}"
+    reais = {l.rstrip() for l in saida.stdout.splitlines()}
     for linha in esperadas:
-        assert linha in saida.stdout, (
+        assert linha.rstrip() in reais, (
             f"o README promete a linha {linha!r} e a demo não produziu.\n"
             f"Saída real:\n{saida.stdout}")
+
+
+def test_argv_da_demo_deriva_o_script_do_readme():
+    """Prende a separação entre o comando executado e o comando prometido: o nome do script
+    sai do README, não de uma constante. Sem este teste, um hardcode volta e a suíte não vê —
+    ele passaria a verificar um comando que o README não promete mais, em silêncio."""
+    argv = _argv_da_demo(["$ python scripts/qualquer_coisa.py " + WORKSPACE_DA_DEMO],
+                         Path("/tmp/ws"))
+    assert argv[0] == sys.executable
+    assert argv[1] == str(RAIZ / "scripts/qualquer_coisa.py")
+    assert argv[2] == str(Path("/tmp/ws"))
+
+
+@pytest.mark.parametrize("comando", [
+    "$ python scripts/gerar_estado.py exemplos/outro",                 # workspace não copiado
+    "$ python3 scripts/gerar_estado.py " + WORKSPACE_DA_DEMO,          # interpretador
+    "$ python scripts/gerar_estado.py",                                # aridade de menos
+    "$ python scripts/gerar_estado.py --data 2026-01-01 " + WORKSPACE_DA_DEMO,   # aridade demais
+])
+def test_argv_da_demo_recusa_comando_que_nao_sabe_executar(comando):
+    """As três asserções de forma nunca são exercidas pelo caminho feliz. Se o README mudar o
+    comando, o teste tem que falhar alto, e não passar a verificar outra coisa."""
+    with pytest.raises(AssertionError):
+        _argv_da_demo([comando], Path("/tmp/ws"))
