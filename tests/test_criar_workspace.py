@@ -104,4 +104,7 @@ def test_workspace_novo_valida_sem_erros(tmp_path):
     destino = tmp_path / "ws"
     criar(destino, com_git=False, data="2026-09-08")
     erros, avisos = validar(destino)
-    assert erros == [] and avisos == ["politica: nenhuma banda declarada ainda (o /jabuti-estrategia preenche a tabela)"]
+    assert erros == [] and avisos == [
+        "perfil: ainda não preenchido (o /jabuti-init preenche)",
+        "politica: nenhuma banda declarada ainda (o /jabuti-estrategia preenche a tabela)",
+    ]

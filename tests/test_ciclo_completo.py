@@ -40,7 +40,8 @@ def test_extrato_ate_validador_verde(tmp_path):
     assert r.returncode == 0 and "R$ 12.000,00" in r.stdout, r.stdout + r.stderr
 
     r = _roda("validar_workspace.py", str(ws))
-    assert r.returncode == 0 and "0 erro(s), 1 aviso(s)" in r.stdout and "nenhuma banda" in r.stdout
+    assert r.returncode == 0 and "0 erro(s), 2 aviso(s)" in r.stdout
+    assert "nenhuma banda" in r.stdout and "perfil: ainda não preenchido" in r.stdout
 
     r = _roda("importar_extrato.py", str(ws), str(FIX / "posicoes-exemplo.csv"), "--data", "2026-08-01")
     assert r.returncode == 0 and "Nada novo" in r.stdout and "posicoes 2" in r.stdout   # reimportar não duplica
