@@ -20,6 +20,14 @@ MOTOR = Path(__file__).resolve().parent.parent
 TEMPLATE = MOTOR / "templates" / "workspace"
 SKILLS = MOTOR / "skills"
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from po.config import NOMES_PADRAO  # noqa: E402
+
+
+def _yaml_str(valor: str) -> str:
+    """String YAML entre aspas simples, com a aspa interna dobrada (a mesma forma do motor_yaml)."""
+    return "'" + valor.replace("'", "''") + "'"
+
 
 def instalar_skills(destino: str | Path) -> int:
     """Copia skills/<nome>/SKILL.md do motor para <destino>/.claude/skills/<nome>/SKILL.md.
@@ -62,10 +70,11 @@ def criar(destino: str | Path, com_git: bool = True, data: str | None = None,
         (destino / "gitignore.template").rename(destino / ".gitignore")
         cfg = destino / "vault.config.yaml"
         motor_yaml = "'" + valor_motor.replace("'", "''") + "'"
-        cfg.write_text(
-            cfg.read_text(encoding="utf-8").replace("__MOTOR__", motor_yaml),
-            encoding="utf-8",
-        )
+        texto_cfg = (cfg.read_text(encoding="utf-8")
+                     .replace("__MOTOR__", motor_yaml)
+                     .replace("__CASA__", _yaml_str(NOMES_PADRAO["casa"]))
+                     .replace("__USUARIO__", _yaml_str(NOMES_PADRAO["usuario"])))
+        cfg.write_text(texto_cfg, encoding="utf-8")
         for md in destino.rglob("*.md"):
             texto = md.read_text(encoding="utf-8")
             if "__DATA__" in texto:

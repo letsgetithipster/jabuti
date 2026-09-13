@@ -19,7 +19,9 @@ def test_cria_workspace_completo(tmp_path):
     assert not (destino / "gitignore.template").exists()
     cfg_texto = (destino / "vault.config.yaml").read_text(encoding="utf-8")
     assert "__MOTOR__" not in cfg_texto
+    assert "__CASA__" not in cfg_texto and "__USUARIO__" not in cfg_texto
     cfg = yaml.safe_load(cfg_texto)
+    assert cfg["casa"]["nome"] and cfg["usuario"]["nome"] and cfg["coordenador"]["nome"] == "Otávio"
     assert Path(cfg["caminhos"]["motor"]).is_dir()    # aponta pro motor real
 
 
@@ -108,3 +110,15 @@ def test_workspace_novo_valida_sem_erros(tmp_path):
         "perfil: ainda não preenchido (o /jabuti-init preenche)",
         "politica: nenhuma banda declarada ainda (o /jabuti-estrategia preenche a tabela)",
     ]
+
+
+def test_yaml_str_sobrevive_a_nome_com_dois_pontos_e_a_nome_que_o_yaml_resolveria(tmp_path):
+    """O nome da casa vai para dentro do vault.config.yaml como texto. Sem as aspas simples,
+    "Casa: a minha" quebra o parse do arquivo inteiro (o workspace nasce ilegivel) e "on" volta
+    do YAML como o bool True, que a validacao entao recusa. As duas pontas do mesmo defeito que
+    em_vocabulario cobre na leitura, aqui na escrita."""
+    from criar_workspace import _yaml_str
+
+    for nome in ("minha casa de gestão", "Casa: a minha", "Casa d'Ana", "on", "sim", "2026"):
+        lido = yaml.safe_load(f"casa:\n  nome: {_yaml_str(nome)}\n")["casa"]["nome"]
+        assert lido == nome, f"{nome!r} voltou do YAML como {lido!r}"

@@ -212,3 +212,36 @@ def test_validar_config_nunca_levanta_com_shape_nenhum():
                 validar_config(_poe(CFG_OK, caminho, veneno))
             except Exception as e:
                 raise AssertionError(f"{'.'.join(map(str, caminho))} <- {veneno!r}: {type(e).__name__}: {e}")
+
+
+from po.config import nome
+
+
+def test_nomes_tem_default_quando_ausentes():
+    assert nome(CFG_OK, "casa") == "minha casa de gestão"
+    assert nome(CFG_OK, "usuario") == "o investidor"
+    assert nome(CFG_OK, "coordenador") == "Otávio"
+
+
+def test_nomes_lidos_da_config():
+    cfg = dict(CFG_OK, casa={"nome": "Casa Exemplo"}, usuario={"nome": "Ana"}, coordenador={"nome": "Beto"})
+    assert validar_config(cfg) == []
+    assert (nome(cfg, "casa"), nome(cfg, "usuario"), nome(cfg, "coordenador")) == ("Casa Exemplo", "Ana", "Beto")
+
+
+def test_bloco_de_nome_sem_nome_e_erro():
+    for chave, ruim in (("casa", {}), ("usuario", "Ana"), ("coordenador", {"nome": ""}), ("casa", {"nome": ["x"]})):
+        cfg = dict(CFG_OK, **{chave: ruim})
+        assert any(chave in e and "nome" in e for e in validar_config(cfg)), (chave, ruim)
+
+
+def test_blocos_da_conta_opcionais_e_validados():
+    ok = dict(CFG_OK, contas=[{"id": "c", "nome": "C", "moeda": "BRL", "blocos": ["acoes-br", "fiis"]}])
+    assert validar_config(ok) == []
+    vazio = dict(CFG_OK, contas=[{"id": "c", "nome": "C", "moeda": "BRL", "blocos": []}])
+    assert validar_config(vazio) == []
+    # [["acoes-br"]] e [{"a": 1}] sao os que exercitam a guarda: `b in CLASSES` cru levanta
+    # TypeError: unhashable type neles, e erro e frase acionavel, nunca traceback.
+    for ruim in ("acoes-br", ["acoes"], [True], {"acoes-br": 1}, [["acoes-br"]], [{"a": 1}]):
+        cfg = dict(CFG_OK, contas=[{"id": "c", "nome": "C", "moeda": "BRL", "blocos": ruim}])
+        assert any("blocos" in e for e in validar_config(cfg)), ruim

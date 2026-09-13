@@ -3,10 +3,11 @@ from pathlib import Path
 
 import yaml
 
-from po.csvs import MOEDAS, em_vocabulario
+from po.csvs import CLASSES, MOEDAS, em_vocabulario
 
 MOEDAS_BASE = {"BRL"}
 HARNESSES = {"claude-code", "codex", "cursor", "app-web"}
+NOMES_PADRAO = {"casa": "minha casa de gestão", "usuario": "o investidor", "coordenador": "Otávio"}
 PROVIDERS_COTACOES = {"yahoo", "brapi", "manual"}
 PROVIDERS_CAMBIO = {"bcb-sgs", "yahoo", "manual"}
 CAMBIO_PADRAO = "bcb-sgs"
@@ -34,6 +35,11 @@ def validar_config(cfg: object) -> list[str]:
     cambio = cotacoes.get("cambio", CAMBIO_PADRAO) if isinstance(cotacoes, dict) else CAMBIO_PADRAO
     if not em_vocabulario(cambio, PROVIDERS_CAMBIO):
         erros.append(f"cotacoes.cambio deve ser um de {sorted(PROVIDERS_CAMBIO)}")
+    for chave in NOMES_PADRAO:
+        bloco = cfg.get(chave)
+        if bloco is not None and (not isinstance(bloco, dict) or not isinstance(bloco.get("nome"), str)
+                                  or not bloco["nome"].strip()):
+            erros.append(f"{chave} deve ser um mapeamento com nome (string não-vazia), ou ficar ausente")
     contas = cfg.get("contas")
     if not isinstance(contas, list) or not contas:
         erros.append("declare ao menos uma conta em contas")
@@ -46,6 +52,11 @@ def validar_config(cfg: object) -> list[str]:
             ids.append(conta["id"])
             if not em_vocabulario(conta.get("moeda"), MOEDAS):
                 erros.append(f"conta {conta['id']!r} sem moeda válida (uma de {sorted(MOEDAS)})")
+            blocos = conta.get("blocos")
+            if blocos is not None and (not isinstance(blocos, list)
+                                       or not all(em_vocabulario(b, CLASSES) for b in blocos)):
+                erros.append(f"conta {conta['id']!r}: blocos deve ser lista de blocos em {sorted(CLASSES)} "
+                             "(pode ser vazia; ausente = qualquer bloco)")
         if len(ids) != len(set(ids)):
             erros.append("ids de conta duplicados")
     caminhos = cfg.get("caminhos")
@@ -74,6 +85,15 @@ def caminho_planilhas(raiz: str | Path, cfg: dict) -> Path:
 def moedas_por_conta(cfg: dict) -> dict[str, str]:
     """{id da conta: moeda}. Config já validada."""
     return {c["id"]: c["moeda"] for c in cfg["contas"]}
+
+
+def nome(cfg: dict, chave: str) -> str:
+    """Nome da casa, do usuário ou do coordenador, com o default do produto quando ausente.
+    Config já validada: bloco presente é dict com nome não-vazio."""
+    bloco = cfg.get(chave)
+    if isinstance(bloco, dict) and isinstance(bloco.get("nome"), str) and bloco["nome"].strip():
+        return bloco["nome"].strip()
+    return NOMES_PADRAO[chave]
 
 
 def carregar_config(raiz: str | Path) -> dict:
