@@ -4,11 +4,12 @@ from pathlib import Path
 from po.validar.check_dados import checar_dados
 from po.validar.check_estado import checar_estado
 from po.validar.check_frontmatter import checar_frontmatter
+from po.validar.check_harness import checar_harness
 from po.validar.check_perfil import checar_perfil
 from po.validar.check_politica import checar_politica
 from po.validar.check_segredos import checar_segredos
 
-CHECKS = [checar_frontmatter, checar_perfil, checar_politica, checar_dados, checar_estado, checar_segredos]
+CHECKS = [checar_frontmatter, checar_perfil, checar_politica, checar_harness, checar_dados, checar_estado, checar_segredos]
 
 
 def validar(raiz: str | Path) -> tuple[list[str], list[str]]:

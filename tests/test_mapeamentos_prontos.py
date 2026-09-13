@@ -203,7 +203,9 @@ def test_fixtures_nao_carregam_dado_pessoal():
     arquivos = sorted(p for p in (aqui / "fixtures").rglob("*") if p.is_file())
     arquivos.append(aqui / "extratos_sinteticos.py")
     # metodo/ é rubrica: número de método, nunca número de carteira nem nome de pessoa
+    # metodo/ é rubrica e rules/ é voz: número de método e prosa de método, nunca nome de pessoa
     arquivos.extend(sorted(p for p in (aqui.parent / "metodo").rglob("*") if p.is_file()))
+    arquivos.extend(sorted(p for p in (aqui.parent / "rules").rglob("*") if p.is_file()))
     assert len(arquivos) > 3, "varredura de fixtures não achou arquivo; o caminho mudou de lugar?"
     for caminho in arquivos:
         try:
