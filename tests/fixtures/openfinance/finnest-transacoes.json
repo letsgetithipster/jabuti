@@ -1,0 +1,196 @@
+{
+  "_meta": {
+    "descricao": "Respostas de list_transactions do MCP da Finnest, anonimizadas a mao. Serve para o adaptador saber a FORMA da resposta sem que dado financeiro real entre no repositorio.",
+    "medido_em": "2026-09-12",
+    "endpoint": "https://mcp.finnest.com.br/mcp",
+    "substituido_a_mao": [
+      "id e account_id: UUIDs ficticios, gerados para casar com o mesmo padrao que o servidor declara no inputSchema",
+      "contraparte em description/display_name: nomes de pessoa, de clinica e de condominio trocados por ficticios. Nome de condominio revela endereco e nome de clinica revela tratamento",
+      "estabelecimento de cartao: marcas reais trocadas por 'Exemplo'/'Exemplo2', preservando a forma bruta do adquirente ('Ppro *') e o merchant_domain",
+      "amount: todos os valores trocados, preservando se o JSON traz inteiro (-180), uma casa (34.9) ou duas (-2410.35)",
+      "date: dias deslocados dentro do mesmo mes, preservando a ordem decrescente, os pares quase simultaneos e a variedade de fracao de segundo"
+    ],
+    "preservado_de_proposito": [
+      "A divergencia de sinal entre escopos: em BANK o debito vem NEGATIVO, em CARD o debito vem POSITIVO com type='debit'. Ler direcao pelo sinal de amount inverte toda despesa de cartao",
+      "'Resgate RDB' e o vocabulario de operationType: sao nomes de produto e de operacao, nao dado pessoal, e sao o que liga a linha a uma semantica",
+      "A fracao de segundo de dois digitos ('.87+00:00'), que convive com as de tres",
+      "sourceAsOf com sufixo 'Z', enquanto get_connected_institutions devolve o mesmo campo com '+00:00'",
+      "merchant_domain presente em algumas linhas de cartao e ausente em outras: o campo e opcional",
+      "payment_data com dois formatos: em BANK traz paymentMethod e operationType, em CARD so operationType"
+    ],
+    "nao_e_contrato": "Isto e o que UMA medicao devolveu. Campo ausente aqui nao e garantia de que o provider nunca o envia."
+  },
+  "chamadas": [
+    {
+      "tool": "list_transactions",
+      "argumentos": {"account_type": "BANK", "page_size": 8},
+      "resposta": {
+        "items": [
+          {
+            "id": "ada55190-fe7d-477d-92c3-3820b360f560",
+            "description": "Transferência enviada|Fulano de Tal Silva",
+            "display_name": "Transferência enviada|Fulano de Tal Silva",
+            "amount": -180,
+            "date": "2026-09-10T09:14:02.122+00:00",
+            "category": "Pagamentos",
+            "account_id": "36fe6b9d-6e6d-4582-aef9-c97a0fe8f576",
+            "type": "debit",
+            "status": "POSTED",
+            "is_internal_transfer": false,
+            "payment_data": {"paymentMethod": "PIX", "operationType": "PIX"}
+          },
+          {
+            "id": "e47b77fa-d502-4ca8-b798-22199951c6e7",
+            "description": "Resgate RDB",
+            "display_name": "Resgate RDB",
+            "amount": 300,
+            "date": "2026-09-10T09:13:48.239+00:00",
+            "category": "Investimentos",
+            "account_id": "36fe6b9d-6e6d-4582-aef9-c97a0fe8f576",
+            "type": "credit",
+            "status": "POSTED",
+            "is_internal_transfer": true,
+            "payment_data": {"paymentMethod": "OTHER", "operationType": "RESGATE_APLIC_FINANCEIRA"}
+          },
+          {
+            "id": "330c057f-14e6-4d13-b994-300be0bb065e",
+            "description": "Transferência enviada|Clinica Exemplo S Ltda",
+            "display_name": "Transferência enviada|Clinica Exemplo S Ltda",
+            "amount": -120,
+            "date": "2026-09-08T16:22:10.621+00:00",
+            "category": "Saúde",
+            "account_id": "36fe6b9d-6e6d-4582-aef9-c97a0fe8f576",
+            "type": "debit",
+            "status": "POSTED",
+            "is_internal_transfer": false,
+            "payment_data": {"paymentMethod": "PIX", "operationType": "PIX"}
+          },
+          {
+            "id": "728d9d73-7cb4-455c-941a-a21bb1e7da1d",
+            "description": "Transferência enviada|Beltrano Alves Souza",
+            "display_name": "Transferência enviada|Beltrano Alves Souza",
+            "amount": -200,
+            "date": "2026-09-05T11:40:55.782+00:00",
+            "category": "Pagamentos",
+            "account_id": "36fe6b9d-6e6d-4582-aef9-c97a0fe8f576",
+            "type": "debit",
+            "status": "POSTED",
+            "is_internal_transfer": false,
+            "payment_data": {"paymentMethod": "PIX", "operationType": "PIX"}
+          },
+          {
+            "id": "0e3d69d0-9056-4c71-b136-21238f507560",
+            "description": "Resgate RDB",
+            "display_name": "Resgate RDB",
+            "amount": 200,
+            "date": "2026-09-05T11:40:31.563+00:00",
+            "category": "Investimentos",
+            "account_id": "36fe6b9d-6e6d-4582-aef9-c97a0fe8f576",
+            "type": "credit",
+            "status": "POSTED",
+            "is_internal_transfer": true,
+            "payment_data": {"paymentMethod": "OTHER", "operationType": "RESGATE_APLIC_FINANCEIRA"}
+          },
+          {
+            "id": "554823a9-106c-4b4c-9796-c3f3a877541e",
+            "description": "Transferência enviada|EMPRESA EXEMPLO LTDA",
+            "display_name": "Transferência enviada|EMPRESA EXEMPLO LTDA",
+            "amount": -2410.35,
+            "date": "2026-09-03T19:05:17.87+00:00",
+            "category": "Outros",
+            "account_id": "36fe6b9d-6e6d-4582-aef9-c97a0fe8f576",
+            "type": "debit",
+            "status": "POSTED",
+            "is_internal_transfer": false,
+            "payment_data": {"paymentMethod": "PIX", "operationType": "PIX"}
+          },
+          {
+            "id": "896e8da7-fd61-4658-b0ed-be70cf3badd6",
+            "description": "Pagamento efetuado|COND ED EXEMPLO RES SERVICE",
+            "display_name": "Pagamento efetuado|COND ED EXEMPLO RES SERVICE",
+            "amount": -980.44,
+            "date": "2026-09-02T14:31:09.259+00:00",
+            "category": "Pagamentos",
+            "account_id": "36fe6b9d-6e6d-4582-aef9-c97a0fe8f576",
+            "type": "debit",
+            "status": "POSTED",
+            "is_internal_transfer": false,
+            "payment_data": {"paymentMethod": "BOLETO", "operationType": "BOLETO"}
+          },
+          {
+            "id": "73c53880-0b72-4fbc-889e-9bc57f617d80",
+            "description": "Resgate RDB",
+            "display_name": "Resgate RDB",
+            "amount": 3200.55,
+            "date": "2026-09-02T14:30:44.201+00:00",
+            "category": "Investimentos",
+            "account_id": "36fe6b9d-6e6d-4582-aef9-c97a0fe8f576",
+            "type": "credit",
+            "status": "POSTED",
+            "is_internal_transfer": true,
+            "payment_data": {"paymentMethod": "OTHER", "operationType": "RESGATE_APLIC_FINANCEIRA"}
+          }
+        ],
+        "count": 8,
+        "sourceAsOf": "2026-09-13T00:25:30.613Z",
+        "cacheAgeMs": 0,
+        "stale": false,
+        "cacheHit": false
+      }
+    },
+    {
+      "tool": "list_transactions",
+      "argumentos": {"account_type": "CARD", "page_size": 3},
+      "resposta": {
+        "items": [
+          {
+            "id": "f06e2b2b-e966-4542-bdcc-4105fd79dbce",
+            "description": "Posto Exemplo Rodovia",
+            "display_name": "Posto Exemplo Rodovia",
+            "amount": 45,
+            "date": "2026-09-07T20:12:41.001+00:00",
+            "category": "Transporte",
+            "account_id": "f6eca5f9-9f23-4aa7-87a4-da791e955cf1",
+            "type": "debit",
+            "status": "PENDING",
+            "is_internal_transfer": false,
+            "payment_data": {"operationType": "PAGAMENTO"}
+          },
+          {
+            "id": "fee2acca-796c-47cc-9b05-e00a827e2648",
+            "description": "Exmpl.Com/Bill",
+            "display_name": "Exemplo - Assinaturas",
+            "amount": 34.9,
+            "date": "2026-09-07T10:03:22.001+00:00",
+            "category": "Assinaturas",
+            "account_id": "f6eca5f9-9f23-4aa7-87a4-da791e955cf1",
+            "type": "debit",
+            "status": "PENDING",
+            "merchant_domain": "exemplo.com",
+            "is_internal_transfer": false,
+            "payment_data": {"operationType": "PAGAMENTO"}
+          },
+          {
+            "id": "3afe5260-2650-494b-9152-aede70c7c484",
+            "description": "Ppro *Exemplo2",
+            "display_name": "Exemplo2",
+            "amount": 5.75,
+            "date": "2026-09-06T08:47:19.001+00:00",
+            "category": "Assinaturas",
+            "account_id": "f6eca5f9-9f23-4aa7-87a4-da791e955cf1",
+            "type": "debit",
+            "status": "PENDING",
+            "merchant_domain": "exemplo2.com",
+            "is_internal_transfer": false,
+            "payment_data": {"operationType": "PAGAMENTO"}
+          }
+        ],
+        "count": 3,
+        "sourceAsOf": "2026-09-13T00:26:30.462Z",
+        "cacheAgeMs": 0,
+        "stale": false,
+        "cacheHit": false
+      }
+    }
+  ]
+}

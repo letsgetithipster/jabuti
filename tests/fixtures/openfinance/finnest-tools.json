@@ -1,0 +1,3115 @@
+{
+  "_meta": {
+    "descricao": "Esquema das tools do MCP da Finnest. Nao contem dado pessoal: so nome, descricao e JSON Schema de entrada, como o servidor os declara.",
+    "endpoint": "https://mcp.finnest.com.br/mcp",
+    "medido_em": "2026-09-12",
+    "protocolo": "MCP over HTTP, OAuth 2.1 com PKCE e registro de cliente por RFC 7591",
+    "total_de_tools": 116,
+    "procedencia": "Resposta de tools/list, obtida pelo cliente MCP do Claude Code. O payload JSON-RPC cru nao foi alcancavel deste ambiente (leitura do token e chamada de rede direta foram bloqueadas pelo sandbox), entao o que esta gravado aqui e a declaracao do servidor relayada pelo cliente. Nome, descricao e inputSchema sao do servidor, verbatim.",
+    "sem_output_schema": "O servidor nao declara outputSchema por esta via. As formas de resposta OBSERVADAS estao em finnest-transacoes.json e em docs/provider-finnest.md, e sao observacao de uma medicao, nao contrato: nao trate ausencia de campo aqui como garantia.",
+    "escopos_do_token": [
+      "read:financial",
+      "read:profile",
+      "manage:connections",
+      "manage:automations",
+      "manage:boletos",
+      "execute:transfers"
+    ],
+    "escopo_que_o_motor_usa": [
+      "read:financial"
+    ]
+  },
+  "tools": [
+    {
+      "name": "approve_automation_transfer",
+      "description": "Stability: stable\n\nAprova e executa uma solicitação pendente de aprovação de automação. IMPORTANTE: Move dinheiro real e não pode ser revertido.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "approval_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Pending approval ID from list_automation_approvals."
+          },
+          "confirmation_channel": {
+            "description": "Optional confirmation channel metadata.",
+            "enum": [
+              "app",
+              "whatsapp"
+            ],
+            "type": "string"
+          },
+          "confirmation_method": {
+            "description": "Optional confirmation method metadata.",
+            "enum": [
+              "manual",
+              "biometry",
+              "pin"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "cancel_scheduled_transfer",
+      "description": "Stability: stable\n\nCancela uma transferência PIX pendente ou agendada antes de ser executada. Apenas transferências nos estados 'pending' ou 'scheduled' podem ser canceladas — transferências já enviadas não podem ser revertidas. Sempre confirme com o usuário antes de chamar. Use list_scheduled_transfers para encontrar o ID e verificar se ainda é cancelável. Erro 'TRANSFER_NOT_CANCELLABLE': a transferência já foi enviada ao banco.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "transfer_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Scheduled transfer UUID (from list_scheduled_transfers)"
+          }
+        },
+        "required": [
+          "transfer_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "connect_bank_account",
+      "description": "Stability: stable\n\nInicia uma conexão bancária para uma instituição e retorna orientações de próximos passos para autorização/sincronização.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "institution_id": {
+            "description": "Institution ID from list_open_finance_institutions or existing connection ID.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "institution_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "create_automation",
+      "description": "Stability: stable\n\nCria uma nova regra de automação com tipo, configuração e metadados opcionais.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "config": {
+            "additionalProperties": {},
+            "description": "Automation configuration payload.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "description": {
+            "description": "Optional automation description.",
+            "maxLength": 280,
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Whether the automation starts enabled.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Automation display name.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": {
+            "description": "Automation type slug.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "create_data_consent",
+      "description": "Stability: stable\n\nInicia um fluxo de consentimento Open Finance para uma instituição bancária e retorna uma URL de consentimento que o usuário deve abrir para autorizar o acesso à conta. Esta é uma operação que altera estado e só deve ser chamada quando o usuário pedir explicitamente para conectar um banco.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "document": {
+            "description": "CPF/CNPJ document used by the provider for consent.",
+            "maxLength": 20,
+            "minLength": 11,
+            "type": "string"
+          },
+          "institution_id": {
+            "description": "Provider institution/connector id (e.g. 612 for Nubank).",
+            "type": "string"
+          },
+          "os": {
+            "description": "Optional mobile operating system.",
+            "enum": [
+              "ios",
+              "android"
+            ],
+            "type": "string"
+          },
+          "platform": {
+            "description": "Client platform for callback routing. Defaults to mobile.",
+            "enum": [
+              "mobile",
+              "web"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "description": "Flow source for audit metadata. Defaults to profile.",
+            "enum": [
+              "profile"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "institution_id",
+          "document"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "create_payment_preauthorization",
+      "description": "Stability: stable\n\nInicia a pré-autorização de iniciação de pagamento Open Finance para destinatários de Smart Transfer.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "institution_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Connected institution id used to derive connector/item ids."
+          },
+          "os": {
+            "description": "Optional mobile operating system.",
+            "enum": [
+              "ios",
+              "android"
+            ],
+            "type": "string"
+          },
+          "platform": {
+            "description": "Client platform. Defaults to mobile.",
+            "enum": [
+              "mobile",
+              "web"
+            ],
+            "type": "string"
+          },
+          "retry_count": {
+            "description": "Retry counter for sync-wait loops. Defaults to 0.",
+            "maximum": 10,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "source": {
+            "description": "Preauthorization flow source. Defaults to profile.",
+            "enum": [
+              "profile",
+              "enable_recipient"
+            ],
+            "type": "string"
+          },
+          "target_recipient_account_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Target recipient account for enable_recipient flows."
+          },
+          "user_document": {
+            "description": "Optional CPF/CNPJ fallback.",
+            "maxLength": 20,
+            "type": "string"
+          }
+        },
+        "required": [
+          "institution_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "create_scheduled_transfer",
+      "description": "Stability: stable\n\nAgenda a execução futura de uma transferência. Requer data de agendamento e idempotency_key explícitos.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Origin account UUID from get_account_overview."
+          },
+          "amount": {
+            "description": "Amount in BRL.",
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": {
+            "description": "Optional transfer description.",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "idempotency_key": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Stable UUID for retries of this same user action."
+          },
+          "recipient_key": {
+            "description": "Recipient key for the transfer.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "recipient_name": {
+            "description": "Optional recipient name.",
+            "maxLength": 120,
+            "type": "string"
+          },
+          "scheduled_for": {
+            "description": "ISO 8601 datetime for scheduling.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Transfer type. Defaults to pix.",
+            "enum": [
+              "pix",
+              "ted",
+              "doc"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "amount",
+          "recipient_key",
+          "scheduled_for",
+          "idempotency_key"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "delete_automation",
+      "description": "Stability: stable\n\nExclui permanentemente uma automação — esta ação não pode ser desfeita. Execuções em andamento serão concluídas, mas a automação nunca será acionada novamente. Sempre confirme com o usuário antes de chamar. Use list_automations para encontrar o ID. Erro 'AUTOMATION_NOT_FOUND': o ID não existe.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "automation_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Automation UUID (from list_automations)"
+          }
+        },
+        "required": [
+          "automation_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "detect_subscriptions",
+      "description": "Stability: stable\n\nRetorna cobranças recorrentes e assinaturas detectadas com frequência (mensal/semanal), próxima data esperada e valores em BRL. Usa resultados em cache por padrão para mais velocidade — defina refresh=true para detectar novamente a partir de transações recentes. Use para perguntas como 'quais assinaturas estou pagando' ou 'encontre minhas cobranças recorrentes'.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "institution_id": {
+            "description": "Connected institution ID. Required when refresh=true so the provider item id stays server-side.",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Force re-detection of recurring charges (default: false, uses cached)",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "disconnect_connection",
+      "description": "Stability: stable\n\nDesconecta uma instituição mantendo histórico/contexto de auditoria quando suportado pelo backend.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "institution_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Connected institution id to disconnect."
+          },
+          "reason": {
+            "description": "Optional audit reason for disconnection.",
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [
+          "institution_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "edit_scheduled_transfer",
+      "description": "Stability: stable\n\nAtualiza a descrição ou a data de execução (ISO 8601) de uma transferência PIX agendada pendente. Alterações de valor e destinatário NÃO são suportadas — para essas, cancele e recrie. Use list_scheduled_transfers para encontrar o ID. Erro 'TRANSFER_NOT_EDITABLE': a transferência não está em um estado pendente/agendado.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "description": {
+            "description": "New description visible to both parties",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "scheduled_for": {
+            "description": "New ISO 8601 datetime for execution",
+            "maxLength": 40,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}",
+            "type": "string"
+          },
+          "transfer_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Scheduled transfer UUID (from list_scheduled_transfers)"
+          }
+        },
+        "required": [
+          "transfer_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "execute_pix_transfer",
+      "description": "Stability: stable\n\nExecuta uma Smart Transfer / transferência PIX interna entre as próprias contas vinculadas do usuário. IMPORTANTE: Move dinheiro real e não pode ser revertida. Primeiro chame sem approval_id para persistir os termos de confirmação e obter um approval_id; execute apenas repetindo os mesmos termos com approval_id e confirmed=true após aprovação explícita do usuário. Requer ID da conta de origem e ID da conta de destino obtidos via get_account_overview. Não use chaves PIX de list_recipients aqui. Reenvie o mesmo idempotency_key em novas tentativas para evitar débitos duplicados.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "amount": {
+            "description": "Amount in BRL (e.g., 150.50)",
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "approval_id": {
+            "description": "One-time approval id returned when confirmation_required=true. Required together with confirmed=true to execute.",
+            "pattern": "^appr_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "confirmed": {
+            "description": "Set to true only after the user explicitly approved the approval_id returned by the first call. Required with approval_id for execution.",
+            "type": "boolean"
+          },
+          "description": {
+            "description": "Transfer description visible to both parties",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "from_account_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Source account UUID (use get_account_overview to find IDs)"
+          },
+          "to_account_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Destination account UUID (use get_account_overview to find IDs)"
+          },
+          "idempotency_key": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "REQUIRED. A UUID that is stable across retries of THIS specific user intent (same conversation turn + same transfer). Derive it deterministically (e.g., from turn_id + amount + to_account_id) — do NOT generate a fresh UUID on retry or you WILL double-debit."
+          }
+        },
+        "required": [
+          "from_account_id",
+          "to_account_id",
+          "amount",
+          "idempotency_key"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_account_balance_summary",
+      "description": "Stability: stable\n\nRetorna totais canônicos de saldo em dinheiro e saldos por conta. Use para perguntas amplas sobre saldo e saldos de conta.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_account_overview",
+      "description": "Stability: stable\n\nRetorna todas as contas bancárias conectadas com saldos atuais, tipos (CHECKING, SAVINGS, CREDIT) e nomes das instituições agrupadas por banco. Chame esta PRIMEIRO para descobrir os IDs de conta necessários para list_transactions, execute_pix_transfer e qualquer ferramenta que aceite account_id. Valores em BRL. Erro 'NO_ACCOUNTS': o usuário não possui instituições conectadas — peça que conecte um banco pelo app.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_automation",
+      "description": "Stability: stable\n\nRetorna detalhes completos de uma única automação: limiares de gatilho, IDs de conta de origem/destino, agendamento e resumo do histórico de execução. Chame list_automations primeiro para obter um automation_id válido. Erro 'AUTOMATION_NOT_FOUND': o ID não existe ou pertence a outro usuário.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "automation_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Automation UUID (from list_automations)"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "automation_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_automation_settings",
+      "description": "Stability: stable\n\nRetorna as configurações de confirmação, notificação e agendamento de automações no nível do usuário.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_automation_statistics",
+      "description": "Stability: stable\n\nRetorna estatísticas agregadas de automações: contagens por estado (active/paused/error), total de execuções nos últimos 30 dias e total movimentado em BRL. Use para perguntas de resumo como 'quantas automações eu tenho' ou 'quanto foi transferido automaticamente este mês'.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_automation_summary",
+      "description": "Stability: stable\n\nRetorna o status somente-leitura das automações, carga de aprovações pendentes e estatísticas agregadas de automações.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_budget_rebalance_suggestion",
+      "description": "Stability: stable\n\nRetorna uma sugestão de transferência de orçamento entre categorias doadoras e receptoras para o mês.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "month": {
+            "description": "Calendar month 1..12 (default: current)",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "year": {
+            "description": "Calendar year (default: current)",
+            "maximum": 2100,
+            "minimum": 2000,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_budget_summary",
+      "description": "Stability: stable\n\nRetorna o progresso canônico de orçamentos, orçamentos estourados, orçamentos em risco e totais.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_card_bill_snapshot",
+      "description": "Stability: stable\n\nRetorna um snapshot compacto de faturas de cartão com valor total em aberto, gastos do ciclo atual (fatura ainda não fechada, por cartão e total), próxima data de vencimento, cartões e faturas atuais. Prefira esta para perguntas sobre fatura, limite, vencimento e totais de cartão.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_card_bill_summary",
+      "description": "Stability: stable\n\nRetorna totais canônicos de faturas de cartão de crédito, status de faturas em aberto, datas de vencimento e linhas de fatura por cartão.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_card_detail",
+      "description": "Stability: stable\n\nRetorna os detalhes de um cartão de crédito, todas as faturas, histórico de pagamentos, risco de juros e tarifas em uma única chamada em cache.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "card_id": {
+            "description": "Credit card account ID",
+            "minLength": 1,
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "card_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_card_interest",
+      "description": "Stability: stable\n\nRetorna risco de juros, tarifas bancárias, IOF e taxas de referência educacionais de uma conta de cartão de crédito.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "card_id": {
+            "description": "Credit card account ID",
+            "minLength": 1,
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "card_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_card_spending_overview",
+      "description": "Stability: stable\n\nRetorna totais compactos de gastos no cartão de crédito com as principais categorias e estabelecimentos para um cartão ou todos os cartões.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "card_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_card_spending_period_summary",
+      "description": "Stability: stable\n\nRetorna totais canônicos de gastos em cartão de crédito, categorias, tags, principais despesas e detalhamento por cartão para um período.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "card_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "period_mode": {
+            "enum": [
+              "calendar",
+              "cycle"
+            ],
+            "type": "string"
+          },
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_card_spending_summary",
+      "description": "Stability: stable\n\nRetorna análises unificadas de gastos no cartão de crédito com comparação de períodos, totais por cartão, categorias, tags e principais despesas.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "card_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "period_mode": {
+            "enum": [
+              "calendar",
+              "cycle"
+            ],
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_cards",
+      "description": "Stability: stable\n\nRetorna todos os cartões de crédito com faturas atuais, datas de vencimento, pagamentos mínimos e valores (BRL) em uma única chamada. Use quando o usuário perguntar sobre saldos de cartão, vencimentos próximos de fatura ou limites de cartão. Para análise de gastos entre todas as contas (não apenas cartões), use get_spending_summary. Erro 'NO_CARDS': o usuário não possui cartões de crédito conectados.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_cashflow_health",
+      "description": "Stability: stable\n\nRetorna a saúde compacta de receitas vs despesas para o mês atual ou intervalo informado, além do ritmo atual de gastos. Prefira esta para perguntas como 'estou gastando mais do que ganho' e questões de saúde financeira mensal.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_cashflow_insights",
+      "description": "Stability: stable\n\nRetorna o resumo de fluxo de caixa de receitas vs. despesas para um intervalo de datas, incluindo saldo líquido e detalhamento diário.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from_date": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to_date": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "from_date",
+          "to_date"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_cashflow_pacing_projection",
+      "description": "Stability: stable\n\nRetorna o gasto projetado para o fim do mês versus o orçamento com o estado do ritmo.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "month": {
+            "description": "Calendar month 1..12 (default: current)",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "year": {
+            "description": "Calendar year (default: current)",
+            "maximum": 2100,
+            "minimum": 2000,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_cashflow_period_summary",
+      "description": "Stability: stable\n\nRetorna receitas, despesas e fluxo de caixa líquido para um intervalo de datas usando a semântica do Insights.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_cashflow_shape",
+      "description": "Stability: stable\n\nRetorna a composição mensal do fluxo de caixa por grupos fixos, variáveis, investidos e remanescentes.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "month": {
+            "description": "Target month in YYYY-MM format (default: current month)",
+            "maxLength": 7,
+            "pattern": "^\\d{4}-\\d{2}$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_category_pace",
+      "description": "Stability: stable\n\nRetorna projeções de ritmo por categoria com confiança, rollover e contexto de tag dominante.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "month": {
+            "description": "Calendar month 1..12 (default: current)",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "year": {
+            "description": "Calendar year (default: current)",
+            "maximum": 2100,
+            "minimum": 2000,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_category_rollover",
+      "description": "Stability: stable\n\nRetorna o rollover ao vivo para uma categoria e mês.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "category_slug": {
+            "description": "Category slug to inspect",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "month": {
+            "description": "Calendar month 1..12 (default: current)",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "year": {
+            "description": "Calendar year (default: current)",
+            "maximum": 2100,
+            "minimum": 2000,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category_slug"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_category_spending",
+      "description": "Stability: stable\n\nRetorna os gastos agrupados por categoria para um intervalo de datas com totais em BRL, percentuais e quantidades.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from_date": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to_date": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "from_date",
+          "to_date"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_category_spending_summary",
+      "description": "Stability: stable\n\nRetorna os totais de gastos por categoria para um intervalo de datas, opcionalmente focado em uma única categoria.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "category": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_category_tag_composition",
+      "description": "Stability: stable\n\nRetorna a distribuição de tags de uma categoria, incluindo gasto total e ID da tag dominante.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "category_slug": {
+            "description": "Category slug to inspect",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "month": {
+            "description": "Calendar month 1..12 (default: current)",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "year": {
+            "description": "Calendar year (default: current)",
+            "maximum": 2100,
+            "minimum": 2000,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category_slug"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_connected_institutions",
+      "description": "Stability: stable\n\nRetorna bancos conectados com status de sincronização (last_synced_at, saúde da conexão). Use para diagnosticar dados desatualizados: se um banco aparecer como ERROR ou DISCONNECTED, saldos e transações dessa instituição podem estar desatualizados. Para saldos e IDs de conta, use get_account_overview.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_counterparty_spending",
+      "description": "Stability: stable\n\nRetorna totais de gasto/pagamento para um estabelecimento ou pessoa nomeada entre transações e pagamentos enviados.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "counterparty_query": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "source_types": {
+            "description": "Default is both.",
+            "enum": [
+              "transactions",
+              "payments",
+              "both"
+            ],
+            "type": "string"
+          },
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "counterparty_query"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_daily_forecast",
+      "description": "Stability: stable\n\nRetorna saldos projetados dia a dia e sinalizações de dias de risco para os próximos dias.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "days": {
+            "description": "Look-ahead window in days (1..30)",
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_data_consent_status",
+      "description": "Stability: stable\n\nVerifica se um consentimento de dados Open Finance foi autorizado, rejeitado ou ainda está pendente. Use após create_data_consent até que o status se torne terminal.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "consent_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Consent id returned by create_data_consent."
+          }
+        },
+        "required": [
+          "consent_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_data_coverage_summary",
+      "description": "Stability: stable\n\nRetorna a cobertura das instituições conectadas, atualidade dos dados, conexões degradadas e ações recomendadas somente-leitura para remediar.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_data_freshness_status",
+      "description": "Stability: stable\n\nResume a atualidade das conexões Open Finance entre as instituições brasileiras vinculadas e recomenda a ação mais segura de atualização ou consentimento antes de análises financeiras.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_financial_checkup",
+      "description": "Stability: stable\n\nRetorna um checkup financeiro brasileiro abrangente que prioriza fluxo de caixa, fôlego de liquidez, contas próximas, desperdício com assinaturas e qualidade dos dados Open Finance em um único resumo de saúde financeira.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "days": {
+            "description": "Forward-looking window for upcoming recurring bills (default: 30 days)",
+            "maximum": 90,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "from_date": {
+            "description": "Cashflow start date in YYYY-MM-DD format (default: current month start)",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to_date": {
+            "description": "Cashflow end date in YYYY-MM-DD format (default: current month end)",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_financial_snapshot",
+      "description": "Stability: stable\n\nRetorna um snapshot financeiro compacto: posição líquida (BRL), total de saldo apenas em contas bancárias, total de saldo em cartões de crédito, valor absoluto em aberto no crédito (creditOpenAmount, sempre >= 0), principais saldos de conta e mensagens curtas de alerta. netBalance/totalBalance = bankBalanceTotal - creditOpenAmount (posição líquida estimada). Para a linguagem do app 'saldo total', prefira bankBalanceTotal ou a soma das contas BANK. Otimizado para perguntas amplas como 'como estou financeiramente' — prefira esta ao invés de chamar get_account_overview + get_investments separadamente. Cache de até 3 minutos e invalidado por webhooks de sincronização financeira. Para IDs de conta, use get_account_overview; para investimentos, use get_investments.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_insights_lead",
+      "description": "Stability: stable\n\nRetorna o tile mensal de insight principal e tiles complementares para um período alvo.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "period": {
+            "description": "Target month in YYYY-MM format (default: current month)",
+            "maxLength": 7,
+            "pattern": "^\\d{4}-\\d{2}$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_investment_summary",
+      "description": "Stability: stable\n\nRetorna o total canônico da carteira de investimentos, alocação por tipo e instituição, e linhas de posições.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_investments",
+      "description": "Stability: stable\n\nRetorna todas as posições de investimento com valores atuais (BRL), taxas de retorno e tipos de ativo (CDB, Tesouro Direto, fundos, ações). Use quando o usuário perguntar sobre sua carteira de investimentos, total investido ou desempenho de um ativo específico. Resultados são cacheados por até 3 minutos e invalidados por webhooks de sincronização financeira. Erro 'NO_INVESTMENTS': o usuário não possui contas de investimento vinculadas. Para informações de empréstimos, use get_loans.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_limit_summary",
+      "description": "Stability: stable\n\nRetorna em modo somente-leitura os limites diários de transação PIX e boleto, uso, valores disponíveis e limiares de validação.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_loan_summary",
+      "description": "Stability: stable\n\nRetorna saldos canônicos de empréstimos ativos, próximos pagamentos e total da dívida em aberto.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_loans",
+      "description": "Stability: stable\n\nRetorna todos os empréstimos ativos com saldos em aberto (BRL), taxas de juros e cronogramas de pagamento. Use quando o usuário perguntar sobre suas dívidas, parcelas de empréstimo ou custos de juros. Resultados são cacheados por até 3 minutos e invalidados por webhooks de sincronização financeira. Erro 'NO_LOANS': o usuário não possui empréstimos ativos. Para posições de investimento, use get_investments.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_merchant_spending",
+      "description": "Stability: stable\n\nRetorna o gasto total (BRL) e a quantidade de transações para o estabelecimento que melhor corresponde, em um intervalo de datas. Faz correspondência aproximada de merchant_query com os principais estabelecimentos. Use para perguntas diretas como 'quanto gastei no iFood este mês'. Erro 'MERCHANT_NOT_FOUND': nenhum estabelecimento correspondeu à busca no período informado.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "limit": {
+            "description": "How many top merchants to fetch before matching (default: 50)",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "merchant_query": {
+            "description": "Merchant name or partial match, for example iFood or Uber",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "merchant_query"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_month_spending_overview",
+      "description": "Stability: stable\n\nRetorna uma visão geral compacta de gastos para o mês atual ou intervalo de datas informado: gasto total (totalSpend) e principais categorias (topCategories) são canônicos — todas as contas e cartões, mesmo cálculo do Ritmo de gastos — enquanto os principais estabelecimentos (topMerchants) refletem apenas gastos no cartão de crédito. Para o mesmo total/categorias canônicos como ferramenta dedicada, use get_spending_period_summary ou get_category_spending_summary.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_monthly_review",
+      "description": "Stability: stable\n\nRetorna o veredito mensal e estatísticas principais para um mês alvo.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "month": {
+            "description": "Target month in YYYY-MM format (default: current month)",
+            "maxLength": 7,
+            "pattern": "^\\d{4}-\\d{2}$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_payment_activity",
+      "description": "Stability: stable\n\nRetorna linhas canônicas de PIX/boleto/pagamento para um intervalo de datas, filtradas por pessoa, estabelecimento, direção ou tipo de pagamento. Use para perguntas como 'todos os PIX da Leticia', 'PIX enviados para João em abril' e 'boletos pagos no mês'.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "counterparty_query": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "direction": {
+            "description": "Filter direction: in=received, out=sent/paid, both=default.",
+            "enum": [
+              "in",
+              "out",
+              "both"
+            ],
+            "type": "string"
+          },
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "include_transactions": {
+            "description": "Include bank transaction rows that match PIX/boleto/payment text. Default true.",
+            "type": "boolean"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "offset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "payment_type": {
+            "description": "Filter by payment type. Use pix for PIX-specific questions.",
+            "enum": [
+              "pix",
+              "boleto",
+              "payment"
+            ],
+            "type": "string"
+          },
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_payment_history",
+      "description": "Stability: stable\n\nRetorna faturas e recibos da assinatura com valores (BRL), datas de pagamento e status (paid/pending/failed). Use quando o usuário pedir histórico de cobrança ou comprovante de pagamento. Filtre por status para encontrar pagamentos com falha. Para plano atual e data de renovação, use get_subscription_status.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "limit": {
+            "default": 20,
+            "description": "Number of records to return (default: 20, max: 100)",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "description": "Filter by payment status",
+            "enum": [
+              "paid",
+              "pending",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_payment_preauthorization_status",
+      "description": "Stability: stable\n\nVerifica se um consentimento de pré-autorização de pagamento está pendente, concluído, rejeitado ou com erro.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "preauthorization_id": {
+            "description": "Preauthorization ID returned by create_payment_preauthorization.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "preauthorization_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_pix_graph",
+      "description": "Stability: stable\n\nRetorna contrapartes PIX por direção e valor em uma janela de datas.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from_date": {
+            "description": "Start date in YYYY-MM-DD format (default: current month start)",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to_date": {
+            "description": "End date in YYYY-MM-DD format (default: today)",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_profile",
+      "description": "Stability: stable\n\nRetorna o perfil do usuário autenticado: nome completo, e-mail, preferência de idioma e URL do avatar. Use para personalizar respostas ou quando o usuário perguntar quem está logado. Resultados são cacheados por 5 minutos. Para plano de assinatura e status de cobrança, use get_subscription_status.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_recurring_expected_cashflow",
+      "description": "Stability: stable\n\nRetorna cobranças recorrentes esperadas que ainda não ocorreram no mês alvo.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "month": {
+            "description": "Calendar month 1..12 (default: current)",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "year": {
+            "description": "Calendar year (default: current)",
+            "maximum": 2100,
+            "minimum": 2000,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_smart_projection",
+      "description": "Stability: stable\n\nRetorna o gasto projetado para o fim do mês usando gasto atual, recorrentes remanescentes e ajuste sazonal.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "period": {
+            "description": "Target month in YYYY-MM format (default: current month)",
+            "maxLength": 7,
+            "pattern": "^\\d{4}-\\d{2}$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_spending_pace",
+      "description": "Stability: stable\n\nRetorna o ritmo de gastos do mês atual comparado ao mês passado.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_spending_period_summary",
+      "description": "Stability: stable\n\nTotais canônicos de gastos de todas as contas e cartões — o mesmo cálculo do Ritmo de gastos; exclui pagamentos de fatura, transferências internas e lançamentos pendentes.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_spending_summary",
+      "description": "Stability: stable\n\nRetorna totais de gastos pré-agregados por categoria para um intervalo de datas (valores em BRL). Mais rápido do que somar manualmente list_transactions. Usa o mês atual como padrão quando nenhuma data é informada. Para transações de uma categoria específica, utilize list_transactions_by_category em seguida.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from": {
+            "description": "Start date in YYYY-MM-DD format (default: first day of current month)",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format (default: today)",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_spending_trend",
+      "description": "Stability: stable\n\nRetorna gastos agregados de cartão de crédito para um intervalo de datas: total (BRL), detalhamento mês a mês e totais por cartão. Ideal para perguntas de tendência em prazo mais longo como 'como meus gastos no cartão mudaram no último trimestre'. Para detalhamento por categoria, use get_spending_summary.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_subscription_stack_load",
+      "description": "Stability: stable\n\nRetorna métricas agregadas da carga de assinaturas, divisão por categoria e contagem de assinaturas inativas.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_subscription_status",
+      "description": "Stability: stable\n\nRetorna o plano de assinatura atual do usuário (free/premium/trial), status (active/past_due/cancelled) e próxima data de renovação. Use quando o usuário perguntar sobre o plano, se está em período de teste ou se a assinatura está ativa. Erro 'SUBSCRIPTION_NOT_FOUND': a conta do usuário não possui registro de assinatura. Para faturas passadas, use get_payment_history.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_subscription_summary",
+      "description": "Stability: stable\n\nRetorna gastos recorrentes e obrigações próximas de assinaturas/contas.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "days": {
+            "maximum": 90,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_temporal_profile",
+      "description": "Stability: stable\n\nRetorna o perfil de distribuição por dia da semana e mês do ano para gastos ou receitas.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "metric": {
+            "description": "Metric to profile (default: spending)",
+            "enum": [
+              "spending",
+              "income"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_top_transactions",
+      "description": "Stability: stable\n\nRetorna as maiores transações para um intervalo de datas com ordenação determinística por valor absoluto.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "category": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "force_refresh": {
+            "description": "Bypass cached financial reads when supported.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_transaction_details",
+      "description": "Stability: stable\n\nRetorna detalhes completos de uma única transação: nome do estabelecimento, MCC, categoria, valor (BRL) e descrição bruta do banco. Requer um UUID de transação — chame list_transactions primeiro para descobrir IDs válidos. Erro 'NOT_FOUND': o ID da transação não existe ou pertence a outro usuário.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "transaction_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Transaction UUID (from list_transactions)"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "transaction_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_transfer_status",
+      "description": "Stability: stable\n\nRetorna o status atual de uma transferência PIX (pending/processing/completed/failed) com valor (BRL) e timestamps. Use após execute_pix_transfer retornar async=true para fazer polling até a conclusão. Aceita um UUID de transferência (fluxo síncrono) ou um task ID do workflow (fluxo assíncrono) em transfer_id. Erro 'TRANSFER_NOT_FOUND': o ID da transferência não existe. Para listar todas as transferências, use list_scheduled_transfers.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "transfer_id": {
+            "description": "Transfer UUID returned from execute_pix_transfer (sync), or task ID returned as transfer_id when async=true",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transfer_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_upcoming_bills",
+      "description": "Stability: stable\n\nRetorna contas recorrentes projetadas para uma janela futura.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "days": {
+            "description": "Look-ahead window in days (1..90)",
+            "maximum": 90,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_wealth_signals",
+      "description": "Stability: stable\n\nRetorna métricas de saúde patrimonial como taxa de poupança, fôlego financeiro e sinais de contas ociosas.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_automation_approvals",
+      "description": "Stability: stable\n\nLista solicitações pendentes de aprovação de automação que requerem confirmação do usuário.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_automation_history",
+      "description": "Stability: stable\n\nRetorna eventos recentes de execução de automações com timestamps, resultados (success/failed/skipped) e valores movimentados (BRL). Use para diagnosticar falhas de automação ou confirmar que uma Smart Transfer foi acionada. Para o status em tempo real de uma transferência acionada específica, use get_transfer_status com o ID da transferência.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_automation_types",
+      "description": "Stability: stable\n\nRetorna os tipos de automação disponíveis na plataforma (ex.: avoid-overdraft, round-up, recurring-transfer) com descrições e campos de configuração obrigatórios. Use como passo de descoberta antes de orientar o usuário a criar uma nova automação — informa quais tipos existem e quais parâmetros eles exigem.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_automations",
+      "description": "Stability: stable\n\nRetorna todas as automações de Smart Transfer com seu estado (active/paused), tipo, configuração de gatilho e informações da última execução. Use para verificar o status das automações, diagnosticar por que uma rodou ou não, ou para encontrar IDs de automação necessários em get_automation, toggle_automation ou delete_automation.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_budgets",
+      "description": "Stability: stable\n\nRetorna os orçamentos mensais por categoria com limites, gasto atual e valores restantes.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_card_payments",
+      "description": "Stability: stable\n\nRetorna o histórico de pagamentos de fatura de uma conta de cartão de crédito, incluindo totais pagos e quantidade de pagamentos.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "card_id": {
+            "description": "Credit card account ID",
+            "minLength": 1,
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "card_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_card_spending_cycles",
+      "description": "Stability: stable\n\nRetorna o histórico de gastos por ciclo de fatura do cartão de crédito e insights de projeção para um cartão ou todos os cartões.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "card_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "count": {
+            "maximum": 60,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "include_current": {
+            "type": "boolean"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_card_transactions",
+      "description": "Stability: stable\n\nLista transações de uma conta de cartão de crédito com paginação, IDs de fatura, informações de parcelas e domínios dos estabelecimentos. Use open_cycle=true para listar apenas os lançamentos do ciclo atual (fatura em aberto, ainda sem fatura fechada) — não combine com bill_id.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "bill_id": {
+            "type": "string"
+          },
+          "card_id": {
+            "description": "Credit card account ID",
+            "minLength": 1,
+            "type": "string"
+          },
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "include_total": {
+            "type": "boolean"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "open_cycle": {
+            "type": "boolean"
+          },
+          "page": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "card_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_data_consents",
+      "description": "Stability: stable\n\nLista os consentimentos de dados Open Finance do usuário com status e timestamps. Use para inspecionar sessões de autorização bancária atuais ou passadas sem expor detalhes internos do provedor.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_enriched_merchants",
+      "description": "Stability: stable\n\nRetorna gastos por estabelecimento com nomes canônicos e metadados opcionais de marca.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from_date": {
+            "description": "Start date in YYYY-MM-DD format (default: current month start)",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to_date": {
+            "description": "End date in YYYY-MM-DD format (default: today)",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_insight_discoveries",
+      "description": "Stability: stable\n\nRetorna cards de descoberta ranqueados para um período mensal, incluindo severidade e deep links.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "period": {
+            "description": "Target month in YYYY-MM format (default: current month)",
+            "maxLength": 7,
+            "pattern": "^\\d{4}-\\d{2}$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_insight_subscriptions",
+      "description": "Stability: stable\n\nRetorna assinaturas detectadas com cadência, valor típico e status.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_most_used_categories",
+      "description": "Stability: stable\n\nRetorna as categorias de transação mais usadas pelo usuário, ordenadas por frequência. Use para descobrir categorias antes de chamar list_transactions_by_category, ou para sugerir filtros quando o usuário perguntar sobre seus hábitos de gastos. Filtra opcionalmente por tipo de conta BANK ou CARD.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "account_type": {
+            "description": "Filter by BANK or CARD transactions",
+            "enum": [
+              "BANK",
+              "CARD"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of categories to return, max 50",
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "search_query": {
+            "description": "Optional category name search filter",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_most_used_tags",
+      "description": "Stability: stable\n\nRetorna as tags mais usadas pelo usuário ordenadas pela contagem de uso, com payload mais leve que list_tags. Prefira esta em vez de list_tags quando precisar apenas dos nomes das tags para sugestões ou filtragem — não dos metadados completos da tag.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_open_finance_institutions",
+      "description": "Stability: stable\n\nLista instituições disponíveis para novas conexões Open Finance. Use antes de iniciar um fluxo de conexão para apresentar IDs de instituição válidos.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_payments",
+      "description": "Stability: stable\n\nRetorna pagamentos PIX e boletos enviados (não transações gerais) com valores em BRL, status e informações do destinatário. Use para perguntas específicas de pagamentos, como 'quanto paguei via PIX este mês' ou 'mostre meu histórico de boletos'. Para histórico geral de transações, use list_transactions.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Results per page, max 100",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Pagination offset, 0-based",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "types": {
+            "description": "Comma-separated payment types to include (supported: pix, boleto)",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_recent_transactions",
+      "description": "Stability: stable\n\nRetorna as transações mais recentes de todas as contas, em ordem decrescente por data. Otimizada para recência — prefira esta ao invés de list_transactions quando o usuário perguntar 'o que gastei recentemente' ou 'mostre minhas transações mais recentes'. Filtra opcionalmente por tipo de conta BANK ou CARD. Valores em BRL.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "account_type": {
+            "description": "Filter by BANK or CARD transactions",
+            "enum": [
+              "BANK",
+              "CARD"
+            ],
+            "type": "string"
+          },
+          "from": {
+            "description": "Optional start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "Optional end date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of recent transactions to return, max 50",
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_recipients",
+      "description": "Stability: stable\n\nRetorna destinatários PIX distintos (nome + chave PIX) derivados do histórico recente de transferências externas do usuário. Use para ajudar o usuário a escolher um destinatário conhecido pelo nome. NOTA: As chaves PIX aqui são chaves de contato externas — NÃO são UUIDs de conta. A ferramenta `execute_pix_transfer` atualmente suporta apenas Smart Transfer entre as PRÓPRIAS contas do usuário, não para chaves PIX externas.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_scheduled_transfers",
+      "description": "Stability: stable\n\nRetorna todas as transferências PIX agendadas e pendentes com status (pending/scheduled/completed/cancelled), valores (BRL) e datas de execução. Use para listar transferências próximas ou encontrar um ID de transferência para get_transfer_status ou cancel_scheduled_transfer. Filtre por status para restringir os resultados.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "status": {
+            "description": "Filter by transfer status",
+            "enum": [
+              "pending",
+              "scheduled",
+              "completed",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_tags",
+      "description": "Stability: stable\n\nRetorna todas as tags de transação personalizadas criadas pelo usuário, com contagens de uso e IDs de tag. Use para descobrir tags antes de chamar list_transactions_by_tag, ou para entender como o usuário organiza gastos além das categorias automáticas. Erro 'NO_TAGS': o usuário ainda não criou nenhuma tag.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_top_merchants",
+      "description": "Stability: stable\n\nRetorna os principais estabelecimentos por gasto total em um intervalo de datas, com valores em BRL e quantidade de transações. Use para perguntas como 'em quais estabelecimentos gasto mais' ou 'mostre meus top 10 estabelecimentos este mês'. Para consulta de um único estabelecimento, use get_merchant_spending.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of merchants to return, max 50",
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_transactions",
+      "description": "Stability: stable\n\nRetorna transações paginadas com IDs, descrições, valores (BRL) e datas, filtradas por conta, tipo de conta (BANK/CARD), status (PENDING/POSTED), intervalo de datas, busca ou categorias. Resultados em ordem decrescente por data. Por padrão (sem status informado) os resultados não são limitados por status: lançamentos pendentes de qualquer data podem aparecer junto com os liquidados (no escopo CARD, apenas POSTED e PENDING); use status='POSTED' para apenas transações fechadas. Para um detalhamento por categoria, prefira get_spending_summary — já é pré-agregado. Use get_account_overview primeiro para obter valores válidos de account_id.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Filter by account UUID (from get_account_overview)"
+          },
+          "account_type": {
+            "description": "Filter by BANK or CARD transactions",
+            "enum": [
+              "BANK",
+              "CARD"
+            ],
+            "type": "string"
+          },
+          "categories": {
+            "description": "Comma-separated category names to filter by",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "page": {
+            "description": "Page number, 1-based (default: 1)",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Results per page, max 100 (default: 20)",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "search_query": {
+            "description": "Search transactions by description",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "status": {
+            "description": "Filter by explicit transaction status. Omitted applies no status filter: PENDING rows of any age may appear alongside POSTED (the CARD scope is limited to POSTED and PENDING).",
+            "enum": [
+              "PENDING",
+              "POSTED"
+            ],
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_transactions_by_category",
+      "description": "Stability: stable\n\nRetorna transações de uma categoria específica dentro de um intervalo de datas obrigatório. Valores em BRL, em ordem decrescente por data. Use quando o usuário nomear uma categoria (ex.: 'mostre meus gastos com alimentação em março'). Chame list_most_used_categories primeiro se o nome exato da categoria for desconhecido. Erro 'INVALID_CATEGORY': nome de categoria não encontrado.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Filter by account UUID"
+          },
+          "account_type": {
+            "description": "Filter by BANK or CARD transactions",
+            "enum": [
+              "BANK",
+              "CARD"
+            ],
+            "type": "string"
+          },
+          "category": {
+            "description": "Category name to filter by",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "category",
+          "from",
+          "to"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_transactions_by_tag",
+      "description": "Stability: stable\n\nRetorna transações marcadas com uma tag definida pelo usuário dentro de um intervalo de datas obrigatório. Valores em BRL, em ordem decrescente por data. Use quando o usuário pedir gastos associados a uma tag (ex.: 'mostre meus gastos com #trabalho'). Chame list_tags primeiro se o nome exato da tag for desconhecido. Erro 'TAG_NOT_FOUND': a tag não existe.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Filter by account UUID"
+          },
+          "account_type": {
+            "description": "Filter by BANK or CARD transactions",
+            "enum": [
+              "BANK",
+              "CARD"
+            ],
+            "type": "string"
+          },
+          "from": {
+            "description": "Start date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format",
+            "maxLength": 10,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "tag": {
+            "description": "Tag name to filter by",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tag",
+          "from",
+          "to"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_upcoming_charges",
+      "description": "Stability: stable\n\nRetorna transações com data futura: cobranças próximas, débitos agendados e saídas projetadas com valores em BRL e datas esperadas. Use para perguntas de fluxo de caixa como 'quais contas vencem este mês' ou 'quais débitos estão por vir'. Chame get_account_overview primeiro para obter um account_id válido.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Filter by checking account UUID"
+          },
+          "categories": {
+            "description": "Comma-separated category names to filter by",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "hashtags": {
+            "description": "Comma-separated tags to filter by",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "description": "Maximum acceptable cache age for this read.",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh": {
+            "description": "Bypass cached financial reads and fetch fresh source data.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "parse_boleto",
+      "description": "Stability: stable\n\nAnalisa o código de barras de um boleto e retorna valor (BRL), data de vencimento, banco emissor, nome do cedente e detalhes completos de pagamento. Também valida o checksum. Use quando o usuário informar um código de boleto e quiser ver o que ele é antes de pagar. Erro 'INVALID_BARCODE': o código de barras falhou na validação de checksum. Para uma verificação rápida apenas de válido/inválido, use validate_boleto.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "barcode": {
+            "description": "Boleto barcode (44-48 digits, formatted or raw)",
+            "maxLength": 60,
+            "minLength": 44,
+            "type": "string"
+          }
+        },
+        "required": [
+          "barcode"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "refresh_all_connections",
+      "description": "Stability: stable\n\nDispara uma atualização manual de sincronização para todas as instituições Open Finance conectadas do usuário.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "include_error_status": {
+            "description": "Also refresh institutions currently marked as ERROR.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "refresh_connection",
+      "description": "Stability: stable\n\nDispara uma atualização manual de sincronização para uma instituição conectada.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "institution_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Connected institution id (from get_connected_institutions)."
+          }
+        },
+        "required": [
+          "institution_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "reject_automation_transfer",
+      "description": "Stability: stable\n\nRejeita uma solicitação pendente de aprovação de automação.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "approval_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Pending approval ID from list_automation_approvals."
+          },
+          "reason": {
+            "description": "Optional rejection reason.",
+            "maxLength": 280,
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "remove_connection",
+      "description": "Stability: stable\n\nRemove permanentemente o registro de uma instituição conectada após a desconexão. Use com cuidado.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "institution_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Connected institution id to remove."
+          }
+        },
+        "required": [
+          "institution_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "reorder_automation_priorities",
+      "description": "Stability: stable\n\nAtualiza a ordem de prioridade de execução das automações por lista ordenada de IDs.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "automation_ids": {
+            "description": "Ordered list of automation IDs.",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "automation_ids"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "revoke_data_consent",
+      "description": "Stability: stable\n\nCancela ou revoga um consentimento Open Finance existente pelo ID.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "action": {
+            "description": "Defaults to cancel.",
+            "enum": [
+              "cancel",
+              "revoke"
+            ],
+            "type": "string"
+          },
+          "consent_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Consent ID returned by list_data_consents."
+          }
+        },
+        "required": [
+          "consent_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "sync_connection",
+      "description": "Stability: stable\n\nExecuta uma sincronização Open Finance completa acionada pelo usuário para uma instituição conectada, incluindo contas e dados de produtos disponíveis.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "institution_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Connected institution id (from get_connected_institutions)."
+          }
+        },
+        "required": [
+          "institution_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "sync_connection_accounts",
+      "description": "Stability: stable\n\nSincroniza saldos e metadados das contas de uma instituição Open Finance conectada.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "institution_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Connected institution id (from get_connected_institutions)."
+          }
+        },
+        "required": [
+          "institution_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "sync_connection_credit_cards",
+      "description": "Stability: stable\n\nSincroniza cartões de crédito, faturas e transações de cartão de uma instituição Open Finance conectada.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "institution_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Connected institution id (from get_connected_institutions)."
+          }
+        },
+        "required": [
+          "institution_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "sync_connection_investments",
+      "description": "Stability: stable\n\nSincroniza posições de investimentos de uma instituição Open Finance conectada.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "institution_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Connected institution id (from get_connected_institutions)."
+          }
+        },
+        "required": [
+          "institution_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "sync_connection_transactions",
+      "description": "Stability: stable\n\nSincroniza transações de conta bancária de uma instituição Open Finance conectada.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "institution_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Connected institution id (from get_connected_institutions)."
+          }
+        },
+        "required": [
+          "institution_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "toggle_automation",
+      "description": "Stability: stable\n\nAlterna uma automação entre ativa e pausada. Uma automação pausada não será executada até ser retomada. Idempotente: chamar múltiplas vezes com a mesma intenção produz o mesmo resultado. Use list_automations para encontrar o ID e verificar o estado atual antes de alternar. Erro 'AUTOMATION_NOT_FOUND': o ID não existe.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "automation_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Automation UUID (from list_automations)"
+          }
+        },
+        "required": [
+          "automation_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "update_automation",
+      "description": "Stability: stable\n\nAtualiza metadados/configuração de uma automação existente.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "automation_id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string",
+            "description": "Automation UUID (from list_automations)."
+          },
+          "config": {
+            "additionalProperties": {},
+            "description": "Updated automation config payload.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "description": {
+            "description": "Optional updated description.",
+            "maxLength": 280,
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Updated enabled state.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "New automation name.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "automation_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "update_automation_settings",
+      "description": "Stability: stable\n\nAtualiza as configurações de automação no nível do usuário, como preferências de confirmação e notificação.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "confirmation_channel": {
+            "enum": [
+              "app",
+              "whatsapp"
+            ],
+            "type": "string"
+          },
+          "confirmation_timeout_seconds": {
+            "maximum": 86400,
+            "minimum": 30,
+            "type": "integer"
+          },
+          "execution_time": {
+            "maxLength": 16,
+            "type": "string"
+          },
+          "notification_push": {
+            "type": "boolean"
+          },
+          "notification_whatsapp": {
+            "type": "boolean"
+          },
+          "require_confirmation": {
+            "type": "boolean"
+          },
+          "sync_offset_minutes": {
+            "maximum": 720,
+            "minimum": -720,
+            "type": "integer"
+          },
+          "timezone": {
+            "maxLength": 80,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "validate_boleto",
+      "description": "Stability: stable\n\nValida o formato e o checksum do código de barras de um boleto, retornando o booleano is_valid. Mais rápido do que parse_boleto quando você precisa apenas confirmar que o código de barras está bem-formado antes de exibir ao usuário. Para extrair valor, data de vencimento e detalhes de pagamento, use parse_boleto.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "barcode": {
+            "description": "Boleto barcode to validate (44-48 digits)",
+            "maxLength": 60,
+            "minLength": 44,
+            "type": "string"
+          }
+        },
+        "required": [
+          "barcode"
+        ],
+        "type": "object"
+      }
+    }
+  ]
+}

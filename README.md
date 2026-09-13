@@ -116,6 +116,7 @@ Seu workspace é **privado por desenho** — não o publique. Extratos ficam em
 | `metodo/` | rubricas e frameworks do método (sem número pessoal) | 4 |
 | `rules/` | núcleo de voz e personas, fontes do compilador multi-LLM | 4 |
 | `tests/` | suíte do motor, rodada pelo pre-commit em todo commit | 1-2 |
+| `docs/` | documentação de integração por provider (endpoint, tools, campos, status) | 3 |
 | `fiscal/` | pacotes tributários por ano-fiscal, com validade declarada | 6 |
 
 ## Contribuindo

@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -183,14 +184,37 @@ def test_posicoes_exemplo_com_posicao_faltando_para():
 
 
 def test_fixtures_nao_carregam_dado_pessoal():
-    """Guarda-corpo: nomes/contas reais nunca entram nas fixtures. Ajuste a lista se o seu nome for outro."""
+    """Guarda-corpo: nomes/contas reais nunca entram nas fixtures. Ajuste a lista se o seu nome for outro.
+
+    VARRE a pasta de fixtures inteira em vez de enumerar arquivos. A lista fixa de três arquivos
+    que esta guarda tinha antes passava verde para toda fixture nova — inclusive as de open
+    finance, que são justamente as que nascem de resposta de API com dado real e precisam ser
+    anonimizadas à mão. Guarda que não cobre o arquivo novo é guarda decorativa.
+
+    CPF e CNPJ entram na lista porque `create_data_consent` recebe documento: a partir da camada
+    de provider, essa é a forma que tem chance real de cair numa fixture colada de um payload.
+    """
     proibidos = ["GUILHERME", "@outlook", "@gmail"]
-    textos = [(FIX / "schwab-transacoes.csv").read_text(encoding="utf-8"),
-              (FIX / "posicoes-exemplo.csv").read_text(encoding="utf-8"),
-              (Path(__file__).resolve().parent / "extratos_sinteticos.py").read_text(encoding="utf-8")]
-    for t in textos:
+    formatos_de_documento = [
+        re.compile(r"\d{3}\.\d{3}\.\d{3}-\d{2}"),            # CPF formatado
+        re.compile(r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}"),      # CNPJ formatado
+    ]
+    aqui = Path(__file__).resolve().parent
+    arquivos = sorted(p for p in (aqui / "fixtures").rglob("*") if p.is_file())
+    arquivos.append(aqui / "extratos_sinteticos.py")
+    assert len(arquivos) > 3, "varredura de fixtures não achou arquivo; o caminho mudou de lugar?"
+    for caminho in arquivos:
+        try:
+            t = caminho.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue                                          # binário não é fixture de texto
         for p in proibidos:
-            assert p.lower() not in t.lower()
+            assert p.lower() not in t.lower(), f"{caminho.name} carrega {p!r}"
+        for forma in formatos_de_documento:
+            achado = forma.search(t)
+            assert achado is None, (
+                f"{caminho.name} carrega o que parece um CPF/CNPJ ({achado.group()}) — "
+                "substitua à mão preservando a forma, como nas outras fixtures")
 
 
 def test_schwab_ajuste_de_imposto_com_digito_a_mais_para(tmp_path):
