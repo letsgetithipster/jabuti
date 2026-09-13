@@ -35,7 +35,9 @@ e o método em `.claude/rules/00-voz.md`. O contrato que torna tudo isto confiá
 ## Skills instaladas
 
 - `/jabuti-cotacoes`
+- `/jabuti-estrategia`
 - `/jabuti-importar`
+- `/jabuti-init`
 
 Catálogo, com quando usar e o que cada uma nunca faz: `skills/README.md` do motor. O caminho
 do motor está em `vault.config.yaml`, `caminhos.motor`.

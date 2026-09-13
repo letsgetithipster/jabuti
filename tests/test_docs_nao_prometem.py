@@ -181,8 +181,8 @@ def test_numero_de_fase_citado_bate_com_o_roadmap():
     deixou 13 deles errados — um na mensagem que todo usuário novo lê ao criar workspace. Este
     teste prende a citação ao mapa canônico.
 
-    Mede CLÁUSULA, não linha: `skills/README.md` cita funil e rotina na mesma linha, com fases
-    diferentes, e medir linha daria falso positivo.
+    Mede CLÁUSULA, não linha: a última linha de `skills/README.md` cita a rotina da Fase 5 e o
+    /preparar-ir da Fase 6 separados por ponto-e-vírgula, e medir linha daria falso positivo.
 
     Ponto cego declarado: cobre só citação que nomeia um comando. Cláusula que cita fase por
     conceito ("compilador multi-LLM", "pacotes tributários por ano-fiscal") fica de fora — e é

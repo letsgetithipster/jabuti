@@ -1,6 +1,6 @@
 ---
 name: jabuti-importar
-description: "Use quando o usuário pedir 'importar extrato', 'importa o CSV da corretora', 'sobe o export da Clear/Schwab/B3', 'popular o workspace com o extrato', '/jabuti-importar' ou variação que indique levar um documento exportado da corretora (CSV ou xlsx em inbox/) para dados/. Divisão rígida: a LLM inspeciona o documento, escolhe ou ESCREVE o mapeamento (YAML em mapeamentos/) e o MOSTRA ao usuário; o script scripts/importar_extrato.py executa o parse e confere a aritmética declarada no próprio documento (saldo corrente, valor da linha ou total declarado). Não bateu, nada entra em dados/. A LLM nunca digita número de posição, provento ou fill."
+description: "Use quando o usuário pedir '/jabuti-importar', 'importar extrato', 'importa o CSV da corretora', 'sobe o export da Clear/Schwab/B3', 'popular o workspace com o extrato' ou variação que indique levar um documento exportado da corretora (CSV ou xlsx em inbox/) para dados/. Dois modos: com a linha do jabuti-importar aberta em estado/SETUP.md, roda o preâmbulo de onboarding (corretoras, propósito por conta, caminho de export) antes; fechada a linha, é a rotina de sempre. Divisão rígida: a LLM inspeciona o documento, escolhe ou ESCREVE o mapeamento (YAML em mapeamentos/) e o MOSTRA ao usuário; o script scripts/importar_extrato.py executa o parse e confere a aritmética declarada no próprio documento (saldo corrente, valor da linha ou total declarado). Não bateu, nada entra em dados/. A LLM nunca digita número de posição, provento ou fill."
 ---
 
 # Importar extrato
@@ -26,6 +26,19 @@ Frases típicas: "importa o extrato da Clear", "sobe o CSV da Schwab", "/jabuti-
 - `vault.config.yaml`: ids das contas e moeda de cada uma (o mapeamento aponta uma conta; `--conta` sobrescreve; moeda do mapeamento e da conta têm que bater).
 - `mapeamentos/README.md` do motor: vocabulário do mapeamento e os prontos (`clear-extrato` e `schwab-transacoes`, verificados contra export real; `b3-movimentacao` e `exemplo-posicoes-csv`, ainda não).
 - `mapeamentos/` do workspace: mapeamentos que o usuário já tem. Sem `--mapeamento`, o script tenta detectar pelo cabeçalho, primeiro no workspace, depois no motor.
+
+## Preâmbulo de onboarding (só com a linha do `/jabuti-importar` aberta no `SETUP.md`)
+
+Etapa 3 de 5. Uma pergunta por vez:
+
+1. **Quais corretoras você usa hoje?** Para cada uma: um `id` (minúsculas, sem espaço), a moeda, e o **propósito** — quais blocos aquela conta serve, do vocabulário `acoes-br, fiis, rv-int, reits-us, rf-br, cripto, caixa, commodities`. Propor o bloco `contas:` do `vault.config.yaml` inteiro, mostrar, e escrever depois do "de acordo" (`blocos: []` significa qualquer bloco). O validador cobra o vocabulário.
+2. **Para cada conta, o caminho de export**, com honestidade sobre o que está verificado — a lista é a tabela "Prontos" de `mapeamentos/README.md` do motor, que diz mapeamento por mapeamento se foi conferido contra export real. Apontar para ela, não copiar. Corretora fora da lista cai no fluxo normal: a LLM escreve o mapeamento e mostra antes de rodar.
+3. **Arquivo em `inbox/`**, e daí o fluxo abaixo, documento por documento.
+4. **Estou do zero** (nenhuma corretora, nenhuma posição): pular tudo, marcar no `SETUP.md` `- [x] `/jabuti-importar` — n/a, começando do zero`, trocar `Próximo:` para o primeiro `/jabuti-micro` aberto e emitir o handoff.
+
+Ao fim do último documento: rodar `python <motor>/scripts/gerar_estado.py .` e ler as **Pendências** com a pessoa. É a primeira vez que ela vê a carteira dela dentro da política dela — bloco acima ou abaixo da banda que acabou de declarar. Marcar `- [x]` na linha do `/jabuti-importar`, trocar `Próximo:` para o primeiro `/jabuti-micro` aberto e emitir o handoff.
+
+Conta já declarada no config não é perguntada de novo; documento já importado é duplicata, pulada e contada.
 
 ## Fluxo
 
@@ -74,3 +87,16 @@ Frases típicas: "importa o extrato da Clear", "sobe o CSV da Schwab", "/jabuti-
 - **Não aplica evento corporativo em qty/PM** (só registra a proposta; Fase 5)
 - **Não busca cotação** (→ `/jabuti-cotacoes`) nem regenera ESTADO/cockpit sozinha (→ `gerar_estado.py`, `gerar_cockpit.py`)
 - **Não commita**
+
+## Próximo passo
+
+Só no modo onboarding (linha aberta no `SETUP.md`), e só com o validador em zero erros e o `ESTADO.md` regenerado. Fechada a linha, a skill termina em "feito", sem este bloco. Formato fixo:
+
+```
+✔ jabuti-importar concluído — carteira em dados/, lida dentro da política em estado/ESTADO.md.
+
+Próximo: abra uma thread nova e cole
+    /jabuti-micro <primeiro bloco aberto no SETUP.md>
+
+Tenha à mão: nada. A skill lê a política e propõe uma cesta semente para o bloco.
+```
