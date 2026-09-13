@@ -40,14 +40,14 @@ def test_payload_com_caractere_nao_ascii_sobrevive(tmp_path):
 def test_status_degradado_para_a_rodada():
     """O pior modo de falha não é o provider cair: é ele devolver lista vazia sem erro porque
     uma conta parou de sincronizar, e o patrimônio encolher em silêncio."""
-    erros = conferir_status([{"id": "c1", "nome": "Banco X", "status": "OK"},
+    erros = conferir_status([{"id": "c1", "nome": "Banco X", "status": "CONNECTED"},
                              {"id": "c2", "nome": "Banco Y", "status": "LOGIN_ERROR"}])
     assert len(erros) == 1
     assert "Banco Y" in erros[0] and "LOGIN_ERROR" in erros[0]
 
 
 def test_status_todo_ok_nao_reclama():
-    assert conferir_status([{"id": "c1", "nome": "Banco X", "status": "OK"}]) == []
+    assert conferir_status([{"id": "c1", "nome": "Banco X", "status": "CONNECTED"}]) == []
 
 
 def test_lista_de_conexoes_vazia_e_erro():
@@ -60,6 +60,28 @@ def test_status_desconhecido_e_tratado_como_degradado():
     """Vocabulário de status é do provider e muda sem aviso. Desconhecido não pode virar OK."""
     erros = conferir_status([{"id": "c1", "nome": "Banco X", "status": "SEI_LA"}])
     assert len(erros) == 1 and "SEI_LA" in erros[0]
+
+
+def test_o_status_saudavel_e_o_medido_e_nao_o_palpite():
+    """`STATUS_OK` valia "OK" — palpite feito antes de existir resposta para olhar. A introspecção
+    de 12/09/2026 mediu "CONNECTED", e o palpite não falhava de leve: ele reprovava toda conexão
+    saudável e abortava toda rodada, mandando o usuário reconectar conta conectada.
+
+    Este teste prende as duas pontas. Se alguém reverter a constante para "OK", a primeira
+    asserção cai; se alguém alargar a regra para aceitar os dois, a segunda cai — e alargar é
+    tentador justamente porque faria a suíte antiga voltar a passar."""
+    assert conferir_status([{"id": "c1", "name": "Nubank", "status": "CONNECTED"}]) == []
+    erros = conferir_status([{"id": "c1", "name": "Nubank", "status": "OK"}])
+    assert len(erros) == 1 and "'OK'" in erros[0]
+
+
+def test_nome_da_conexao_sai_na_frase_e_nao_o_uuid():
+    """A resposta do provider traz `name`, não `nome`. Sem essa chave na cadeia, a frase cai no
+    `id` e manda reconectar `f2fd7a47-...`, que não é coisa que o usuário reconheça no app."""
+    erros = conferir_status([{"id": "f2fd7a47-b5e2-4e9a-ba86-72942b35f44f",
+                              "name": "Nubank", "status": "ERROR"}])
+    assert len(erros) == 1
+    assert "Nubank" in erros[0] and "f2fd7a47" not in erros[0]
 
 
 # ---------------------------------------------------------------------------
@@ -75,7 +97,7 @@ def test_conexao_ilegivel_e_degradada_e_nao_traceback(conexao):
 
     Medido no pré-voo: 5 de 5 shapes levantavam. Conta cujo status não dá para ler não é conta
     sincronizada, então ela é degradada — mesma regra do status desconhecido."""
-    erros = conferir_status([{"id": "c1", "nome": "Banco X", "status": "OK"}, conexao])
+    erros = conferir_status([{"id": "c1", "nome": "Banco X", "status": "CONNECTED"}, conexao])
     assert len(erros) == 1
     assert type(conexao).__name__ in erros[0]
 

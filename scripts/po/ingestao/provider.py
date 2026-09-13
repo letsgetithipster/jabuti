@@ -20,7 +20,13 @@ from po.ingestao.artefatos import caminho_datado_livre
 # Só este status conta como "sincronizou". Qualquer outro, inclusive desconhecido, para a rodada:
 # o vocabulário é do provider e muda sem aviso, e tratar desconhecido como OK é como tratar
 # lista vazia como zero.
-STATUS_OK = "OK"
+#
+# Medido em 12/09/2026 contra o MCP da Finnest: o valor é "CONNECTED", não "OK". "OK" era palpite
+# de quem escreveu a precondição antes de existir resposta para olhar, e o palpite é pior que o
+# erro comum — ele reprova TODA conexão saudável, e a rodada aborta sempre, com uma frase dizendo
+# ao usuário para reconectar uma conta que está conectada. Vocabulário conhecido, e o que cada um
+# significa, está em docs/provider-finnest.md.
+STATUS_OK = "CONNECTED"
 
 # Nome de provider entra no CAMINHO do artefato, então ele é slug, não texto livre.
 SLUG_PROVIDER = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
@@ -69,7 +75,9 @@ def conferir_status(conexoes: list[dict]) -> list[str]:
             continue
         status = c.get("status")
         if status != STATUS_OK:
-            nome = c.get("nome") or c.get("id") or f"(sem nome, posição {i})"
+            # `name` está na chain porque é a chave que o provider realmente usa (medido em
+            # 12/09/2026); sem ela a frase cai no `id` e manda o usuário reconectar um UUID.
+            nome = c.get("nome") or c.get("name") or c.get("id") or f"(sem nome, posição {i})"
             if not isinstance(nome, str):
                 nome = f"(nome ilegível, posição {i})"
             erros.append(f"conexão {nome} com status {status!r} em vez de {STATUS_OK!r} — "
