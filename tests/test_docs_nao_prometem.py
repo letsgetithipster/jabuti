@@ -64,13 +64,19 @@ def test_declara_o_vinculo_com_a_finnest():
 
 
 def test_nao_promete_no_presente_o_que_e_de_fase_futura():
-    """As fases 4 a 6 não existem em código. Se o README as descrever no presente, ele mente.
+    """As fases 4b a 6 não existem em código. Se o README as descrever no presente, ele mente.
+    Onboarding (4a) existe: /jabuti-init e /jabuti-estrategia saíram desta lista quando nasceram.
 
     Mede BLOCO, não linha. O README é quebrado em coluna fixa, então um comando e o marcador de
     fase dele caem em linhas diferentes com frequência — medir linha faria o teste policiar
     largura de quebra em vez de promessa, e reabriria a falha a cada reflow do texto."""
-    proibidas = ["/jabuti-init", "/jabuti-estrategia", "/jabuti-micro", "/jabuti-tese",
+    proibidas = ["/jabuti-micro", "/jabuti-tese",
                  "/registrar-aporte", "/consultar-aporte", "/fechar-mes", "/preparar-ir"]
+    for bloco in README.split("\n\n"):
+        for termo in proibidas:
+            if termo in bloco:
+                assert re.search(r"[Ff]ase|Próximas", bloco), \
+                    f"{termo} citado sem marcar a fase: {bloco.strip()[:120]}"
     for bloco in README.split("\n\n"):
         for termo in proibidas:
             if termo in bloco:

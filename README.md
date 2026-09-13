@@ -65,10 +65,23 @@ adaptador de provider — nada chama essa camada ainda. O adaptador da Finnest
 (ver "Declaração de vínculo" acima) depende de descobrir o esquema do MCP dela,
 o que é escopo de outra fase.
 
-**Próximas fases:** método destilado, funil `/jabuti-init` → `/jabuti-estrategia` →
-`/jabuti-micro` → `/jabuti-tese` e compilador multi-LLM (4); skills de
-rotina `/registrar-aporte`, `/consultar-aporte`, `/fechar-mes` (5); `/preparar-ir`
-e `fiscal/` (6).
+**Fase 4 (onboarding) — parcial:** o que está em código, commitado e testado é o
+onboarding em três threads guiadas por `estado/SETUP.md`, cada uma terminando com o
+próximo passo pronto para colar: `/jabuti-init` (perfil legível por máquina, com degrau
+e risco testado recalculados pelo validador contra `metodo/bandas.yaml`),
+`/jabuti-estrategia` (política declarada a partir da estratégia que a pessoa já tem,
+ou das três alternativas da rubrica, com log de decisão dela) e o preâmbulo de
+onboarding da importação (corretoras, propósito por conta, carteira lida dentro da
+política no `ESTADO.md`). E o harness Claude Code — `CLAUDE.md` e `.claude/rules/` —
+compilado de `rules/00-voz.md` e do config por `gerar_harness.py`, com `check_harness`
+bloqueando commit se o gerado divergir da fonte. **Não entregue:** `/jabuti-micro` e
+`/jabuti-tese`, que dependem da destilação do método, e os alvos Codex, Cursor e app
+web do compilador.
+
+**Próximas fases:** cesta semente por bloco e tese validada com nota, `/jabuti-micro` e
+`/jabuti-tese`, mais personas por classe e os outros alvos do compilador multi-LLM (4b);
+skills de rotina `/registrar-aporte`, `/consultar-aporte`, `/fechar-mes` (5);
+`/preparar-ir` e `fiscal/` (6).
 
 ## Começando
 
@@ -84,7 +97,9 @@ python -m pytest                                   # suíte verde
 python scripts/criar_workspace.py C:\caminho\meu-vault
 ```
 
-No workspace, o ciclo da Fase 2 (as duas skills fazem isso por você no Claude Code):
+Criado o workspace, abra o Claude Code na pasta e cole `/jabuti-init`: o onboarding leva você
+pelo perfil, pela política e pela importação, uma thread por etapa. O ciclo de dados abaixo é o
+que as skills rodam por você:
 
 ```powershell
 # 1. exporte o extrato/posições da corretora para meu-vault\inbox\ e inspecione
@@ -111,7 +126,7 @@ Seu workspace é **privado por desenho** — não o publique. Extratos ficam em
 | `templates/` | árvore de workspace + esqueletos de documentos | 1 |
 | `scripts/` | validador, instanciador, cotações, ingestão, geradores — com testes | 1-2 |
 | `mapeamentos/` | mapeamentos documento → `dados/` por corretora (YAML); superfície de contribuição | 2 |
-| `skills/` | procedimentos operacionais: cotações e ingestão prontas; funil e rotina | 2 (4-5) |
+| `skills/` | procedimentos operacionais: onboarding, cotações e ingestão prontos; micro, tese e rotina | 2-4 (5) |
 | `exemplos/` | workspace fictício completo, validado em todo commit | 1 |
 | `metodo/` | rubricas e frameworks do método (sem número pessoal) | 4 |
 | `rules/` | núcleo de voz e personas, fontes do compilador multi-LLM | 4 |
@@ -144,8 +159,9 @@ portfolio system for Brazilian investors, built under strict anti-hallucination
 guardrails: prices only via scripts with source and timestamp, broker
 statements ingested through declarative YAML mappings with arithmetic
 reconciliation against the document itself, user-declared policy as the only
-decision maker. Today (phase 2) it ships the data engine: canonical CSVs,
-validator, quote providers, statement ingestion, a generated one-screen state
-file and an xlsx cockpit. Profile assessment, allocation funnel, monthly
-routine and tax support are the next phases. Portuguese-first by design;
+decision maker. Today (phase 4, partial) it ships the data engine — canonical CSVs, validator, quote
+providers, statement ingestion, a generated one-screen state file, an xlsx cockpit — and
+a guided onboarding: profile, declared allocation policy and portfolio import, one thread
+each, plus a compiled Claude Code harness. Asset selection, monthly routine and tax
+support are the next phases. Portuguese-first by design;
 code contributions welcome.

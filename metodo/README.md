@@ -1,1 +1,1 @@
-# metodo/ — rubricas e frameworks do método (destilados do vault na Fase 4). Nenhum número pessoal entra aqui.
+# metodo/ — rubricas do método: `bandas.yaml` (perfil → três alternativas de bandas, lido pelo /jabuti-estrategia e recalculado pelo validador). Nenhum número pessoal entra aqui — a suíte varre e cobra os invariantes.
