@@ -22,7 +22,7 @@ EXTENSOES_DE_TEXTO = {".py", ".md", ".yaml", ".template"}
 
 FASE_DO_COMANDO = {
     "jabuti-cotacoes": 2, "jabuti-importar": 2,
-    "init": 4, "jabuti-estrategia": 4, "jabuti-micro": 4, "jabuti-tese": 4,
+    "jabuti-init": 4, "jabuti-estrategia": 4, "jabuti-micro": 4, "jabuti-tese": 4,
     "registrar-aporte": 5, "consultar-aporte": 5, "fechar-mes": 5,
     "preparar-ir": 6,
 }

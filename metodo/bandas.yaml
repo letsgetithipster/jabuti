@@ -1,0 +1,131 @@
+# metodo/bandas.yaml — rubrica perfil → bandas. Dado do motor, sem número pessoal.
+# Faixas por horizonte × risco testado; a reserva de emergência entra como REGRA (parametros.reserva),
+# não como dimensão: abaixo do mínimo de meses, `caixa` sobe até o piso e a diferença sai de `rf-br`.
+# [mín, alvo, máx] por bloco; em cada alternativa os alvos somam 100. Testado em tests/test_metodo.py.
+parametros:
+  taxa-retirada-real: 0.0325     # a.a., bruta de imposto; piso conservador da literatura de taxa segura de retirada
+  reserva:
+    minimo-meses: 6              # abaixo disto a regra de caixa se aplica
+    caixa-minimo-sem-reserva: 10 # alvo mínimo de caixa, em %, para quem não tem reserva
+  risco-testado:                 # classificação a partir das três respostas de cenário; o validador recalcula
+    baixo: {resposta: vende-tudo, minimo: 2}          # duas ou mais respostas vende-tudo
+    alto: {resposta: aporta-mais, minimo: 2, sem: vende-tudo}   # duas ou mais aporta-mais, e nenhuma vende-tudo
+    # o resto é medio
+faixas:
+  - id: longo-alto
+    horizonte-anos: {min: 20}
+    risco-testado: alto
+    alternativas:
+      conservadora:
+        bandas: {rf-br: [25, 35, 45], caixa: [0, 10, 20], acoes-br: [5, 15, 25], fiis: [0, 10, 20], rv-int: [10, 20, 30], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      equilibrada:
+        bandas: {rf-br: [15, 25, 35], caixa: [0, 5, 15], acoes-br: [10, 20, 30], fiis: [0, 10, 20], rv-int: [20, 30, 40], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      agressiva:
+        bandas: {rf-br: [0, 10, 20], caixa: [0, 5, 15], acoes-br: [15, 25, 35], fiis: [0, 5, 15], rv-int: [30, 40, 50], reits-us: [0, 5, 15], cripto: [0, 5, 15], commodities: [0, 5, 15]}
+        caps: {ativo: 15, setor: 30}
+  - id: longo-medio
+    horizonte-anos: {min: 20}
+    risco-testado: medio
+    alternativas:
+      conservadora:
+        bandas: {rf-br: [30, 40, 50], caixa: [0, 10, 20], acoes-br: [5, 15, 25], fiis: [0, 10, 20], rv-int: [5, 15, 25], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      equilibrada:
+        bandas: {rf-br: [20, 30, 40], caixa: [0, 5, 15], acoes-br: [10, 20, 30], fiis: [0, 10, 20], rv-int: [15, 25, 35], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      agressiva:
+        bandas: {rf-br: [10, 20, 30], caixa: [0, 5, 15], acoes-br: [15, 25, 35], fiis: [0, 5, 15], rv-int: [25, 35, 45], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 15, setor: 30}
+  - id: longo-baixo
+    horizonte-anos: {min: 20}
+    risco-testado: baixo
+    alternativas:
+      conservadora:
+        bandas: {rf-br: [40, 50, 60], caixa: [0, 10, 20], acoes-br: [0, 10, 20], fiis: [0, 10, 20], rv-int: [0, 10, 20], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      equilibrada:
+        bandas: {rf-br: [30, 40, 50], caixa: [0, 10, 20], acoes-br: [5, 15, 25], fiis: [0, 10, 20], rv-int: [5, 15, 25], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      agressiva:
+        bandas: {rf-br: [20, 30, 40], caixa: [0, 5, 15], acoes-br: [10, 20, 30], fiis: [0, 10, 20], rv-int: [15, 25, 35], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 15, setor: 30}
+  - id: medio-alto
+    horizonte-anos: {min: 10, max: 19}
+    risco-testado: alto
+    alternativas:
+      conservadora:
+        bandas: {rf-br: [30, 40, 50], caixa: [0, 10, 20], acoes-br: [5, 15, 25], fiis: [0, 10, 20], rv-int: [5, 15, 25], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      equilibrada:
+        bandas: {rf-br: [20, 30, 40], caixa: [0, 10, 20], acoes-br: [10, 20, 30], fiis: [0, 10, 20], rv-int: [10, 20, 30], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      agressiva:
+        bandas: {rf-br: [10, 20, 30], caixa: [0, 5, 15], acoes-br: [15, 25, 35], fiis: [0, 10, 20], rv-int: [20, 30, 40], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 15, setor: 30}
+  - id: medio-medio
+    horizonte-anos: {min: 10, max: 19}
+    risco-testado: medio
+    alternativas:
+      conservadora:
+        bandas: {rf-br: [35, 45, 55], caixa: [0, 10, 20], acoes-br: [5, 15, 25], fiis: [0, 10, 20], rv-int: [0, 10, 20], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      equilibrada:
+        bandas: {rf-br: [25, 35, 45], caixa: [0, 10, 20], acoes-br: [5, 15, 25], fiis: [0, 10, 20], rv-int: [10, 20, 30], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      agressiva:
+        bandas: {rf-br: [15, 25, 35], caixa: [0, 5, 15], acoes-br: [10, 20, 30], fiis: [0, 10, 20], rv-int: [20, 30, 40], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 15, setor: 30}
+  - id: medio-baixo
+    horizonte-anos: {min: 10, max: 19}
+    risco-testado: baixo
+    alternativas:
+      conservadora:
+        bandas: {rf-br: [45, 55, 65], caixa: [0, 10, 20], acoes-br: [0, 10, 20], fiis: [0, 10, 20], rv-int: [0, 5, 15], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      equilibrada:
+        bandas: {rf-br: [35, 45, 55], caixa: [0, 10, 20], acoes-br: [5, 15, 25], fiis: [0, 10, 20], rv-int: [0, 10, 20], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      agressiva:
+        bandas: {rf-br: [25, 35, 45], caixa: [0, 10, 20], acoes-br: [5, 15, 25], fiis: [0, 10, 20], rv-int: [10, 20, 30], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 15, setor: 30}
+  - id: curto-alto
+    horizonte-anos: {min: 0, max: 9}
+    risco-testado: alto
+    alternativas:
+      conservadora:
+        bandas: {rf-br: [45, 55, 65], caixa: [5, 15, 25], acoes-br: [0, 10, 20], fiis: [0, 5, 15], rv-int: [0, 10, 20], reits-us: [0, 0, 0], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      equilibrada:
+        bandas: {rf-br: [35, 45, 55], caixa: [5, 15, 25], acoes-br: [5, 15, 25], fiis: [0, 5, 15], rv-int: [5, 15, 25], reits-us: [0, 0, 0], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      agressiva:
+        bandas: {rf-br: [25, 35, 45], caixa: [0, 10, 20], acoes-br: [10, 20, 30], fiis: [0, 5, 15], rv-int: [10, 20, 30], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 15, setor: 30}
+  - id: curto-medio
+    horizonte-anos: {min: 0, max: 9}
+    risco-testado: medio
+    alternativas:
+      conservadora:
+        bandas: {rf-br: [50, 60, 70], caixa: [5, 15, 25], acoes-br: [0, 10, 20], fiis: [0, 5, 15], rv-int: [0, 5, 15], reits-us: [0, 0, 0], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      equilibrada:
+        bandas: {rf-br: [40, 50, 60], caixa: [5, 15, 25], acoes-br: [0, 10, 20], fiis: [0, 5, 15], rv-int: [5, 15, 25], reits-us: [0, 0, 0], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      agressiva:
+        bandas: {rf-br: [30, 40, 50], caixa: [0, 10, 20], acoes-br: [5, 15, 25], fiis: [0, 5, 15], rv-int: [10, 20, 30], reits-us: [0, 5, 15], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 15, setor: 30}
+  - id: curto-baixo
+    horizonte-anos: {min: 0, max: 9}
+    risco-testado: baixo
+    alternativas:
+      conservadora:
+        bandas: {rf-br: [60, 70, 80], caixa: [5, 15, 25], acoes-br: [0, 5, 15], fiis: [0, 5, 15], rv-int: [0, 0, 0], reits-us: [0, 0, 0], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      equilibrada:
+        bandas: {rf-br: [50, 60, 70], caixa: [5, 15, 25], acoes-br: [0, 10, 20], fiis: [0, 5, 15], rv-int: [0, 5, 15], reits-us: [0, 0, 0], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 10, setor: 25}
+      agressiva:
+        bandas: {rf-br: [40, 50, 60], caixa: [5, 15, 25], acoes-br: [0, 10, 20], fiis: [0, 5, 15], rv-int: [5, 15, 25], reits-us: [0, 0, 0], cripto: [0, 0, 0], commodities: [0, 5, 15]}
+        caps: {ativo: 15, setor: 30}
