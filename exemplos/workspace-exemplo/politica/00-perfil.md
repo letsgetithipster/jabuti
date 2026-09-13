@@ -6,7 +6,7 @@ data-revisao: 2026-09-08
 
 # Perfil e política declarada
 
-> Preenchido pelo `/init` com as SUAS respostas e escolhas. Este documento é a
+> Preenchido pelo `/jabuti-init` com as SUAS respostas e escolhas. Este documento é a
 > política que o sistema executa — ele nunca decide por você.
 
 ## Identificação e horizonte
@@ -31,4 +31,4 @@ Custo anual R$ 84.000 ÷ taxa de retirada de 4% = R$ 2,1M (independência plena)
 ## Histórico de revisões
 | Data | O que mudou | Decisão |
 |---|---|---|
-| 2026-09-08 | Criação via /init | exemplo |
+| 2026-09-08 | Criação via /jabuti-init | exemplo |

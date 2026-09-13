@@ -6,7 +6,7 @@ data-revisao: 2026-09-08
 
 # Alocação-alvo declarada
 
-> Bandas escolhidas por VOCÊ no `/definir-macro` entre as alternativas
+> Bandas escolhidas por VOCÊ no `/jabuti-estrategia` entre as alternativas
 > apresentadas. Banda estourada dispara processo (registrar, analisar,
 > decidir consciente), nunca venda automática.
 
@@ -27,4 +27,4 @@ suspenso na fase inicial de construção. Sem caps setoriais neste exemplo.
 ## Histórico de revisões
 | Data | O que mudou | Decisão |
 |---|---|---|
-| 2026-09-08 | Criação via /definir-macro | exemplo |
+| 2026-09-08 | Criação via /jabuti-estrategia | exemplo |

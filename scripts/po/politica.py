@@ -1,7 +1,7 @@
 """Leitura da política declarada: tabela 'Bandas por bloco' de politica/01-alocacao-alvo.md.
 
 Parser único, compartilhado pelo validador (check_politica) e pelo cockpit.
-Formato esperado (escrito pelo /definir-macro, Fase 4, ou à mão):
+Formato esperado (escrito pelo /jabuti-estrategia, Fase 4, ou à mão):
 
     ## Bandas por bloco
 

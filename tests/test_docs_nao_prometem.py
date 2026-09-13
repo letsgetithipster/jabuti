@@ -21,8 +21,8 @@ IGNORADAS = {".git", ".github", ".githooks", "__pycache__", ".pytest_cache", ".v
 EXTENSOES_DE_TEXTO = {".py", ".md", ".yaml", ".template"}
 
 FASE_DO_COMANDO = {
-    "atualizar-cotacoes": 2, "importar-extrato": 2,
-    "init": 4, "definir-macro": 4, "refinar-micro": 4, "aprofundar-tese": 4,
+    "jabuti-cotacoes": 2, "jabuti-importar": 2,
+    "init": 4, "jabuti-estrategia": 4, "jabuti-micro": 4, "jabuti-tese": 4,
     "registrar-aporte": 5, "consultar-aporte": 5, "fechar-mes": 5,
     "preparar-ir": 6,
 }
@@ -69,7 +69,7 @@ def test_nao_promete_no_presente_o_que_e_de_fase_futura():
     Mede BLOCO, não linha. O README é quebrado em coluna fixa, então um comando e o marcador de
     fase dele caem em linhas diferentes com frequência — medir linha faria o teste policiar
     largura de quebra em vez de promessa, e reabriria a falha a cada reflow do texto."""
-    proibidas = ["/init", "/definir-macro", "/refinar-micro", "/aprofundar-tese",
+    proibidas = ["/jabuti-init", "/jabuti-estrategia", "/jabuti-micro", "/jabuti-tese",
                  "/registrar-aporte", "/consultar-aporte", "/fechar-mes", "/preparar-ir"]
     for bloco in README.split("\n\n"):
         for termo in proibidas:

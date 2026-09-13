@@ -1,4 +1,4 @@
-"""Orquestração do /atualizar-cotacoes: posições → pedidos → providers → append em cotacoes.csv.
+"""Orquestração do /jabuti-cotacoes: posições → pedidos → providers → append em cotacoes.csv.
 
 Regras: sem rede, SemRede sobe e nada é gravado; cada cotação carrega fonte, data e hora;
 variação > 30% contra a última cotação vencedora grava a cotação (é o preço real) E propõe

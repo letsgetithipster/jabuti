@@ -100,7 +100,7 @@ def valorar(raiz: str | Path, hoje: datetime.date | None = None) -> Carteira:
         por_bloco[l.classe] = por_bloco.get(l.classe, 0.0) + l.valor_brl
     total = sum(l.valor_brl for l in linhas)
     com_banda = {b.bloco for b in bandas}
-    avisos = [f"{bloco} tem posição mas nenhuma banda declarada (defina no /definir-macro)"
+    avisos = [f"{bloco} tem posição mas nenhuma banda declarada (defina no /jabuti-estrategia)"
               for bloco in sorted(por_bloco) if bloco not in com_banda]
     mais_antiga = min((l.data_cotacao for l in linhas), default=None)
     avisos += _avisos_de_idade(linhas, usados_cambio, hoje)

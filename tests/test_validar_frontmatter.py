@@ -42,7 +42,7 @@ def test_semente_validada_true_e_erro(tmp_path):
     doc.mkdir()
     (doc / "X.md").write_text(
         "---\ntipo: tese-semente\nticker: X\nclasse: acoes-br\nvalidada: true\n"
-        "data-criacao: 2026-09-08\norigem: refinar-micro\n---\ncorpo",
+        "data-criacao: 2026-09-08\norigem: jabuti-micro\n---\ncorpo",
         encoding="utf-8")
     erros, _ = checar_frontmatter(tmp_path)
     assert any("validada" in e for e in erros)

@@ -51,7 +51,7 @@ corretora (mapeamento YAML + conciliação declarada, com `clear-extrato`,
 cotações por provider plugável (Yahoo, brapi, BCB/SGS, manual) com detecção
 de variação anômala; validador v2 (vocabulários, moeda por conta, ledger
 cronológico com PM, bandas somando 100); gerador de `ESTADO.md`; cockpit
-xlsx; skills `/atualizar-cotacoes` e `/importar-extrato`.
+xlsx; skills `/jabuti-cotacoes` e `/jabuti-importar`.
 
 **Fase 3 (gastos e open finance por provider) — parcial:** o que está em
 código, commitado e testado é a fundação de ingestão por provider MCP, não
@@ -65,8 +65,8 @@ adaptador de provider — nada chama essa camada ainda. O adaptador da Finnest
 (ver "Declaração de vínculo" acima) depende de descobrir o esquema do MCP dela,
 o que é escopo de outra fase.
 
-**Próximas fases:** método destilado, funil `/init` → `/definir-macro` →
-`/refinar-micro` → `/aprofundar-tese` e compilador multi-LLM (4); skills de
+**Próximas fases:** método destilado, funil `/jabuti-init` → `/jabuti-estrategia` →
+`/jabuti-micro` → `/jabuti-tese` e compilador multi-LLM (4); skills de
 rotina `/registrar-aporte`, `/consultar-aporte`, `/fechar-mes` (5); `/preparar-ir`
 e `fiscal/` (6).
 

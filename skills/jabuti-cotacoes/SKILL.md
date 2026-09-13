@@ -1,6 +1,6 @@
 ---
-name: atualizar-cotacoes
-description: "Use quando o usuário pedir 'atualizar cotações', 'atualiza os preços', 'refresh de cotações', '/atualizar-cotacoes' ou variação que indique buscar preço de mercado para as posições do workspace. Roda scripts/atualizar_cotacoes.py do motor: posicoes.csv → provider da config (yahoo, brapi; câmbio via bcb-sgs) → append em dados/cotacoes.csv com fonte, data e hora. Puramente mecânica: NÃO decide aporte, NÃO registra compra, NÃO altera posição, nota ou tese. Sem internet na sessão: PARA e declara — nunca preço de memória. Variação acima de 30% vira proposta em dados/eventos.csv para o usuário confirmar."
+name: jabuti-cotacoes
+description: "Use quando o usuário pedir 'atualizar cotações', 'atualiza os preços', 'refresh de cotações', '/jabuti-cotacoes' ou variação que indique buscar preço de mercado para as posições do workspace. Roda scripts/atualizar_cotacoes.py do motor: posicoes.csv → provider da config (yahoo, brapi; câmbio via bcb-sgs) → append em dados/cotacoes.csv com fonte, data e hora. Puramente mecânica: NÃO decide aporte, NÃO registra compra, NÃO altera posição, nota ou tese. Sem internet na sessão: PARA e declara — nunca preço de memória. Variação acima de 30% vira proposta em dados/eventos.csv para o usuário confirmar."
 ---
 
 # Atualizar cotações
@@ -10,7 +10,7 @@ description: "Use quando o usuário pedir 'atualizar cotações', 'atualiza os p
 - Antes de olhar alocação, banda ou fila de aporte (o número do ESTADO e do cockpit depende disto)
 - Quando o usuário quiser a carteira com preço do dia
 
-Frases típicas: "atualiza as cotações", "refresh de preços", "/atualizar-cotacoes".
+Frases típicas: "atualiza as cotações", "refresh de preços", "/jabuti-cotacoes".
 
 ## Princípio operacional
 

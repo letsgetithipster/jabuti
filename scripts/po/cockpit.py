@@ -168,7 +168,7 @@ def gerar_cockpit(raiz: str | Path, agora: datetime.datetime | None = None) -> P
         ws.cell(row=fim + 2, column=1, value="Sobra do aporte")
         ws.cell(row=fim + 2, column=6, value=f"=$B$2-F{fim + 1}").number_format = FMT_NUM
     else:
-        ws.cell(row=ini, column=1, value="Sem bandas declaradas: defina em politica/01-alocacao-alvo.md (/definir-macro).")
+        ws.cell(row=ini, column=1, value="Sem bandas declaradas: defina em politica/01-alocacao-alvo.md (/jabuti-estrategia).")
     ws.freeze_panes = "A5"
 
     wb.save(destino)

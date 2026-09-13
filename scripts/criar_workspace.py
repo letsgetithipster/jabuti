@@ -107,8 +107,8 @@ def main():
         return
     destino = criar(args.destino, com_git=not args.sem_git, data=args.data, motor=args.motor)
     print(f"Workspace criado em {destino}")
-    print("Próximos passos: abra o Claude Code na pasta; /importar-extrato e "
-          "/atualizar-cotacoes já funcionam. O /init chega na Fase 4.")
+    print("Próximos passos: abra o Claude Code na pasta; /jabuti-importar e "
+          "/jabuti-cotacoes já funcionam. O /jabuti-init chega na Fase 4.")
     print("Este workspace é PRIVADO por desenho: não publique este repositório.")
 
 

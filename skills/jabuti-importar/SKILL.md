@@ -1,6 +1,6 @@
 ---
-name: importar-extrato
-description: "Use quando o usuário pedir 'importar extrato', 'importa o CSV da corretora', 'sobe o export da Clear/Schwab/B3', 'popular o workspace com o extrato', '/importar-extrato' ou variação que indique levar um documento exportado da corretora (CSV ou xlsx em inbox/) para dados/. Divisão rígida: a LLM inspeciona o documento, escolhe ou ESCREVE o mapeamento (YAML em mapeamentos/) e o MOSTRA ao usuário; o script scripts/importar_extrato.py executa o parse e confere a aritmética declarada no próprio documento (saldo corrente, valor da linha ou total declarado). Não bateu, nada entra em dados/. A LLM nunca digita número de posição, provento ou fill."
+name: jabuti-importar
+description: "Use quando o usuário pedir 'importar extrato', 'importa o CSV da corretora', 'sobe o export da Clear/Schwab/B3', 'popular o workspace com o extrato', '/jabuti-importar' ou variação que indique levar um documento exportado da corretora (CSV ou xlsx em inbox/) para dados/. Divisão rígida: a LLM inspeciona o documento, escolhe ou ESCREVE o mapeamento (YAML em mapeamentos/) e o MOSTRA ao usuário; o script scripts/importar_extrato.py executa o parse e confere a aritmética declarada no próprio documento (saldo corrente, valor da linha ou total declarado). Não bateu, nada entra em dados/. A LLM nunca digita número de posição, provento ou fill."
 ---
 
 # Importar extrato
@@ -11,7 +11,7 @@ description: "Use quando o usuário pedir 'importar extrato', 'importa o CSV da 
 - Carga periódica de proventos, fills e eventos a partir do extrato/transactions da corretora
 - Reconciliação: `--conferir` compara um export de posições com `dados/` sem gravar
 
-Frases típicas: "importa o extrato da Clear", "sobe o CSV da Schwab", "/importar-extrato inbox/x.xlsx".
+Frases típicas: "importa o extrato da Clear", "sobe o CSV da Schwab", "/jabuti-importar inbox/x.xlsx".
 
 ## Princípio operacional
 
@@ -43,7 +43,7 @@ Frases típicas: "importa o extrato da Clear", "sobe o CSV da Schwab", "/importa
    - ERRO "nenhuma linha de dados abaixo do cabeçalho" → aba errada, cabeçalho que o mapeamento não achou, ou export em branco: voltar ao `inspecionar_extrato.py`.
 5. Rodar sem `--dry-run`. Relatar o que entrou (`posicoes +N`, `fills +N`...), duplicadas puladas e o caminho do log em `logs/importacoes/`.
 6. Ticker que entra **sem nenhum fill** ganha um fill `saldo-inicial` (qty e preço = PM, na data do documento ou de `--data`): dizer isso ao usuário; é o que fecha o ledger. A condição é "sem fill", não "posição nova" — ticker que já tem fill de verdade nunca ganha abertura sintética, e uma rodada de recuperação completa a abertura que faltou sem duplicar nada.
-7. Rodar `validar_workspace.py`. Posição importada sem cotação é ERRO esperado: seguir com `/atualizar-cotacoes` e depois `python <motor>/scripts/gerar_estado.py <raiz>` (e `gerar_cockpit.py`, se o usuário usa o cockpit).
+7. Rodar `validar_workspace.py`. Posição importada sem cotação é ERRO esperado: seguir com `/jabuti-cotacoes` e depois `python <motor>/scripts/gerar_estado.py <raiz>` (e `gerar_cockpit.py`, se o usuário usa o cockpit).
 
 ## Códigos de saída (é por eles que a LLM ramifica, não pelo texto)
 
@@ -72,5 +72,5 @@ Frases típicas: "importa o extrato da Clear", "sobe o CSV da Schwab", "/importa
 - **Não escreve parser Python por corretora** — só mapeamento YAML
 - **Não grava com conciliação falhando** e não "corrige" o documento para bater
 - **Não aplica evento corporativo em qty/PM** (só registra a proposta; Fase 5)
-- **Não busca cotação** (→ `/atualizar-cotacoes`) nem regenera ESTADO/cockpit sozinha (→ `gerar_estado.py`, `gerar_cockpit.py`)
+- **Não busca cotação** (→ `/jabuti-cotacoes`) nem regenera ESTADO/cockpit sozinha (→ `gerar_estado.py`, `gerar_cockpit.py`)
 - **Não commita**

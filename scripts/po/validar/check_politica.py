@@ -8,12 +8,12 @@ TOLERANCIA_SOMA = 0.05   # pior caso de arredondamento a 2 casas em até 8 bloco
 
 
 def checar_politica(raiz: str | Path) -> tuple[list[str], list[str]]:
-    """Retorna (erros, avisos). Tabela vazia é aviso (o /definir-macro preenche)."""
+    """Retorna (erros, avisos). Tabela vazia é aviso (o /jabuti-estrategia preenche)."""
     bandas, erros = ler_bandas(raiz)
     if erros and not bandas:
         return erros, []      # não deu para ler a tabela: o resto dos checks não teria o que dizer
     if not bandas:
-        return [], ["politica: nenhuma banda declarada ainda (o /definir-macro preenche a tabela)"]
+        return [], ["politica: nenhuma banda declarada ainda (o /jabuti-estrategia preenche a tabela)"]
     for b in bandas:   # bloco duplicado é acusado pelo ler_bandas, uma casa só: o gerador de
         if not em_vocabulario(b.bloco, CLASSES):   # ESTADO lê por lá e precisa recusar antes de gravar
             erros.append(f"politica: bloco {b.bloco!r} fora do vocabulário {sorted(CLASSES)}")
