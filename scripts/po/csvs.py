@@ -1,4 +1,9 @@
-"""Schemas, leitura validada e escrita canônica dos 7 CSVs do workspace (spec §4).
+"""Schemas, leitura validada e escrita canônica dos CSVs do workspace (spec §4).
+
+SCHEMAS é toda forma que o motor sabe ler e validar; TABELAS_DADOS é o subconjunto que mora em
+dados/, que o template cria e que check_dados exige. `posicoes` está na primeira e não na segunda:
+é a forma que a ingestão produz (e que vira fill + ativo) e a fonte do caminho retrocompatível de
+po.ativos, não um arquivo que o motor escreve.
 
 Contrato: os CSVs canônicos são escritos por máquina, então número aceita SÓ
 o formato canônico (-?d+(.d+)?, decimal com ponto, sem separador de milhar).
@@ -25,6 +30,10 @@ from po.numeros import formatar_canonico
 # numérico aqui o valida como texto livre, em silêncio). Schema novo: escolha o nome do campo
 # ciente disso, e registre em NUMERICOS se for quantia ou quantidade.
 SCHEMAS = {
+    # Declaração da pessoa: qual bloco da política este ticker serve. Única tabela de dados/ que
+    # não é observação nem evento, e a única onde editar à mão é o caminho previsto: a última
+    # linha por ticker vence, então corrigir uma classe é anexar a linha certa no fim (po.ativos).
+    "ativos": ["ticker", "classe"],
     "posicoes": ["ticker", "classe", "conta", "qty", "pm", "moeda"],
     "cotacoes": ["data", "hora", "ticker", "preco", "moeda", "fonte"],
     "fills": ["data", "ticker", "tipo", "qty", "preco", "taxa", "conta", "moeda"],
@@ -40,6 +49,11 @@ SCHEMAS = {
     "movimentacoes": ["data", "descricao", "valor", "moeda", "conta",
                       "categoria_origem", "origem", "id_externo", "data_referencia"],
 }
+# O que mora em dados/: o que o template cria, o que check_dados exige e o que o usuário carrega.
+# `posicoes` NÃO está aqui — ela é a forma que a ingestão produz (e que vira fill + ativo) e a
+# fonte do caminho retrocompatível, não um arquivo que o motor escreve. `indices` e
+# `movimentacoes` voltam no commit que trouxer o executor de cada uma.
+TABELAS_DADOS = ("ativos", "fills", "eventos", "proventos", "cotacoes")
 NUMERICOS = {"qty", "pm", "preco", "taxa", "valor_bruto", "valor_liquido", "valor"}
 CLASSES = {"acoes-br", "fiis", "rv-int", "reits-us", "rf-br", "cripto", "caixa", "commodities"}
 MOEDAS = {"BRL", "USD", "EUR"}
@@ -58,6 +72,7 @@ FONTES_COTACAO = {"yahoo", "brapi", "bcb-sgs", "manual", "definicao"}   # regist
 # Previstos: finnest, pluggy.
 ORIGENS_MOVIMENTACAO = {"manual"}
 VOCABULARIOS = {
+    ("ativos", "classe"): CLASSES,
     ("posicoes", "classe"): CLASSES,
     ("fills", "tipo"): TIPOS_FILL,
     ("proventos", "tipo"): TIPOS_PROVENTO,

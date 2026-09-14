@@ -1,4 +1,8 @@
-"""Checa a config, os 7 CSVs canônicos e a coerência entre eles.
+"""Checa a config, os CSVs canônicos e a coerência entre eles.
+
+Exige a existência das tabelas de TABELAS_DADOS; lê toda tabela de SCHEMAS que estiver no disco.
+`dados/ativos.csv` ausente com `dados/posicoes.csv` presente é AVISO, não erro: é workspace criado
+antes desta versão, e a classe de cada ticker continua saindo da tabela antiga (po.ativos).
 
 v2: conta e moeda da linha × conta; ledger cronológico (qty E pm contra
 posicoes.csv; venda acima do saldo; abertura única via saldo-inicial); quando
@@ -15,8 +19,9 @@ Vocabulários e formatos de campo são do ler_csv.
 """
 from pathlib import Path
 
+from po.ativos import ler_ativos
 from po.config import carregar_config, moedas_por_conta
-from po.csvs import SCHEMAS, ler_csv, ultimas_cotacoes
+from po.csvs import SCHEMAS, TABELAS_DADOS, ler_csv, ultimas_cotacoes
 from po.ledger import TOLERANCIA_QTY, calcular_saldos
 
 # Derivado do schema, não literal: toda tabela com coluna `conta` entra aqui, EXCETO
@@ -56,10 +61,30 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
 
     moedas = moedas_por_conta(cfg)
 
+    # Exigir e ler são coisas diferentes. TABELAS_DADOS é o que o motor EXIGE em dados/; o laço
+    # LÊ toda tabela de SCHEMAS que estiver no disco, porque `posicoes.csv` continua sendo cruzada
+    # contra o ledger enquanto existir — deixar de lê-la agora calaria o cruzamento que acusa
+    # posição divergente dos fills, que é o defeito que esta fase persegue. Tabela fora de
+    # TABELAS_DADOS que não está no disco simplesmente não é checada (nem erro, nem leitura).
     tabelas, leitura_suja = {}, {}
     for nome in SCHEMAS:
         caminho = raiz / "dados" / f"{nome}.csv"
         if not caminho.exists():
+            if nome not in TABELAS_DADOS:
+                continue
+            if nome == "ativos" and (raiz / "dados" / "posicoes.csv").exists():
+                # Workspace criado antes desta versão: a classe de cada ticker está na tabela
+                # antiga e o motor a lê de lá. Aviso, não erro — a regra "nenhum beco sem saída"
+                # vale para quem já tinha workspace, e o aviso traz o arquivo pronto para colar.
+                classes, _, _ = ler_ativos(raiz)
+                colar = "; ".join(f"{t},{c}" for t, c in sorted(classes.items())) or "(vazio)"
+                avisos.append(
+                    "dados/ativos.csv ausente — a classe de cada ticker está sendo lida de "
+                    "dados/posicoes.csv (workspace criado antes desta versão). Para fixar, crie "
+                    "dados/ativos.csv com a linha de cabeçalho `ticker,classe` e estas linhas: "
+                    + colar)
+                leitura_suja[nome] = True
+                continue
             # Tabela nova numa versão nova do motor: um workspace antigo não a tem, e "ausente"
             # sozinho não diz o que fazer. O cabeçalho é a resposta inteira.
             erros.append(f"dados/{nome}.csv ausente — crie o arquivo com a linha de cabeçalho: "

@@ -2,7 +2,8 @@ import csv
 
 import pytest
 
-from po.csvs import SCHEMAS, anexar_csv, ler_csv, ultimas_cotacoes, validar_linha
+from po.csvs import (SCHEMAS, TABELAS_DADOS, anexar_csv, ler_csv, ultimas_cotacoes,
+                     validar_linha)
 
 
 def escreve(tmp_path, nome, conteudo):
@@ -11,9 +12,15 @@ def escreve(tmp_path, nome, conteudo):
     return p
 
 
-def test_schemas_cobrem_os_7_csvs():
-    assert set(SCHEMAS) == {"posicoes", "cotacoes", "fills", "proventos", "eventos", "indices",
-                            "movimentacoes"}
+def test_schemas_cobrem_toda_forma_que_o_motor_sabe_ler():
+    """SCHEMAS é forma; TABELAS_DADOS é o que mora em dados/. `posicoes` fica em SCHEMAS porque a
+    ingestão produz um registro com essa forma (que vira fill + ativo) e porque o caminho
+    retrocompatível ainda lê o arquivo antigo — mas ela não é mais tabela de dados/."""
+    assert set(SCHEMAS) == {"posicoes", "ativos", "cotacoes", "fills", "proventos", "eventos",
+                            "indices", "movimentacoes"}
+    assert SCHEMAS["ativos"] == ["ticker", "classe"]
+    assert "posicoes" not in TABELAS_DADOS
+    assert "ativos" in TABELAS_DADOS
 
 
 def test_posicoes_ok(tmp_path):

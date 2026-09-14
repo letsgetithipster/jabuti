@@ -134,10 +134,13 @@ def test_leitura_suja_pula_cross_check(tmp_path):
 
 
 def test_csv_ausente(tmp_path):
+    """Tabela de TABELAS_DADOS ausente é erro. `indices` e `movimentacoes` saíram desta cobrança
+    quando TABELAS_DADOS passou a ser o que o motor exige em dados/: elas continuam em SCHEMAS
+    (o motor sabe lê-las) e voltam a ser exigidas no commit que trouxer o executor de cada uma."""
     ws = copia_exemplo(tmp_path)
-    (ws / "dados" / "indices.csv").unlink()
+    (ws / "dados" / "proventos.csv").unlink()
     erros, _ = checar_dados(ws)
-    assert any("indices.csv ausente" in e for e in erros)
+    assert any("proventos.csv ausente" in e for e in erros)
 
 
 def test_motor_nao_substituido(tmp_path):
@@ -317,9 +320,10 @@ def test_pm_de_ativo_de_fracao_de_centavo_nao_e_engolido_pelo_piso(tmp_path):
 def test_tabela_ausente_diz_como_criar(tmp_path):
     """Workspace criado antes da tabela existir precisa de frase acionável, não só de 'ausente'."""
     ws = copia_exemplo(tmp_path)
-    (ws / "dados" / "movimentacoes.csv").unlink()
+    (ws / "dados" / "eventos.csv").unlink()
     erros, _ = checar_dados(ws)
-    assert any("movimentacoes.csv ausente" in e and "data,descricao,valor" in e for e in erros)
+    assert any("eventos.csv ausente" in e and "data,ticker,tipo,razao,confirmado" in e
+               for e in erros)
 
 
 def test_movimentacao_duplicada_por_origem_e_id_externo_e_erro(tmp_path):
@@ -390,3 +394,12 @@ def test_mesmo_ticker_em_duas_moedas_e_erro(tmp_path):
     _anexa(ws, "dados/fills.csv", "2026-08-01,PETR4,saldo-inicial,10,6.00,0,corretora-us,USD")
     erros, _ = checar_dados(ws)
     assert any("PETR4" in e and "mais de uma moeda" in e for e in erros)
+
+
+def test_workspace_sem_ativos_csv_so_avisa_e_diz_o_que_colar(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    (ws / "dados" / "ativos.csv").unlink()
+    erros, avisos = checar_dados(ws)
+    assert not any("ativos.csv ausente" in e for e in erros), erros
+    texto = "\n".join(avisos)
+    assert "dados/ativos.csv" in texto and "PETR4,acoes-br" in texto and "HGLG11,fiis" in texto

@@ -12,6 +12,9 @@ def test_cria_workspace_completo(tmp_path):
     criar(destino, com_git=False, data="2026-09-08")
     assert (destino / "vault.config.yaml").exists()
     assert (destino / "dados" / "posicoes.csv").exists()
+    # Tabela de TABELAS_DADOS criada vazia pelo template: sem esta linha, nada provaria que
+    # o arquivo novo chega a um workspace novo, e o check_dados dele só acusaria depois.
+    assert (destino / "dados" / "ativos.csv").read_text(encoding="utf-8").strip() == "ticker,classe"
     assert (destino / "estado" / "SETUP.md").exists()
     assert (destino / ".githooks" / "pre-commit").exists()
     assert (destino / ".gitattributes").exists()
