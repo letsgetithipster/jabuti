@@ -14,5 +14,8 @@ Total investido: R$ 0,00
 | Bloco | Valor | % | Banda | Desvio |
 |---|---|---|---|---|
 
+
+Cotações: nenhuma posição
+
 ## Pendências
 (nenhuma)

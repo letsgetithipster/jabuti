@@ -11,7 +11,7 @@ Sobre os dados de exemplo que vêm no repo, sem configurar nada:
 
 <!-- demo:start -->
 ```
-$ python scripts/gerar_estado.py exemplos/workspace-exemplo
+$ python scripts/gerar_estado.py exemplos/workspace-exemplo --data 2026-09-08
 estado/ESTADO.md regenerado — Total investido: R$ 12.000,00
 Pendências:
 - fiis acima da banda máxima (66,7% vs 40%): rebalancear via aporte nos blocos abaixo

@@ -252,11 +252,14 @@ def _argv_da_demo(linhas, ws):
     comandos = [l for l in linhas if l.startswith("$ ")]
     assert len(comandos) == 1, f"esperava um comando no bloco de demo, achei {len(comandos)}"
     tokens = shlex.split(comandos[0][2:])
-    assert len(tokens) == 3, (
+    assert len(tokens) in (3, 5), (
         f"o comando da demo tem {len(tokens)} palavras ({comandos[0].strip()!r}) e este teste "
-        "sabe executar exatamente `python <script> <workspace>`. Se o comando do README mudou "
-        "de forma, reveja aqui o que é substituído antes de aceitar o novo formato.")
-    interpretador, script, workspace = tokens
+        "sabe executar `python <script> <workspace>` com um par `--data AAAA-MM-DD` opcional. "
+        "Se o comando do README mudou de forma, reveja aqui o que é substituído antes de "
+        "aceitar o novo formato.")
+    interpretador, script, workspace, *extra = tokens
+    assert extra in ([], ["--data", "2026-09-08"]), (
+        f"a demo passa {extra!r}; este teste só sabe traduzir `--data AAAA-MM-DD`.")
     assert interpretador == "python", (
         f"o comando da demo começa com {interpretador!r}: este teste substitui `python` pelo "
         "interpretador da suíte, e não sabe traduzir outro interpretador.")
@@ -264,7 +267,7 @@ def _argv_da_demo(linhas, ws):
         f"o comando da demo aponta para {workspace!r}, e este teste só sabe copiar "
         f"{WORKSPACE_DA_DEMO!r}. O README estaria prometendo saída de um workspace que o teste "
         "não verifica.")
-    return [sys.executable, str(RAIZ / script), str(ws)]
+    return [sys.executable, str(RAIZ / script), str(ws), *extra]
 
 
 def test_a_demo_do_readme_roda_e_produz_o_que_o_readme_promete(tmp_path):
@@ -294,11 +297,15 @@ def test_a_demo_do_readme_roda_e_produz_o_que_o_readme_promete(tmp_path):
     assert (ws / "estado" / "ESTADO.md").exists(), (
         "a demo nao regenerou o ESTADO.md que o teste apagou antes de rodar")
     assert saida.returncode == 0, f"a demo do README falhou: {saida.stderr.strip()[:300]}"
-    reais = {l.rstrip() for l in saida.stdout.splitlines()}
-    for linha in esperadas:
-        assert linha.rstrip() in reais, (
-            f"o README promete a linha {linha!r} e a demo não produziu.\n"
-            f"Saída real:\n{saida.stdout}")
+    reais = {l.rstrip() for l in saida.stdout.splitlines() if l.strip()}
+    promete = {l.rstrip() for l in esperadas if l.strip()}
+    assert reais == promete, (
+        "a demo do README não bate linha a linha com o que ele promete. Subconjunto não basta: "
+        "foi assim que a demo pôde ganhar uma terceira pendência (cotação velha) sem nenhum "
+        "teste ficar vermelho.\n"
+        f"Só na saída real: {sorted(reais - promete)}\n"
+        f"Só no README:     {sorted(promete - reais)}\n"
+        f"Saída real:\n{saida.stdout}")
 
 
 def test_argv_da_demo_deriva_o_script_do_readme():
@@ -312,14 +319,26 @@ def test_argv_da_demo_deriva_o_script_do_readme():
     assert argv[2] == str(Path("/tmp/ws"))
 
 
+def test_argv_da_demo_repassa_a_data_que_o_readme_declara():
+    """O `--data` do README é o que desarma a bomba de calendário: sem ele a demo ganha uma
+    terceira pendência no dia em que a cotação do exemplo completa 7 dias, e o teste da demo só
+    ficaria vermelho naquele dia — tarde, e por calendário. Aqui o repasse ao subprocesso é
+    cobrado hoje, com o valor que o README declara: tirar a flag do README, ou perdê-la no
+    caminho até o argv, cai agora."""
+    argv = _argv_da_demo(_bloco_de_demo(), Path("/tmp/ws"))
+    assert argv[3:] == ["--data", "2026-09-08"], argv
+
+
 @pytest.mark.parametrize("comando", [
     "$ python scripts/gerar_estado.py exemplos/outro",                 # workspace não copiado
     "$ python3 scripts/gerar_estado.py " + WORKSPACE_DA_DEMO,          # interpretador
     "$ python scripts/gerar_estado.py",                                # aridade de menos
-    "$ python scripts/gerar_estado.py --data 2026-01-01 " + WORKSPACE_DA_DEMO,   # aridade demais
+    "$ python scripts/gerar_estado.py --data 2026-01-01 " + WORKSPACE_DA_DEMO,   # --data fora
+    # de lugar: 5 tokens é aridade aceita desde que a demo ganhou a flag, então quem recusa este
+    # é a guarda de valor do par `--data`, não a de aridade.
 ])
 def test_argv_da_demo_recusa_comando_que_nao_sabe_executar(comando):
-    """As três asserções de forma nunca são exercidas pelo caminho feliz. Se o README mudar o
+    """As quatro asserções de forma nunca são exercidas pelo caminho feliz. Se o README mudar o
     comando, o teste tem que falhar alto, e não passar a verificar outra coisa."""
     with pytest.raises(AssertionError):
         _argv_da_demo([comando], Path("/tmp/ws"))

@@ -3,6 +3,7 @@ import datetime
 import pytest
 
 from po.csvs import ler_csv
+from po.estado import gerar_estado
 from po.frontmatter import extrair_frontmatter
 from po.ingestao.engine import Resultado
 from po.ingestao.escrita import GravacaoParcial, conferir, gravar
@@ -363,8 +364,9 @@ def test_ticker_com_fill_em_dados_nao_ganha_abertura_sintetica(tmp_path):
 
 def test_workspace_continua_valido_depois_da_parcial_e_da_rodada_que_completou(tmp_path, monkeypatch):
     """Fim de linha do caminho de recuperação: o ledger fecha e o validador não acha nada.
-    A cotação e o ESTADO são trabalho de outras skills, não da escrita — aqui entram à mão
-    só para o check do total ter o que conferir."""
+    A cotação e o ESTADO são trabalho de outras skills, não da escrita — aqui a cotação entra
+    à mão e o ESTADO é REGENERADO, não editado, só para o check ter o que conferir. Editar a
+    linha do total à mão deixou de bastar: o check compara o arquivo inteiro contra o gerador."""
     ws = copia_exemplo(tmp_path)
     _falha_em_fills(monkeypatch)
     with pytest.raises(GravacaoParcial):
@@ -374,9 +376,8 @@ def test_workspace_continua_valido_depois_da_parcial_e_da_rodada_que_completou(t
     cot = ws / "dados" / "cotacoes.csv"
     cot.write_text(cot.read_text(encoding="utf-8") + "2026-09-09,18:00,VALE3,62.00,BRL,manual\n",
                    encoding="utf-8")
-    estado = ws / "estado" / "ESTADO.md"        # 100×40 + 50×160 + 20×62
-    estado.write_text(estado.read_text(encoding="utf-8").replace("R$ 12.000,00", "R$ 13.240,00"),
-                      encoding="utf-8")
+    _caminho, texto = gerar_estado(ws, hoje=datetime.date(2026, 9, 10))
+    assert "Total investido: R$ 13.240,00" in texto, texto   # 100×40 + 50×160 + 20×62
     erros, _ = validar(ws)
     assert erros == []
 

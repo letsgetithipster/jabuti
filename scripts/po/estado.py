@@ -2,8 +2,10 @@
 
 ESTADO.md é gerado, nunca editado à mão (camada de consistência, regra 3). O fechar-mes
 da Fase 5 absorve este gerador; até lá, ele roda depois de importar/cotar.
-Formato pinado pelo check_estado: a linha 'Total investido: R$ x'. A tabela de blocos é
-conferida só pelos testes deste módulo.
+Formato pinado pelo check_estado, que compara o ARQUIVO INTEIRO contra este render,
+ancorado no `data-referencia` do próprio ESTADO. Consequência para quem mexer aqui: mudar
+qualquer linha que este módulo imprime trava o commit até `exemplos/workspace-exemplo/estado/
+ESTADO.md` ser regerado com `--data 2026-09-08`, no mesmo commit.
 """
 import datetime
 from pathlib import Path
