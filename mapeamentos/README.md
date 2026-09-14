@@ -45,6 +45,7 @@ O mapeamento do workspace com o mesmo nome sobrepõe o do motor.
 ```yaml
 nome: minha-corretora-extrato
 versao: 1
+numeros: pt-BR                 # obrigatório: pt-BR (1.234,56) | en-US (1,234.56)
 descricao: o que é o documento
 verificado-contra-export-real: false
 detectar: {cabecalho-contem: [textos que identificam o cabeçalho]}   # auto-seleção
@@ -101,8 +102,14 @@ conciliacao:                   # obrigatória; um dos três:
 Campos não declarados em `campos` são preenchidos assim: `data` pela coluna
 `data` (ou `--data`), `conta` e `moeda` pelo mapeamento, e qualquer campo cujo
 nome coincide com um apelido ou grupo de regex (`ticker`, `qty`, `preco`...).
-`{apelido|padrão}` usa o padrão quando a célula está vazia. Número aceita
-pt-BR e US (`1.234,56`, `$1,234.56`, `-R$ 5,00`); data segue `datas.formatos`.
+`{apelido|padrão}` usa o padrão quando a célula está vazia. Número é lido no
+formato que o mapa declara em `numeros:`, nunca adivinhado: em `pt-BR` a vírgula
+é sempre decimal (`1.234,56`, `-R$ 5,00`, `0,030` = três centésimos) e em `en-US`
+é o ponto (`1,234.56`, `$1,000.50`). O ponto em pt-BR (e a vírgula em en-US) só
+vira milhar quando o agrupamento é bem formado, então `10750.00` num CSV
+brasileiro continua valendo dez mil setecentos e cinquenta. Número no formato do
+outro é recusado na primeira linha, não convertido em algo mil vezes maior; data
+segue `datas.formatos`.
 
 Numa cadeia de `saldo-corrente`, linha com saldo e sem valor é **âncora**: só a
 primeira da cadeia abre saldo; da segunda em diante ela tem que repetir o saldo

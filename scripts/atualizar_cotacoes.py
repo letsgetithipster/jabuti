@@ -48,8 +48,12 @@ def _preco_digitado(texto: str) -> float:
       12.345.678           → ponto formando vários grupos de 3 é milhar
       5.432 · 1.500        → RECUSADO, é o único caso ambíguo; a recusa sugere as duas formas
 
-    Não usa parse_valor de propósito: aquele parser lê export de corretora, onde milhar com
-    vírgula existe, e leria '5,432' como 5432 — justamente a forma que esta função sugere.
+    Não usa parse_valor de propósito, e o motivo não é o mesmo dos dois lados. parse_valor lê
+    um formato DECLARADO por um mapeamento: em pt-BR ele resolve '5.432' como 5432 sem perguntar,
+    e recusa '1,234.56' por ser do outro formato. Aqui não há mapa que declare nada — há uma
+    pessoa digitando, que tanto pode ter copiado de uma tela brasileira quanto de uma americana.
+    Por isso esta função aceita as duas formas e, no único caso em que elas colidem ('5.432'),
+    RECUSA e devolve as duas escritas possíveis. Adivinhar seria gravar preço errado em silêncio.
     """
     sinal, corpo = _COM_MOEDA.match(_ESPACO.sub("", texto)).groups()
     tem_ponto, tem_virgula = "." in corpo, "," in corpo

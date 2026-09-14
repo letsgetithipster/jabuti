@@ -1,5 +1,6 @@
 nome: schwab-transacoes
 versao: 1
+numeros: en-US
 descricao: Transactions (CSV) exportado no site da Schwab. Dividendos com NRA tax como ajuste do líquido, compras, vendas, splits e fusões.
 verificado-contra-export-real: true
 observacoes: >

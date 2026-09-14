@@ -20,6 +20,7 @@ CLI_INSPECAO = RAIZ / "scripts" / "inspecionar_extrato.py"
 MAPA_EXTRATO = """\
 nome: teste-extrato
 versao: 1
+numeros: pt-BR
 descricao: extrato de conta corrente para teste de CLI
 arquivo:
   formato: csv
@@ -48,6 +49,7 @@ conciliacao: {tipo: saldo-corrente, valor: valor, saldo: saldo, ordem: decrescen
 MAPA_POSICOES = """\
 nome: teste-posicoes
 versao: 1
+numeros: pt-BR
 descricao: posição consolidada para teste de CLI
 arquivo:
   formato: csv

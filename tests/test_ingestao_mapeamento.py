@@ -12,7 +12,7 @@ MAPA_OK = {
     "nome": "teste", "versao": 1, "descricao": "x",
     "arquivo": {"formato": "csv"},
     "datas": {"formatos": ["%d/%m/%Y"]},
-    "conta": "corretora-br", "moeda": "BRL",
+    "conta": "corretora-br", "moeda": "BRL", "numeros": "pt-BR",
     "colunas": {"data": "Data", "descricao": "Histórico", "valor": "Valor", "saldo": "Saldo"},
     "linhas": [
         {"quando": {"descricao": r"^RENDIMENTO (?P<ticker>[A-Z0-9]{4,6})$"}, "destino": "proventos",
@@ -423,3 +423,20 @@ def test_total_declarado_continua_exigindo_soma():
     cadeia de tipos.)"""
     m = dict(MAPA_OK, conciliacao={"tipo": "total-declarado", "origem": "flag"})
     assert any("total-declarado exige soma" in e for e in validar_mapeamento(m))
+
+
+def test_mapeamento_sem_numeros_e_erro():
+    """A asserção cobra a FRASE ACIONÁVEL, não a palavra `numeros`: sem a branch de chave
+    obrigatória, `em_vocabulario(None, ...)` emite `numeros None fora do vocabulário [...]`, que
+    também contém "numeros" e satisfaria o teste sem dizer à pessoa o que fazer. Assertion
+    satisfeita por outra coisa é teste que não guarda nada."""
+    mapa = dict(MAPA_OK)
+    mapa.pop("numeros", None)
+    erros = validar_mapeamento(mapa)
+    assert any("chave obrigatória" in e for e in erros), erros
+
+
+def test_mapeamento_com_numeros_fora_do_vocabulario_e_erro():
+    mapa = dict(MAPA_OK)
+    mapa["numeros"] = "pt_BR"
+    assert any("pt_BR" in e for e in validar_mapeamento(mapa))

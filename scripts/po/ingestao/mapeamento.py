@@ -4,6 +4,7 @@ O mapeamento é DADO (YAML), o engine é código. Vocabulário fechado (chave fo
 erro de validação, não é ignorada em silêncio — ver _desconhecidas):
 
   nome, versao (1), descricao, observacoes, verificado-contra-export-real (bool)
+  numeros: pt-BR | en-US   # formato numérico do documento; obrigatório
   detectar: {cabecalho-contem: [textos]}         # auto-seleção do mapeamento pelo cabeçalho
   arquivo: {formato: csv|xlsx, aba, encoding, delimitador, cabecalho-contem, fim-em-vazio}
   datas: {formatos: [strptime...], extrair: regex com 1 grupo (opcional)}
@@ -62,10 +63,11 @@ import yaml
 
 from po.csvs import MOEDAS, OPCIONAIS, SCHEMAS, em_vocabulario
 from po.ingestao.leitores import DependenciaAusente, ler_tabela
+from po.numeros import FORMATOS_NUMERO
 
 DESTINOS_TABELA = {"posicoes", "fills", "proventos", "eventos"}
 CHAVES_TOPO = {"nome", "versao", "descricao", "observacoes", "verificado-contra-export-real",
-               "detectar", "arquivo", "datas", "conta", "moeda", "colunas", "extrair", "linhas",
+               "detectar", "arquivo", "datas", "conta", "moeda", "numeros", "colunas", "extrair", "linhas",
                "conciliacao"}
 CHAVES_ARQUIVO = {"formato", "aba", "encoding", "delimitador", "cabecalho-contem", "fim-em-vazio"}
 CHAVES_DATAS = {"formatos", "extrair"}
@@ -101,6 +103,13 @@ def validar_mapeamento(mapa: object) -> list[str]:
     if not isinstance(mapa, dict):
         return ["mapeamento deve ser um mapeamento YAML (chave: valor)"]
     erros = _desconhecidas(mapa, CHAVES_TOPO, "mapeamento")
+    numeros = mapa.get("numeros")
+    if numeros is None:
+        erros.append("numeros: chave obrigatória — declare o formato numérico do documento "
+                     f"({' | '.join(FORMATOS_NUMERO)}). pt-BR lê 1.234,56; en-US lê 1,234.56. "
+                     "Sem a declaração, 0,030 e 0.030 seriam o mesmo número para o motor.")
+    elif not em_vocabulario(numeros, set(FORMATOS_NUMERO)):
+        erros.append(f"numeros {numeros!r} fora do vocabulário {list(FORMATOS_NUMERO)}")
     detectar = mapa.get("detectar")
     if detectar is not None:
         if not isinstance(detectar, dict):

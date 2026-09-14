@@ -1,5 +1,6 @@
 nome: b3-movimentacao
 versao: 1
+numeros: pt-BR
 descricao: Movimentação (xlsx) exportada na Área do Investidor da B3. Proventos, liquidações e eventos por ativo.
 verificado-contra-export-real: false
 observacoes: >

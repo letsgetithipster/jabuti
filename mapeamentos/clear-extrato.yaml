@@ -1,5 +1,6 @@
 nome: clear-extrato
 versao: 1
+numeros: pt-BR
 descricao: Extrato da conta (xlsx) exportado no site da Clear. Proventos por ticker; operações em bolsa vêm agregadas por nota e são ignoradas (fills por ticker vêm da nota de corretagem ou do export da B3).
 verificado-contra-export-real: true
 observacoes: >

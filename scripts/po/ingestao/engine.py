@@ -52,14 +52,16 @@ def _resolver(template, ctx: dict):
     return TOKEN.sub(lambda mm: (mm.group(2) or "") if _vazio(ctx.get(mm.group(1))) else str(ctx[mm.group(1)]), template)
 
 
-def _converter(campo: str, valor, datas: dict) -> tuple[object, str | None]:
-    """Converte o valor resolvido para o tipo do campo. Retorna (valor, erro)."""
+def _converter(campo: str, valor, datas: dict, formato: str) -> tuple[object, str | None]:
+    """Converte o valor resolvido para o tipo do campo. Retorna (valor, erro).
+
+    `formato` é o `numeros:` do mapeamento: o parser nunca adivinha pt-BR ou en-US."""
     if campo in NUMERICOS:
         if isinstance(valor, bool):
             return None, f"{campo} não numérico: {valor!r}"
         if isinstance(valor, (int, float)):
             return float(valor), None
-        num = parse_valor(str(valor)) if valor is not None else None
+        num = parse_valor(str(valor), formato=formato) if valor is not None else None
         if num is None:
             return None, f"{campo} não numérico: {valor!r}"
         return num, None
@@ -71,14 +73,14 @@ def _converter(campo: str, valor, datas: dict) -> tuple[object, str | None]:
     return ("" if valor is None else str(valor).strip()), None
 
 
-def _data_da_linha(ctx: dict, indices: dict, datas: dict, data_padrao: str | None):
+def _data_da_linha(ctx: dict, indices: dict, datas: dict, data_padrao: str | None, formato: str):
     """Data da linha: da coluna do documento (formatos do mapeamento) ou do --data, que o
     usuário digita já em ISO e por isso NÃO passa pelos formatos do documento."""
     if "data" in indices:
-        return _converter("data", ctx.get("data"), datas)
+        return _converter("data", ctx.get("data"), datas, formato)
     if _vazio(data_padrao):
         return None, "este documento não traz data — passe --data AAAA-MM-DD"
-    return _converter("data", data_padrao, {"formatos": ["%Y-%m-%d"]})
+    return _converter("data", data_padrao, {"formatos": ["%Y-%m-%d"]}, formato)
 
 
 def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padrao: str | None = None) -> Resultado:
@@ -87,6 +89,7 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
     conta = conta or mapa["conta"]
     moeda = mapa["moeda"]
     datas = mapa.get("datas") or {}
+    formato = mapa.get("numeros") or "pt-BR"
     indices = {}
     for apelido, nome_col in mapa["colunas"].items():
         if nome_col not in tabela.cabecalho:
@@ -153,7 +156,7 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
             if campo in campos:
                 bruto = _resolver(campos[campo], ctx)
             elif campo == "data":
-                valor, erro = _data_da_linha(ctx, indices, datas, data_padrao)
+                valor, erro = _data_da_linha(ctx, indices, datas, data_padrao, formato)
                 if erro:
                     res.erros.append(f"linha {n}: {erro}")
                     falhou = True
@@ -172,7 +175,7 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
                 res.erros.append(f"linha {n}: campo {campo} de {destino} não mapeado (declare em campos)")
                 falhou = True
                 break
-            valor, erro = _converter(campo, bruto, datas)
+            valor, erro = _converter(campo, bruto, datas, formato)
             if erro:
                 res.erros.append(f"linha {n}: {erro}")
                 falhou = True
@@ -181,7 +184,7 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
         if falhou:
             continue
         if destino == "posicoes":
-            valor, erro = _data_da_linha(ctx, indices, datas, data_padrao)
+            valor, erro = _data_da_linha(ctx, indices, datas, data_padrao, formato)
             if erro:
                 res.erros.append(f"linha {n}: posições exigem a data do documento — {erro}")
                 continue
@@ -197,7 +200,7 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
         campo = regra.get("campo", "valor_liquido")
         chave, falhou = {}, False
         for c in regra["chave"]:
-            valor, erro = _converter(c, ctx.get(c), datas)
+            valor, erro = _converter(c, ctx.get(c), datas, formato)
             if erro:
                 res.erros.append(f"linha {n}: ajuste com {erro}")
                 falhou = True
@@ -205,7 +208,7 @@ def executar(mapa: dict, tabela: Tabela, *, conta: str | None = None, data_padra
             chave[c] = valor
         if falhou:
             continue
-        quantia, erro = _converter(campo, _resolver(regra["valor"], ctx), datas)
+        quantia, erro = _converter(campo, _resolver(regra["valor"], ctx), datas, formato)
         if erro:
             res.erros.append(f"linha {n}: ajuste com {erro}")
             continue

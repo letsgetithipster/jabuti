@@ -1,5 +1,6 @@
 nome: exemplo-posicoes-csv
 versao: 1
+numeros: pt-BR
 descricao: Posições em CSV tabular (ticker, classe, quantidade, preço médio, valor investido, linha Total). Modelo para adaptar ao seu export de custódia.
 verificado-contra-export-real: false
 observacoes: >

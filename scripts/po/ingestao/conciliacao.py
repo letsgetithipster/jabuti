@@ -60,12 +60,12 @@ def _tolerancia(conc: dict, padrao: float = TOL,
     return padrao, porque
 
 
-def _num(v):
+def _num(v, formato: str = "pt-BR"):
     if isinstance(v, bool) or v is None:
         return None
     if isinstance(v, (int, float)):
         return float(v)
-    return parse_valor(str(v))
+    return parse_valor(str(v), formato=formato)
 
 
 def _soma_do_registro(registro: dict, soma: str) -> float:
@@ -80,6 +80,7 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
     """Retorna (erros, descrição do que foi conferido). Chamar só com res.erros vazio."""
     conc = mapa["conciliacao"]
     tipo = conc["tipo"]
+    formato = mapa.get("numeros") or "pt-BR"
     idx = {ap: tabela.cabecalho.index(nome) for ap, nome in mapa["colunas"].items() if nome in tabela.cabecalho}
     erros = []
 
@@ -100,7 +101,7 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
         pontos, ancoras = [], 0
         for i, linha in enumerate(tabela.linhas):
             n = tabela.numero_da_linha(i)
-            v, s = _num(linha[i_valor]), _num(linha[i_saldo])
+            v, s = _num(linha[i_valor], formato), _num(linha[i_saldo], formato)
             if n in fora_da_cadeia:
                 continue
             if s is None:
@@ -153,7 +154,7 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
         for f in res.registros["fills"]:
             if f["tipo"] == "saldo-inicial":
                 continue
-            declarado = _num(res.contextos[f["_linha"]].get("valor"))
+            declarado = _num(res.contextos[f["_linha"]].get("valor"), formato)
             if declarado is None:
                 erros.append(f"linha {f['_linha']}: fill sem valor declarado na coluna {mapa['colunas']['valor']!r}")
                 continue
@@ -165,7 +166,7 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
                              f"≠ valor declarado {abs(declarado):.2f}")
             conferidas += 1
         for p in res.registros["proventos"]:
-            declarado = _num(res.contextos[p["_linha"]].get("valor"))
+            declarado = _num(res.contextos[p["_linha"]].get("valor"), formato)
             if declarado is None:
                 sem_valor += 1     # o documento não declarou valor nessa linha: nada a provar
                 continue
@@ -200,7 +201,7 @@ def conciliar(mapa: dict, tabela: Tabela, res: Resultado,
         total = None
         for linha in tabela.linhas:
             if any(str(c).strip() == origem["linha-contem"] for c in linha):
-                total = _num(linha[i_col])
+                total = _num(linha[i_col], formato)
                 break
         if total is None:
             return [f"linha de total contendo {origem['linha-contem']!r} não encontrada "

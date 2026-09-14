@@ -233,3 +233,46 @@ def test_schwab_ajuste_de_imposto_com_digito_a_mais_para(tmp_path):
     assert any("depois do ajuste" in e and "sinal oposto" in e for e in erros)
     # e o registro envenenado não sobrevive à rodada: com res.erros preenchido, o CLI não grava
     assert res.erros
+
+
+def test_engine_e_conciliacao_leem_o_numeros_que_o_mapa_declara(tmp_path):
+    """Declarar não é consumir. O teste de declaração abaixo compara string com string: com ele
+    verde, apagar o repasse de `numeros` no engine e na conciliação (os dois de volta ao pt-BR
+    fixo) não derruba nada, e uma compra de 1.234 ações entra em dados/ como 1,234 — mil vezes
+    menor, sem erro e sem aviso. É o mesmo defeito que esta task existe para matar, deslocado do
+    parser para a fiação, e a partir da Task 10 não há mais posicoes.csv para denunciá-lo.
+
+    A fixture do repo não pega isso: o único valor com milhar nela (`$1,000.00`) está numa linha
+    Journal, sob `destino: ignorar`. Aqui o milhar está em coluna que vira registro — Quantity de
+    uma compra, Amount de um dividendo — e em Amount, que é o que a conciliação confere."""
+    doc = tmp_path / "schwab-com-milhar.csv"
+    doc.write_text("\n".join([
+        '"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"',
+        '"08/05/2026","Buy","AAPL","APPLE INC","1,234","$230.50","$0.00","-$284,437.00"',
+        '"08/20/2026","Cash Dividend","WELL","WELLTOWER INC REIT","","","","$1,234.56"',
+        "",
+    ]), encoding="utf-8")
+    _, res, erros, desc = _rodar("schwab-transacoes", doc)
+    fills = res.registros["fills"]
+    # A qty vem primeiro de propósito: é o caso SILENCIOSO (número mil vezes menor, sem erro
+    # nenhum). Os erros abaixo são o caso barulhento, e não podem mascarar aquele no relatório.
+    assert fills, res.erros
+    assert fills[0]["qty"] == 1234.0, (
+        "Quantity '1,234' sob `numeros: en-US` é mil duzentas e trinta e quatro ações; o engine "
+        f"leu {fills[0]['qty']!r} — está lendo o default pt-BR, não o formato que o mapa declara.")
+    assert fills[0]["preco"] == 230.5
+    assert res.erros == [], res.erros
+    assert res.registros["proventos"][0]["valor_bruto"] == pytest.approx(1234.56)
+    # Amount tem milhar: a conciliação também morre se ela ignorar o `numeros:` do mapa.
+    assert erros == [], erros
+    assert "1 linha(s) conferidas" in desc
+
+
+def test_os_quatro_mapeamentos_do_motor_declaram_numeros():
+    """Sem a declaração no MESMO commit do parser, trocar o default quebraria em silêncio um
+    mapeamento conferido contra export real — o pior desfecho possível desta mudança."""
+    esperado = {"b3-movimentacao": "pt-BR", "clear-extrato": "pt-BR",
+                "exemplo-posicoes-csv": "pt-BR", "schwab-transacoes": "en-US"}
+    for nome, fmt in esperado.items():
+        mapa = carregar_mapeamento(MOTOR / "mapeamentos" / f"{nome}.yaml")
+        assert mapa["numeros"] == fmt, nome
