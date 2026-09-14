@@ -60,6 +60,9 @@ def test_moeda_sem_cambio_declarado_suspende(tmp_path):
     pos = ws / "dados" / "posicoes.csv"
     pos.write_text(pos.read_text(encoding="utf-8") +
                    "VOO,rv-int,corretora-br,2,500.00,USD\n", encoding="utf-8")
+    fills = ws / "dados" / "fills.csv"
+    fills.write_text(fills.read_text(encoding="utf-8") +
+                     "2026-08-01,VOO,saldo-inicial,2,500.00,0,corretora-br,USD\n", encoding="utf-8")
     cot = ws / "dados" / "cotacoes.csv"
     cot.write_text(cot.read_text(encoding="utf-8") +
                    "2026-09-08,18:00,VOO,510.00,USD,manual\n", encoding="utf-8")
@@ -141,6 +144,7 @@ def test_posicao_sem_cotacao_continua_suspendendo_com_aviso_e_nao_erro(tmp_path)
     a comparação suspende e nomeia a causa. Quem acusa a origem é o check de dados."""
     ws = copia_exemplo(tmp_path)
     _anexa(ws, "dados/posicoes.csv", "VALE3,acoes-br,corretora-br,10,60.00,BRL")
+    _anexa(ws, "dados/fills.csv", "2026-08-01,VALE3,saldo-inicial,10,60.00,0,corretora-br,BRL")
     erros, avisos = checar_estado(ws)
     assert erros == []
     assert any("suspensa" in a and "VALE3 sem cotação" in a for a in avisos)

@@ -1,13 +1,22 @@
-"""Valoração da carteira a partir de dados/: posição × cotação vencedora × câmbio, em BRL.
+"""Valoração da carteira a partir de dados/: posição derivada do ledger × cotação vencedora ×
+câmbio, em BRL.
 
-Cálculo único, usado pelo gerador de ESTADO e pelo cockpit — o mesmo número nos dois.
-Falta de cotação ou de câmbio é ValueError acionável: número parcial não sai daqui.
+A posição não é um dado gravado: ela é `fills` + `eventos` + a classe declarada em `ativos`,
+replayados na leitura. Cálculo único, usado pelo gerador de ESTADO e pelo cockpit — o mesmo
+número nos dois. Falta de cotação, de câmbio ou de classe é ValueError acionável: número parcial
+não sai daqui.
+
+`ate` (AAAA-MM-DD) corta fills, eventos E cotações no mesmo instante, e devolve a carteira como
+ela era naquela data. Cortar só a posição daria quantidade antiga a preço de hoje, que parece foto
+histórica e não é.
 """
 import datetime
 from dataclasses import dataclass
 from pathlib import Path
 
+from po.ativos import ler_ativos
 from po.csvs import ler_csv, ultimas_cotacoes
+from po.ledger import posicoes_de_fills
 from po.politica import Banda, ler_bandas
 
 # Cotação velha não é erro (o mercado pode estar fechado, o ativo pode ser ilíquido), mas virar
@@ -60,11 +69,19 @@ def _ler(nome: str, raiz: Path) -> list[dict]:
     return linhas
 
 
-def valorar(raiz: str | Path, hoje: datetime.date | None = None) -> Carteira:
+def valorar(raiz: str | Path, hoje: datetime.date | None = None, *,
+            ate: str | None = None) -> Carteira:
     raiz = Path(raiz)
     hoje = hoje or datetime.date.today()
-    posicoes = _ler("posicoes", raiz)
-    cotacoes = _ler("cotacoes", raiz)
+    classes, erros_ativos, _origem = ler_ativos(raiz)
+    if erros_ativos:
+        raise ValueError(f"a declaração de classes tem erro — corrija antes (rode o validador): "
+                         f"{erros_ativos[0]}")
+    posicoes, erros_pos = posicoes_de_fills(_ler("fills", raiz), _ler("eventos", raiz),
+                                            classes, ate=ate)
+    if erros_pos:
+        raise ValueError(erros_pos[0])
+    cotacoes = [c for c in _ler("cotacoes", raiz) if not ate or c["data"] <= ate]
     bandas, erros = ler_bandas(raiz)
     if erros:
         raise ValueError(erros[0])

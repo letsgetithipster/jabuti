@@ -1,11 +1,11 @@
 """Ledger cronológico: fills + eventos societários → saldo de quantidade e preço médio, e daí a
 posição derivada de toda a carteira.
 
-Passa a ser a única fonte de qty e PM do motor quando `carteira.valorar` deixar de ler
-`dados/posicoes.csv`. Hoje ela ainda lê, e quem acusa divergência entre o arquivo e o ledger é o
-validador, não o gerador. A partir dali `dados/` guarda evento e uma declaração estática; saldo,
-total e banda passam a ser derivados na leitura, e deixa de existir arquivo cuja edição mude o
-seu patrimônio.
+É a única fonte de qty e PM do motor: `carteira.valorar` deriva a posição daqui e não lê mais
+`dados/posicoes.csv`. `dados/` guarda evento e uma declaração estática; saldo, total e banda são
+derivados na leitura, e não existe arquivo cuja edição mude o seu patrimônio. Enquanto
+`posicoes.csv` ainda existir no workspace, ele é só a tabela antiga onde `po.ativos` ainda vai
+buscar a classe de um ticker que ninguém declarou no arquivo novo.
 
 Ordem do replay: data, depois tipo (`saldo-inicial` < `compra` < `evento` < `venda`), depois a
 ordem do arquivo. Evento aplica ANTES de venda no mesmo dia porque desdobramento costuma ser

@@ -52,6 +52,7 @@ def test_sem_cotacao_nao_gera_e_declara(tmp_path):
     ws = copia_exemplo(tmp_path)
     antes = (ws / "estado" / "ESTADO.md").read_text(encoding="utf-8")
     _anexa(ws, "dados/posicoes.csv", "VALE3,acoes-br,corretora-br,10,60.00,BRL")
+    _anexa(ws, "dados/fills.csv", "2026-08-01,VALE3,saldo-inicial,10,60.00,0,corretora-br,BRL")
     try:
         gerar_estado(ws)
         assert False, "deveria ter levantado"
