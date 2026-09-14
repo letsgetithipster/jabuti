@@ -9,8 +9,9 @@ separador. Regras de limpeza, comuns aos dois formatos (na ordem):
 2. Só resultado final estritamente numérico ([+-]?\d+(\.\d+)?) é aceito:
    nan/inf/notação científica/underscore retornam None.
 
-Dois formatadores, públicos diferentes: `formatar_brl` é para humanos (pt-BR);
-`formatar_canonico` é para dados/ (deve satisfazer csvs.NUMERO_CANONICO).
+Três formatadores, públicos diferentes: `formatar_brl` é dinheiro para humanos
+(pt-BR, 2 casas); `formatar_decimal_brl` é quantidade para humanos (pt-BR, até N casas, sem
+zeros à direita); `formatar_canonico` é para dados/ (deve satisfazer csvs.NUMERO_CANONICO).
 """
 import math
 import re
@@ -75,6 +76,21 @@ def parse_valor(texto: object, *, formato: str = "pt-BR") -> float | None:
 def formatar_brl(valor: float) -> str:
     """Formata em pt-BR: 12345.6 -> '12.345,60'."""
     return f"{valor:,.2f}".translate(str.maketrans(",.", ".,"))
+
+
+def formatar_decimal_brl(valor: float, casas: int = 8) -> str:
+    """Número em pt-BR com ATÉ `casas` casas, sem zeros à direita: 0.03 -> '0,03', 1500.0 -> '1.500'.
+
+    É o formatador de QUANTIDADE para humano, e o terceiro porque os outros dois não servem aqui:
+    `formatar_brl` fixa 2 casas e some com cripto (1 satoshi viraria '0,00'), `formatar_canonico`
+    é exato mas escreve o decimal com ponto, que não é pt-BR. Nunca notação científica: `:g` daria
+    '1e-08' para um satoshi e '1.23457e+06' para um milhão, numa mensagem que manda a pessoa
+    repetir exatamente o número.
+    """
+    texto = f"{valor:,.{casas}f}"
+    if "." in texto:
+        texto = texto.rstrip("0").rstrip(".")
+    return texto.translate(str.maketrans(",.", ".,"))
 
 
 def formatar_canonico(valor: float, casas: int = 8) -> str:

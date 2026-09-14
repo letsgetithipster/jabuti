@@ -238,11 +238,15 @@ def test_evento_anomalo_confirmado_e_erro(tmp_path):
     assert any("variacao-anomala" in e and "troque o tipo" in e for e in erros)
 
 
-def test_split_confirmado_sem_razao_e_aviso(tmp_path):
+def test_split_confirmado_sem_razao_e_erro_do_ledger_alem_do_aviso(tmp_path):
+    """Desde que check_dados passa os eventos ao ledger, split confirmado sem razão é ERRO: a
+    posição derivada do ticker fica desconhecida, e sob derivação isso não pode passar como
+    aviso. O aviso continua porque é ele que aponta a LINHA do CSV; o erro aponta o efeito."""
     ws = copia_exemplo(tmp_path)
     _anexa(ws, "dados/eventos.csv", "2026-09-08,PETR4,split,,sim")
     erros, avisos = checar_dados(ws)
-    assert erros == [] and any("split" in a and "sem razão" in a for a in avisos)
+    assert any("PETR4" in e and "novas:antigas" in e for e in erros), erros
+    assert any("split" in a and "sem razão" in a for a in avisos)
 
 
 def test_venda_sem_posicao_nao_gera_erro_derivado(tmp_path):

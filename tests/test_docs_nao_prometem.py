@@ -1,8 +1,10 @@
 """Nenhum documento do repo promete no presente o que o código não cumpre. É um só invariante
-espalhado por dois arquivos: o README (estrutura de pastas, vínculo com a Finnest, fase de cada
-comando) e o GUARDRAILS (a garantia menor do dado de API, a ressalva de que nenhum provider está
-ligado ainda). Ele vale só por disciplina até virar check mecânico, e a auditoria da Fase 1 já
-mostrou que não basta."""
+espalhado por três lugares: o README (estrutura de pastas, vínculo com a Finnest, fase de cada
+comando), o GUARDRAILS (a garantia menor do dado de API, a ressalva de que nenhum provider está
+ligado ainda) e a docstring do ledger (a promessa de que nenhum arquivo editado à mão muda o seu
+patrimônio, que só vale quando `carteira.valorar` parar de ler `dados/posicoes.csv`). Ele vale
+só por disciplina até virar check mecânico, e a auditoria da Fase 1 já mostrou que não basta."""
+import inspect
 import re
 import shlex
 import subprocess
@@ -219,6 +221,33 @@ def test_numero_de_fase_citado_bate_com_o_roadmap():
                             achados.append(f"{rel}:{n}: {comando} citado com Fase {f}, "
                                            f"devia ser {esperada}")
     assert achados == [], "numeração de fase divergente do roadmap:\n  " + "\n  ".join(achados)
+
+
+PROMESSA_DE_FONTE_UNICA = "É a única fonte de qty e PM"
+
+
+def test_ledger_so_promete_ser_a_fonte_unica_quando_carteira_parar_de_ler_posicoes():
+    """A promessa mais cara do repo, um andar abaixo do README: a docstring do ledger dizia, no
+    presente, que ele é a única fonte de qty e PM e que "não existe arquivo cuja edição mude o
+    seu patrimônio". Medido no exemplo, com `fills.csv` intacto e editando só `dados/posicoes.csv`
+    (PETR4 100 -> 900), o total do ESTADO ia de R$ 12.000,00 a R$ 44.000,00 — porque
+    `carteira.valorar` ainda lê o arquivo. Quem acusa a divergência hoje é o validador, não o
+    gerador, que é exatamente o defeito que a fase existe para fechar.
+
+    Guarda de DUAS VIAS, como a do provider: enquanto `valorar` ler `posicoes.csv`, a frase tem
+    que estar no futuro; no dia em que a leitura sair, este teste falha e cobra a volta dela ao
+    presente. Ressalva que sobrevive ao fato que ela descreve é a mesma dívida ao contrário.
+    """
+    import po.carteira
+    import po.ledger
+
+    le_posicoes = '_ler("posicoes"' in inspect.getsource(po.carteira.valorar)
+    promete_presente = PROMESSA_DE_FONTE_UNICA in (po.ledger.__doc__ or "")
+    assert le_posicoes != promete_presente, (
+        f"carteira.valorar {'ainda lê' if le_posicoes else 'não lê mais'} dados/posicoes.csv, e a "
+        f"docstring do ledger {'promete' if promete_presente else 'não promete'} no presente ser a "
+        f"única fonte de qty e PM. Enquanto a leitura existir, a frase tem que estar no futuro; "
+        f"quando ela sair, a frase volta ao presente e este teste é o lembrete.")
 
 
 def _bloco_de_demo():

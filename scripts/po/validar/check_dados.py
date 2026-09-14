@@ -107,7 +107,7 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
             else:
                 qty_posicao[chave] = p["qty"]
                 pm_posicao[chave] = p["pm"]
-        saldos, errs, suspeitas = calcular_saldos(fills)
+        saldos, errs, suspeitas = calcular_saldos(fills, eventos)
         erros.extend(errs)
         suspensas = suspeitas | duplicadas   # já há erro na origem: não somar erro derivado
         for (ticker, conta), s in sorted(saldos.items()):

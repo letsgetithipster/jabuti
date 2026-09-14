@@ -1,16 +1,36 @@
-"""Ledger cronológico de fills por (ticker, conta): saldo de quantidade e preço médio.
+"""Ledger cronológico: fills + eventos societários → saldo de quantidade e preço médio, e daí a
+posição derivada de toda a carteira.
 
-Ordem: data, depois tipo (saldo-inicial e compra antes de venda no mesmo dia), depois
-ordem do arquivo. `compra` e `saldo-inicial` somam custo (qty × preço + taxa); `venda`
-baixa ao PM corrente (taxa de venda não altera PM) e não pode exceder o saldo daquele
-momento. A abertura (`saldo-inicial`) é única e vem antes de tudo na chave. Quem usa:
-check_dados (qty e PM contra posicoes.csv) e a ingestão (posição importada nasce com
-saldo-inicial).
+Passa a ser a única fonte de qty e PM do motor quando `carteira.valorar` deixar de ler
+`dados/posicoes.csv`. Hoje ela ainda lê, e quem acusa divergência entre o arquivo e o ledger é o
+validador, não o gerador. A partir dali `dados/` guarda evento e uma declaração estática; saldo,
+total e banda passam a ser derivados na leitura, e deixa de existir arquivo cuja edição mude o
+seu patrimônio.
+
+Ordem do replay: data, depois tipo (`saldo-inicial` < `compra` < `evento` < `venda`), depois a
+ordem do arquivo. Evento aplica ANTES de venda no mesmo dia porque desdobramento costuma ser
+efetivo na abertura. `compra` e `saldo-inicial` somam custo (qty × preço + taxa); `venda` baixa ao
+PM corrente (taxa de venda não altera PM) e não pode exceder o saldo daquele momento.
+
+`estorno` não é inverso aritmético: é "remova da linha do tempo o fill que este estorno casa
+exatamente", e o replay inteiro é refeito sem a linha. Por isso ele é exato para compra, venda e
+abertura, e por isso a `data` do estorno é a do fill anulado — é o que torna o casamento único.
+Append-only preservado: anexar_csv continua sendo o único writer.
+
+Eventos aplicáveis: split, grupamento e bonificação confirmados, com razão em `novas:antigas`.
+Split e grupamento são a MESMA fórmula (a/b, com a<b no grupamento). Tipo confirmado que o ledger
+não sabe aplicar é ERRO NOMEADO, nunca no-op: com posição derivada, um `cisao` ignorado em
+silêncio seria patrimônio errado com o validador verde.
 """
+import re
 from dataclasses import dataclass
 
+from po.numeros import formatar_brl, formatar_decimal_brl
+
 TOLERANCIA_QTY = 1e-6
-_ORDEM_TIPO = {"saldo-inicial": 0, "compra": 1, "venda": 2}
+_ORDEM_TIPO = {"saldo-inicial": 0, "compra": 1, "evento": 2, "venda": 3}
+RAZAO_RE = re.compile(r"^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$")
+EVENTOS_APLICAVEIS = {"split", "grupamento", "bonificacao"}
 
 
 @dataclass
@@ -23,19 +43,104 @@ class Saldo:
         return self.custo / self.qty if self.qty > TOLERANCIA_QTY else 0.0
 
 
-def calcular_saldos(fills: list[dict]) -> tuple[dict[tuple[str, str], Saldo], list[str], set[tuple[str, str]]]:
-    """Retorna ({(ticker, conta): Saldo}, erros, chaves suspeitas). Fills já validados (floats).
+def _chave_de_casamento(f: dict) -> tuple:
+    return (f["data"], f["ticker"], f["conta"],
+            round(float(f["qty"]), 6), round(float(f["preco"]), 4), round(float(f["taxa"]), 2))
 
-    Chave em 'chaves suspeitas' tem saldo derivado não confiável: quem compara contra
-    posicoes.csv suspende a comparação em vez de somar um segundo erro derivado.
+
+def eventos_vigentes(eventos: list[dict]) -> list[dict]:
+    """A última linha por (data, ticker) vence, espelhando csvs.ultimas_cotacoes: confirmar um
+    evento é ANEXAR uma linha com confirmado=sim e a razão, nunca reescrever a proposta."""
+    melhor: dict[tuple[str, str], tuple[int, dict]] = {}
+    for i, e in enumerate(eventos):
+        melhor[(e["data"], e["ticker"])] = (i, e)
+    return [e for _, (_, e) in sorted(melhor.items(), key=lambda kv: (kv[0][0], kv[1][0]))]
+
+
+def _fator(razao: str | None) -> float | None:
+    m = RAZAO_RE.match(razao or "")
+    if not m:
+        return None
+    novas, antigas = float(m.group(1)), float(m.group(2))
+    if novas <= 0 or antigas <= 0:
+        return None
+    return novas / antigas
+
+
+def _aplicar_evento(ev: dict, saldos: dict, erros: list[str], suspeitas: set) -> None:
+    ticker, tipo = ev["ticker"], ev["tipo"]
+    chaves = [k for k in saldos if k[0] == ticker]
+
+    def suspender(msg: str) -> None:
+        erros.append(msg)
+        suspeitas.update(chaves)
+
+    if tipo not in EVENTOS_APLICAVEIS:
+        suspender(f"eventos.csv: {ticker} confirmado como {tipo!r} em {ev['data']} — o ledger não "
+                  f"sabe o efeito desse tipo no saldo. Registre o efeito como fill "
+                  f"(compra/venda/estorno) e deixe o evento como registro não aplicável, "
+                  f"ou troque o tipo por um de {sorted(EVENTOS_APLICAVEIS)}")
+        return
+    fator = _fator(ev.get("razao"))
+    if fator is None:
+        suspender(f"eventos.csv: {ticker} {tipo} em {ev['data']} com razão {ev.get('razao')!r} — "
+                  "o ledger precisa de 'novas:antigas' (ex.: 2:1 para split, 1:10 para grupamento)")
+        return
+    if tipo == "bonificacao":
+        fator = 1.0 + fator     # bonificação SOMA as novas; split e grupamento SUBSTITUEM
+    for k in chaves:
+        if saldos[k].qty > TOLERANCIA_QTY:
+            saldos[k].qty = round(saldos[k].qty * fator, 8)
+
+
+def calcular_saldos(fills: list[dict], eventos: list[dict] | tuple = (), *,
+                    ate: str | None = None) -> tuple[dict[tuple[str, str], Saldo], list[str], set]:
+    """({(ticker, conta): Saldo}, erros, chaves suspeitas). Fills já validados (floats).
+
+    `ate` (AAAA-MM-DD, inclusive) corta a linha do tempo: é o que devolve a posição de 31/12 lida
+    em março. Chave em 'suspeitas' tem saldo derivado não confiável; quem for somar erro em cima
+    dela suspende, para não empilhar erro derivado sobre erro de origem.
     """
-    saldos: dict[tuple[str, str], Saldo] = {}
     erros: list[str] = []
     suspeitas: set[tuple[str, str]] = set()
+    saldos: dict[tuple[str, str], Saldo] = {}
     aberturas: set[tuple[str, str]] = set()
-    ordenados = sorted(enumerate(fills),
-                       key=lambda par: (par[1]["data"], _ORDEM_TIPO.get(par[1]["tipo"], 9), par[0]))
-    for _, f in ordenados:
+
+    fills = [f for f in fills if not ate or f["data"] <= ate]
+    eventos = [e for e in eventos_vigentes(list(eventos))
+               if e["confirmado"] == "sim" and (not ate or e["data"] <= ate)]
+
+    estornados: set[int] = set()
+    efetivos: list[tuple[int, dict]] = []
+    for i, f in enumerate(fills):
+        if f["tipo"] != "estorno":
+            efetivos.append((i, f))
+            continue
+        alvo = _chave_de_casamento(f)
+        casam = [j for j, g in enumerate(fills)
+                 if g["tipo"] in ("compra", "venda", "saldo-inicial") and j not in estornados
+                 and _chave_de_casamento(g) == alvo]
+        if len(casam) != 1:
+            erros.append(f"fills.csv: estorno de {formatar_decimal_brl(f['qty'])} {f['ticker']} "
+                         f"em {f['data']} (conta {f['conta']}, R$ {formatar_brl(f['preco'])}, "
+                         f"taxa {formatar_brl(f['taxa'])}) casa "
+                         f"{len(casam)} fill(s) — o estorno tem que repetir exatamente a linha "
+                         "que anula, e casar uma só")
+            suspeitas.add((f["ticker"], f["conta"]))
+        else:
+            estornados.add(casam[0])
+    efetivos = [(i, f) for i, f in efetivos if i not in estornados]
+
+    itens = [(f["data"], _ORDEM_TIPO.get(f["tipo"], 9), i, "fill", f) for i, f in efetivos]
+    itens += [(e["data"], _ORDEM_TIPO["evento"], 10 ** 9 + k, "evento", e)
+              for k, e in enumerate(eventos)]
+    itens.sort(key=lambda t: (t[0], t[1], t[2]))
+
+    for _, _, _, especie, x in itens:
+        if especie == "evento":
+            _aplicar_evento(x, saldos, erros, suspeitas)
+            continue
+        f = x
         chave = (f["ticker"], f["conta"])
         tipo = f["tipo"]
         if tipo in ("compra", "saldo-inicial"):
@@ -59,8 +164,9 @@ def calcular_saldos(fills: list[dict]) -> tuple[dict[tuple[str, str], Saldo], li
             disponivel = s.qty if s else 0.0
             if s is None or f["qty"] > disponivel + TOLERANCIA_QTY:
                 erros.append(
-                    f"fills.csv: venda de {f['qty']:g} {f['ticker']} em {f['data']} excede o saldo "
-                    f"na conta {f['conta']} ({disponivel:g}) — confira a ordem cronológica ou registre "
+                    f"fills.csv: venda de {formatar_decimal_brl(f['qty'])} {f['ticker']} em "
+                    f"{f['data']} excede o saldo na conta {f['conta']} "
+                    f"({formatar_decimal_brl(disponivel)}) — confira a ordem cronológica ou registre "
                     "um saldo-inicial anterior")
                 suspeitas.add(chave)
                 continue
@@ -73,3 +179,35 @@ def calcular_saldos(fills: list[dict]) -> tuple[dict[tuple[str, str], Saldo], li
                          "o ledger não sabe o efeito dessa linha no saldo")
             suspeitas.add(chave)
     return saldos, erros, suspeitas
+
+
+def posicoes_de_fills(fills: list[dict], eventos: list[dict] | tuple = (),
+                      classes: dict[str, str] | None = None, *,
+                      ate: str | None = None) -> tuple[list[dict], list[str]]:
+    """(posições, erros). Uma linha por (ticker, conta) com saldo > 0, no formato que o resto do
+    motor já lê: ticker, classe, conta, qty, pm, moeda.
+
+    `classes` é {ticker: classe}, a declaração da pessoa em dados/ativos.csv — o único campo de
+    uma posição que não é derivável de um fill nem é fato de mercado. Ticker com fill e sem
+    declaração sai com classe "" e um erro nomeado: sem classe não há bloco, e sem bloco a banda
+    não tem como ser conferida. A moeda vem do fill (check_dados já cobra moeda da linha contra
+    moeda da conta declarada na config).
+    """
+    classes = classes or {}
+    saldos, erros, _ = calcular_saldos(fills, eventos, ate=ate)
+    moedas = {(f["ticker"], f["conta"]): f["moeda"]
+              for f in fills if not ate or f["data"] <= ate}
+    posicoes, sem_classe = [], []
+    for (ticker, conta), s in sorted(saldos.items()):
+        if s.qty <= TOLERANCIA_QTY:
+            continue
+        if ticker not in classes and ticker not in sem_classe:
+            sem_classe.append(ticker)
+        posicoes.append({"ticker": ticker, "classe": classes.get(ticker, ""), "conta": conta,
+                         "qty": round(s.qty, 8), "pm": round(s.pm, 8),
+                         "moeda": moedas.get((ticker, conta), "BRL")})
+    for ticker in sem_classe:
+        erros.append(f"dados/ativos.csv: {ticker} tem fill mas nenhuma classe declarada — "
+                     f"acrescente a linha `{ticker},<classe>` em dados/ativos.csv "
+                     "(acoes-br, fiis, rv-int, reits-us, rf-br, cripto, caixa, commodities)")
+    return posicoes, erros

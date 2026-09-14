@@ -43,7 +43,7 @@ SCHEMAS = {
 NUMERICOS = {"qty", "pm", "preco", "taxa", "valor_bruto", "valor_liquido", "valor"}
 CLASSES = {"acoes-br", "fiis", "rv-int", "reits-us", "rf-br", "cripto", "caixa", "commodities"}
 MOEDAS = {"BRL", "USD", "EUR"}
-TIPOS_FILL = {"compra", "venda", "saldo-inicial"}
+TIPOS_FILL = {"compra", "venda", "saldo-inicial", "estorno"}
 TIPOS_PROVENTO = {"dividendo", "jcp", "rendimento", "juros", "outro"}
 TIPOS_EVENTO = {"split", "grupamento", "bonificacao", "subscricao", "fusao", "cisao",
                 "variacao-anomala", "outro"}

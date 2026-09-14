@@ -1,6 +1,6 @@
 import pytest
 
-from po.numeros import formatar_brl, formatar_canonico, parse_valor
+from po.numeros import formatar_brl, formatar_canonico, formatar_decimal_brl, parse_valor
 
 
 @pytest.mark.parametrize("texto,esperado", [
@@ -37,6 +37,30 @@ def test_parse_invalido_retorna_none(texto):
 ])
 def test_formatar_brl(valor, esperado):
     assert formatar_brl(valor) == esperado
+
+
+@pytest.mark.parametrize("valor,esperado", [
+    (0.03, "0,03"),                 # cripto: aqui formatar_brl coincide; na linha abaixo, não
+    (0.00000001, "0,00000001"),     # 1 satoshi: formatar_brl daria "0,00" e `:g` daria "1e-08"
+    (1500.0, "1.500"),              # sem zeros à direita, com milhar pt-BR
+    (350000.5, "350.000,5"),        # `:g` daria "350000" — os centavos sumiam
+    (1234567.89, "1.234.567,89"),   # `:g` daria "1.23457e+06"
+    (0.0, "0"),
+    (-0.5, "-0,5"),
+])
+def test_formatar_decimal_brl(valor, esperado):
+    """Quantidade em mensagem para humano: pt-BR, sem zeros à direita, sem notação científica e
+    sem truncar. É o formatador que faltava entre `formatar_brl` (dinheiro, 2 casas fixas) e
+    `formatar_canonico` (exato, mas decimal com ponto)."""
+    assert formatar_decimal_brl(valor) == esperado
+
+
+def test_formatar_decimal_brl_nunca_escreve_ponto_como_decimal():
+    """O ponto só pode aparecer como separador de MILHAR. Uma implementação que esquecesse o
+    translate final passaria nos casos sem milhar e mentiria em todos os outros."""
+    assert formatar_decimal_brl(1234.5) == "1.234,5"
+    assert formatar_decimal_brl(0.25).count(",") == 1
+    assert "." not in formatar_decimal_brl(0.25)
 
 
 def test_sinal_antes_da_moeda():
