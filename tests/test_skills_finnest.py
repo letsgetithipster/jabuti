@@ -109,3 +109,49 @@ def test_skill_capacidade_cita_os_campos_do_perfil_que_ela_grava():
     texto = (RAIZ / "skills" / "jabuti-capacidade" / "SKILL.md").read_text(encoding="utf-8")
     faltando = sorted(c for c in campos if f"`{c}`" not in texto)
     assert faltando == [], f"a skill nao cita os campos que grava: {faltando}"
+
+
+VITRINE = RAIZ / "docs" / "finnest-skills.md"
+
+
+def test_vitrine_cobre_toda_skill_finnest():
+    """Duas vias. Skill sem linha na vitrine e capacidade que ninguem descobre, e o objetivo
+    declarado da documentacao e mostrar o que da para fazer. Linha na vitrine sem pasta e
+    promessa: o leitor cola um comando que nao existe.
+
+    A linha e a da tabela "Em trinta segundos" (celula inicial `| `/jabuti-x` |`): a prosa da
+    vitrine cita /jabuti-init e /jabuti-mes como vizinhos, e contar prosa faria o teste exigir
+    que toda skill citada fosse Finnest. A prosa tem a guarda de baixo: skill citada em qualquer
+    lugar da vitrine tem que estar instalada."""
+    texto = VITRINE.read_text(encoding="utf-8")
+    documentadas = set(re.findall(r"^\| `/(jabuti-[a-z]+)` \|", texto, re.MULTILINE))
+    instaladas_finnest = {p.parent.name for p in _skills_finnest()}
+    assert documentadas == instaladas_finnest, (
+        f"so na vitrine: {sorted(documentadas - instaladas_finnest)}; "
+        f"so em skills/: {sorted(instaladas_finnest - documentadas)}")
+    citadas = set(re.findall(r"`/(jabuti-[a-z]+)`", texto))
+    instaladas = {p.parent.name for p in RAIZ.glob("skills/*/SKILL.md")}
+    assert citadas <= instaladas, f"a vitrine cita skill nao instalada: {sorted(citadas - instaladas)}"
+
+
+def test_skill_finnest_aponta_para_a_vitrine():
+    """A skill para quando a Finnest nao esta na sessao, e a frase que ela imprime tem que levar
+    a algum lugar. Sem este teste, a vitrine e um arquivo que ninguem acha."""
+    faltando = [p.parent.name for p in _skills_finnest()
+                if "docs/finnest-skills.md" not in p.read_text(encoding="utf-8")]
+    assert faltando == [], f"skill Finnest sem ponteiro para a vitrine: {faltando}"
+
+
+def test_guardrails_declara_o_teto_de_escopo_e_a_fronteira_de_escrita():
+    """O teto de escopo e o que torna a integracao segura de divulgar, e uma frase de vitrine nao
+    basta: ela tem que estar no documento que o usuario le ANTES do primeiro uso. E a sentinela
+    de 'nenhum provider ligado' fica ambigua no dia em que skills Finnest existirem, porque o
+    leitor ve a Finnest sendo lida e a ressalva dizendo que nada esta ligado: a fronteira entre
+    LER numa skill e ESCREVER em dados/ tem que estar escrita ao lado dela."""
+    texto = (RAIZ / "GUARDRAILS.md").read_text(encoding="utf-8")
+    assert "read:financial" in texto, "o GUARDRAILS nao declara o escopo que o motor pede"
+    for fora in ("execute:transfers", "manage:boletos", "manage:automations", "manage:connections"):
+        assert fora in texto, f"o GUARDRAILS nao declara {fora} como fora de escopo"
+    paragrafos = [p for p in texto.split("\n\n") if "skill" in p and "dados/" in p and "não escreve" in p]
+    assert paragrafos, ("nenhum paragrafo do GUARDRAILS diz que a skill que le um MCP nao escreve "
+                        "em dados/ — sem isso a sentinela de provider nao ligado fica ambigua")

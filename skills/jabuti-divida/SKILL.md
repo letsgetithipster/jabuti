@@ -15,7 +15,7 @@ Frases típicas: "/jabuti-divida", "devo quitar o cartão antes de aportar?", "q
 
 ## Princípio operacional
 
-- **Sem as tools da Finnest nesta sessão, parar e declarar.** Mesmo princípio da cotação sem rede: número de memória contamina a decisão. Como conectar está em `docs/provider-finnest.md`.
+- **Sem as tools da Finnest nesta sessão, parar e declarar.** Mesmo princípio da cotação sem rede: número de memória contamina a decisão. Como conectar está em `docs/finnest-skills.md`.
 - **Atualidade antes de número.** `get_data_freshness_status` é precondição: consentimento de Open Finance expira e conta que parou de sincronizar devolve lista vazia sem erro.
 - **A resposta não tem contrato.** O servidor não declara `outputSchema`; a forma é observação de uma medição. Campo ausente é "não informado" — nunca zero, nunca estimativa.
 - **A unidade é a do provedor.** Taxa ao mês fica ao mês. O método do jabuti não tem parâmetro de custo de dívida, e a skill não inventa limiar: ela põe os dois números na tela e quem decide a ordem é a pessoa.

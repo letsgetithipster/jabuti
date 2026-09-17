@@ -29,7 +29,7 @@ Frases típicas: "/jabuti-capacidade", "quanto eu posso aportar?", "quanto eu ga
 
 ## Fluxo
 
-1. Conferir que as tools da Finnest estão na sessão (o prefixo é o nome do servidor MCP). Não estão: parar, dizer como conectar (`docs/provider-finnest.md`) e oferecer o caminho declarado.
+1. Conferir que as tools da Finnest estão na sessão (o prefixo é o nome do servidor MCP). Não estão: parar, dizer como conectar (`docs/finnest-skills.md`) e oferecer o caminho declarado.
 2. `get_data_freshness_status`. Fora de `fresh`: dizer o que está velho e a ação segura que a resposta recomenda, e não fechar número sobre dado velho. Quem sincroniza é a pessoa, no app da Finnest.
 3. `get_loan_summary`. Com dívida em aberto, dizer isto **antes** de qualquer número de aporte e oferecer `/jabuti-divida`: a ordem do método é dívida cara antes de aporte.
 4. Escolher os **três meses fechados** anteriores ao mês corrente e chamar `get_cashflow_period_summary` uma vez por mês, com `from` e `to` no formato `AAAA-MM-DD` (primeiro e último dia do mês).

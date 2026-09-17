@@ -84,6 +84,22 @@ outras três, porque compara a resposta contra uma afirmação de fora dela. Qua
 
 **Segredo nunca vai para argumento de tool MCP**, porque argumento entra no transcript do modelo.
 
+### Ler um MCP numa skill não é ingerir por provider
+
+São duas coisas diferentes, e só uma existe hoje. **Ingestão por provider** escreveria em `dados/` e
+não existe: é dela que fala a ressalva acima. **Leitura por skill** existe: `/jabuti-capacidade` e
+`/jabuti-divida` leem o MCP da Finnest na conversa, e a skill **não escreve em `dados/`** — o único
+número que chega ao workspace é o que você manda gravar no perfil, com log datado ao lado. A
+carteira canônica só recebe operação conciliada contra documento.
+
+### O teto de escopo de um MCP externo
+
+O motor pede `read:financial`, e só. `execute:transfers`, `manage:boletos`, `manage:automations` e
+`manage:connections` ficam **fora**, por decisão de produto: um motor que zela e não decide não pode
+ter no cinto a capacidade de mover o seu dinheiro. O pior que uma alucinação pode fazer é ler. Há
+teste que deriva do esquema medido a lista de tools fora do teto e quebra o build se uma delas
+aparecer numa skill. Detalhe e motivo: `docs/finnest-skills.md`.
+
 ## Modo mínimo viável (honestidade sobre cadência)
 
 Obrigatórios: registrar aporte, fechar o mês, atualizar cotações.

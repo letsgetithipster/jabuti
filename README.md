@@ -34,10 +34,11 @@ método, memória e guardrails. É isso que este repo entrega: *um family
 office de uma pessoa só, com a disciplina que a LLM sozinha não tem.* O
 custo é a assinatura de LLM que você já paga.
 
-**Declaração de vínculo:** o autor deste repositório é co-founder da Finnest, cujo MCP é a
-primeira integração de open finance prevista (Fase 3). O motor não pertence a nenhum
-fornecedor: o contrato de ingestão é escrito contra a especificação pública do Open Finance
-Brasil, e qualquer provider entra como adaptador.
+**Declaração de vínculo:** o autor deste repositório é co-founder da Finnest, cujo MCP duas
+skills opcionais deste repo leem, sem escrever na carteira canônica (`docs/finnest-skills.md`); a
+integração como provider de ingestão continua prevista e não existe em código. O motor não
+pertence a nenhum fornecedor: o contrato de ingestão é escrito contra a especificação pública do
+Open Finance Brasil, e qualquer provider entra como adaptador.
 
 ## Estado atual
 
@@ -127,12 +128,12 @@ Seu workspace é **privado por desenho** — não o publique. Extratos ficam em
 | `templates/` | árvore de workspace + esqueletos de documentos | 1 |
 | `scripts/` | validador, instanciador, cotações, ingestão, geradores — com testes | 1-2 |
 | `mapeamentos/` | mapeamentos documento → `dados/` por corretora (YAML); superfície de contribuição | 2 |
-| `skills/` | procedimentos operacionais: onboarding, cotações e ingestão prontos; micro, tese e rotina | 2-4 (5) |
+| `skills/` | procedimentos operacionais: onboarding, cotações e ingestão prontos; as duas de Finnest, opcionais e só leitura; micro, tese e rotina | 2-4 (5) |
 | `exemplos/` | workspace fictício completo, validado em todo commit | 1 |
 | `metodo/` | rubricas e frameworks do método (sem número pessoal) | 4 |
 | `rules/` | núcleo de voz e personas, fontes do compilador multi-LLM | 4 |
 | `tests/` | suíte do motor, rodada pelo pre-commit em todo commit | 1-2 |
-| `docs/` | documentação de integração por provider (endpoint, tools, campos, status) | 3 |
+| `docs/` | integração por provider (endpoint, tools, campos, status) e a vitrine das skills Finnest | 3 |
 | `fiscal/` | pacotes tributários por ano-fiscal, com validade declarada | 6 |
 
 ## Contribuindo
