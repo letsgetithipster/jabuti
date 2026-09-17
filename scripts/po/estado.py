@@ -12,6 +12,7 @@ from pathlib import Path
 
 from po.carteira import valorar
 from po.csvs import ler_csv
+from po.ledger import eventos_vigentes
 from po.numeros import formatar_brl
 
 
@@ -57,7 +58,9 @@ def render_estado(raiz: str | Path, hoje: datetime.date | None = None) -> str:
     eventos, erros = ler_csv("eventos", raiz / "dados" / "eventos.csv")
     if erros:
         raise ValueError(f"dados/eventos.csv com erros — corrija antes (rode o validador): {erros[0]}")
-    pendentes = [e["ticker"] for e in eventos if e["confirmado"] == "nao"]
+    # A última linha por (data, ticker) vence: confirmar é anexar, e a proposta confirmada
+    # deixa de ser pendência (registrar.py evento --confirmar).
+    pendentes = [e["ticker"] for e in eventos_vigentes(eventos) if e["confirmado"] == "nao"]
     if pendentes:
         pendencias.append(f"{len(pendentes)} evento(s) em eventos.csv aguardando confirmação ({', '.join(pendentes)})")
     manuais = sum(1 for l in c.linhas if l.fonte == "manual")

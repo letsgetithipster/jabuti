@@ -7,7 +7,7 @@ observacoes: >
   Construído a partir do formato documentado (Entrada/Saída, Data, Movimentação, Produto, Instituição, Quantidade,
   Preço unitário, Valor da Operação) e ainda NÃO conferido contra um export real. Se o seu falhar, rode
   scripts/inspecionar_extrato.py, ajuste uma cópia em mapeamentos/ do workspace e, se puder, contribua a fixture.
-  JCP aparece líquido; valor_bruto é gravado igual ao líquido. Renda fixa é ignorada (registre à mão no v1).
+  JCP aparece líquido; valor_bruto é gravado igual ao líquido. Renda fixa é ignorada: registre com scripts/registrar.py (`ativo TICKER=rf-br`, depois `compra`).
   Tolerância declarada em um centavo (0,011, com a folga de ponto flutuante). Valor da Operação é o produto de
   Quantidade por Preço unitário, e se o seu export exibir o preço arredondado a 2 casas o produto pode não fechar
   ao centavo: aí a conciliação PARA e diz a diferença, que é o que se quer num mapeamento não verificado. Suba a
@@ -37,7 +37,7 @@ extrair:
 linhas:
   - quando: {produto: "^(Tesouro|TESOURO|CDB|LCI|LCA|LC |LF |CRI|CRA|DEB)"}
     destino: ignorar
-    motivo: renda fixa (sem ticker de bolsa; registre à mão no v1)
+    motivo: renda fixa (sem ticker de bolsa; registre com scripts/registrar.py)
   - quando: {movimentacao: "^Transferência - Liquidação$", sentido: "^Cr[eé]dito$"}
     destino: fills
     campos: {tipo: compra, taxa: "0"}

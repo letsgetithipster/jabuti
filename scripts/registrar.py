@@ -1,4 +1,5 @@
-"""Registra em dados/ o que VOCÊ fez: compra, venda, provento, estorno e a classe de um ticker.
+"""Registra em dados/ o que VOCÊ fez: compra, venda, provento, estorno, evento societário e a
+classe de um ticker.
 
 Uso:
   python scripts/registrar.py <raiz> ativo    TICKER=classe [TICKER=classe ...]
@@ -11,6 +12,12 @@ Uso:
                                               [--sim] [--dry-run]
   python scripts/registrar.py <raiz> estorno  TICKER QTY PRECO --data AAAA-MM-DD [--taxa V]
                                               [--conta ID] [--sim] [--dry-run]
+  python scripts/registrar.py <raiz> evento   TICKER TIPO [--razao N:A] [--data AAAA-MM-DD]
+                                              [--confirmar] [--sim] [--dry-run]
+
+Evento societário entra como linha em eventos.csv e só com --confirmar o ledger o aplica (split,
+grupamento e bonificação, razão em novas:antigas). Confirmar uma proposta de variacao-anomala é
+anexar a linha certa com a mesma data e ticker: a última vence.
 
 Estorno anula um fill errado: repete EXATAMENTE a linha (data, ticker, conta, qty, preço, taxa) e
 o ledger refaz o replay sem ela. Casou zero ou mais de um fill, nada é gravado e os candidatos são
@@ -21,8 +28,9 @@ data e hora. OPERAÇÃO SUA entra por aqui, com eco de confirmação, --dry-run 
 você digita é DECLARADO POR VOCÊ e não conferido contra documento; a conferência acontece quando
 a foto da corretora chegar (importar_extrato.py --conferir).
 
-Este CLI não calcula posição. Ele monta o fill novo, entrega a linha do tempo inteira ao ledger e
-imprime o que o ledger devolveu — venda acima do saldo e abertura fora de ordem já têm frase
+Este CLI não calcula posição. Ele monta o fill novo, entrega a linha do tempo inteira ao ledger
+(fills.csv E eventos.csv: um split confirmado muda o saldo que o eco mostra e o PM do resultado
+realizado) e imprime o que o ledger devolveu — venda acima do saldo e abertura fora de ordem já têm frase
 acionável lá, e uma segunda aritmética aqui seria a segunda fonte que este desenho não tem.
 
 Número em pt-BR: 36,00 e 36.00 valem; 1.802,90 vale.
@@ -42,7 +50,7 @@ preparar_console()   # antes dos demais imports de po.*
 
 from po.ativos import ler_ativos  # noqa: E402
 from po.config import carregar_config, moedas_por_conta  # noqa: E402
-from po.csvs import CLASSES, TIPOS_PROVENTO, anexar_csv, ler_csv  # noqa: E402
+from po.csvs import CLASSES, TIPOS_EVENTO, TIPOS_PROVENTO, anexar_csv, ler_csv  # noqa: E402
 from po.ingestao.artefatos import caminho_datado_livre  # noqa: E402
 from po.ledger import calcular_saldos, casamentos_de_estornos  # noqa: E402
 from po.numeros import formatar_brl, formatar_decimal_brl, parse_valor  # noqa: E402
@@ -50,7 +58,8 @@ from po.numeros import formatar_brl, formatar_decimal_brl, parse_valor  # noqa: 
 ESTE = Path(__file__).resolve()
 # (pasta do log, tipo no frontmatter) — o tipo é o vocabulário de check_frontmatter.TIPOS
 LOG = {"compra": ("aportes", "log-aporte"), "venda": ("vendas", "log-venda"),
-       "provento": ("proventos", "log-provento"), "estorno": ("estornos", "log-estorno")}
+       "provento": ("proventos", "log-provento"), "estorno": ("estornos", "log-estorno"),
+       "evento": ("eventos", "log-evento")}
 RODAPE = ("Valores declarados por você em `registrar.py`, não conferidos contra documento de "
           "corretora. A conferência acontece quando a foto da corretora chegar "
           "(`importar_extrato.py --conferir`).\n")
@@ -62,6 +71,12 @@ def _num(texto, rotulo):
         raise ValueError(f"{rotulo} não é um número que eu saiba ler: {texto!r} — "
                          "use 36,00 (ou 36.00)")
     return v
+
+
+def _qtd(v) -> str:
+    """Quantidade para humano, em pt-BR: 0,5 e 1.500, nunca 0.5 nem 1e-08 (a docstring de
+    formatar_decimal_brl explica por que `:g` não serve)."""
+    return formatar_decimal_brl(v)
 
 
 def _data(texto):
@@ -111,7 +126,8 @@ def _log(raiz, tipo, f, itens: list[str]) -> Path:
                                    f"{f['data']}-{f['ticker']}", ".md")
     caminho.write_text(
         "---\n"
-        f"tipo: {tipo_log}\ndata: {f['data']}\nticker: {f['ticker']}\nconta: {f['conta']}\n"
+        f"tipo: {tipo_log}\ndata: {f['data']}\nticker: {f['ticker']}\n"
+        + (f"conta: {f['conta']}\n" if f.get("conta") else "") +
         "origem: declarado-por-voce\n---\n\n"
         f"# {tipo.capitalize()} {f['data']} — {f['ticker']}\n\n"
         + "".join(f"- {item}\n" for item in itens) + "\n" + RODAPE,
@@ -148,28 +164,28 @@ def _operacao(raiz, cfg, args, tipo) -> int:
             f"Rode, ajustando a classe:\n"
             f"  python {ESTE} {raiz} ativo {ticker}=<classe>\n"
             f"  classes: {', '.join(sorted(CLASSES))}")
-    linhas = _fills(raiz)
-    antes, erros, _ = calcular_saldos(linhas)
+    linhas, eventos = _fills(raiz), _eventos(raiz)
+    antes, erros, _ = calcular_saldos(linhas, eventos)
     if erros:
         raise ValueError(f"o livro já tinha um problema antes desta linha — resolva primeiro: "
                          f"{erros[0]}")
     novo = {"data": data, "ticker": ticker, "tipo": tipo, "qty": qty, "preco": preco,
             "taxa": taxa, "conta": conta, "moeda": moeda}
-    depois, erros, _ = calcular_saldos(linhas + [dict(novo)])
+    depois, erros, _ = calcular_saldos(linhas + [dict(novo)], eventos)
     if erros:
         raise ValueError(erros[0])   # a frase do ledger é a frase certa; não a reescreva
     s = depois[(ticker, conta)]
     custo = qty * preco + taxa
-    print(f"  eco:   {tipo} · {ticker} · {qty:g} · R$ {formatar_brl(preco)} · "
+    print(f"  eco:   {tipo} · {ticker} · {_qtd(qty)} · R$ {formatar_brl(preco)} · "
           f"taxa R$ {formatar_brl(taxa)} · conta {conta} · {data}")
     if tipo == "compra":
         print(f"         custo total R$ {formatar_brl(custo)} · "
-              f"saldo depois: {s.qty:g} @ R$ {formatar_brl(s.pm)}")
+              f"saldo depois: {_qtd(s.qty)} @ R$ {formatar_brl(s.pm)}")
     else:
         pm = antes[(ticker, conta)].pm
         print(f"         resultado realizado R$ {formatar_brl((preco - pm) * qty - taxa)} "
-              f"(({formatar_brl(preco)} − {formatar_brl(pm)}) × {qty:g}, menos a taxa) · "
-              f"saldo depois: {s.qty:g} @ R$ {formatar_brl(s.pm)}")
+              f"(({formatar_brl(preco)} − {formatar_brl(pm)}) × {_qtd(qty)}, menos a taxa) · "
+              f"saldo depois: {_qtd(s.qty)} @ R$ {formatar_brl(s.pm)}")
         print("         resultado BRUTO: apuração de imposto não acontece aqui.")
     print("  Valores DECLARADOS POR VOCÊ, não conferidos contra documento.")
     if args.dry_run:
@@ -178,9 +194,9 @@ def _operacao(raiz, cfg, args, tipo) -> int:
     if not _confirmar(args):
         return 3
     print("  " + _gravar(raiz, "fills", tipo, novo, [
-        f"Quantidade: {qty:g}", f"Preço: R$ {formatar_brl(preco)}", f"Taxa: R$ {formatar_brl(taxa)}",
+        f"Quantidade: {_qtd(qty)}", f"Preço: R$ {formatar_brl(preco)}", f"Taxa: R$ {formatar_brl(taxa)}",
         f"Custo total: R$ {formatar_brl(custo)}",
-        f"Saldo depois: {s.qty:g} @ R$ {formatar_brl(s.pm)}"]))
+        f"Saldo depois: {_qtd(s.qty)} @ R$ {formatar_brl(s.pm)}"]))
     motor = caminho_motor(raiz, cfg)
     print(f"  Agora rode: python {motor / 'scripts' / 'atualizar_cotacoes.py'} {raiz}")
     return 0
@@ -201,8 +217,8 @@ def _estorno(raiz, cfg, args) -> int:
         raise ValueError("QTY e PRECO têm que ser maiores que zero e --taxa não pode ser negativa: "
                          "o estorno repete a linha que anula, com os números dela")
     data = _data(args.data)
-    linhas = _fills(raiz)
-    _, erros, _ = calcular_saldos(linhas)
+    linhas, eventos = _fills(raiz), _eventos(raiz)
+    _, erros, _ = calcular_saldos(linhas, eventos)
     if erros:
         raise ValueError(f"o livro já tinha um problema antes desta linha — resolva primeiro: "
                          f"{erros[0]}")
@@ -210,7 +226,7 @@ def _estorno(raiz, cfg, args) -> int:
             "taxa": taxa, "conta": conta, "moeda": moeda}
     todos = linhas + [dict(novo)]
     casam = casamentos_de_estornos(todos)[len(linhas)]
-    depois, erros, _ = calcular_saldos(todos)
+    depois, erros, _ = calcular_saldos(todos, eventos)
     if len(casam) != 1:
         # a frase é a do ledger (é ele quem recusa); o CLI só acrescenta onde olhar
         if casam:
@@ -227,8 +243,8 @@ def _estorno(raiz, cfg, args) -> int:
         raise ValueError(erros[0])
     alvo = linhas[casam[0]]
     s = depois.get((ticker, conta))
-    saldo = f"{s.qty:g} @ R$ {formatar_brl(s.pm)}" if s else "0"
-    print(f"  eco:   estorno · {ticker} · {qty:g} · R$ {formatar_brl(preco)} · "
+    saldo = f"{_qtd(s.qty)} @ R$ {formatar_brl(s.pm)}" if s else "0"
+    print(f"  eco:   estorno · {ticker} · {_qtd(qty)} · R$ {formatar_brl(preco)} · "
           f"taxa R$ {formatar_brl(taxa)} · conta {conta} · {data}")
     print(f"         anula fills.csv:{casam[0] + 2} ({alvo['tipo']} {alvo['data']}) · "
           f"saldo depois: {saldo}")
@@ -260,7 +276,7 @@ def _provento(raiz, cfg, args) -> int:
             "valor_bruto": bruto, "valor_liquido": liquido, "conta": conta, "moeda": moeda}
     print(f"  eco:   provento · {ticker} · {args.tipo} · bruto R$ {formatar_brl(bruto)} · "
           f"líquido R$ {formatar_brl(liquido)} · conta {conta} · {data}")
-    saldos, erros, _ = calcular_saldos(_fills(raiz))
+    saldos, erros, _ = calcular_saldos(_fills(raiz), _eventos(raiz))
     s = saldos.get((ticker, conta))
     if not erros and (s is None or s.qty <= 0):
         print(f"         aviso: {ticker} sem posição no ledger na conta {conta} "
@@ -277,6 +293,62 @@ def _provento(raiz, cfg, args) -> int:
     return 0
 
 
+def _eventos(raiz):
+    linhas, erros = ler_csv("eventos", raiz / "dados" / "eventos.csv")
+    if erros:
+        raise ValueError("dados/eventos.csv com erros — corrija antes (rode o validador): "
+                         f"{erros[0]}")
+    return linhas
+
+
+def _evento(raiz, cfg, args) -> int:
+    ticker = args.ticker.upper()
+    if args.tipo not in TIPOS_EVENTO:
+        raise ValueError(f"tipo {args.tipo!r} fora do vocabulário: "
+                         f"{', '.join(sorted(TIPOS_EVENTO))}")
+    data = _data(args.data)
+    novo = {"data": data, "ticker": ticker, "tipo": args.tipo, "razao": args.razao or "",
+            "confirmado": "sim" if args.confirmar else "nao"}
+    linhas, eventos = _fills(raiz), _eventos(raiz)
+    antes, erros, _ = calcular_saldos(linhas, eventos)
+    if erros:
+        raise ValueError(f"o livro já tinha um problema antes desta linha — resolva primeiro: "
+                         f"{erros[0]}")
+    depois, erros, _ = calcular_saldos(linhas, eventos + [dict(novo)])
+    if erros:
+        raise ValueError(erros[0])   # tipo que o ledger não aplica e razão inválida: frase dele
+    chaves = sorted(k for k in antes if k[0] == ticker and antes[k].qty > 0)
+    print(f"  eco:   evento · {ticker} · {args.tipo} · razão {novo['razao'] or '(sem razão)'} · "
+          f"{data} · confirmado {novo['confirmado']}")
+    for k in chaves:
+        a, d = antes[k], depois[k]
+        print(f"         conta {k[1]}: {_qtd(a.qty)} @ R$ {formatar_brl(a.pm)} -> "
+              f"{_qtd(d.qty)} @ R$ {formatar_brl(d.pm)}")
+    if not chaves:
+        print(f"         aviso: {ticker} sem posição no ledger (o ticker está errado?)")
+    anterior = [i for i, e in enumerate(eventos) if (e["data"], e["ticker"]) == (data, ticker)]
+    if anterior:
+        e = eventos[anterior[-1]]
+        print(f"         substitui eventos.csv:{anterior[-1] + 2} ({e['tipo']}, confirmado "
+              f"{e['confirmado']}): a última linha por data e ticker vence")
+    if not args.confirmar:
+        print("         proposta: o ledger NÃO aplica até você repetir o comando com --confirmar")
+    print("  Valores DECLARADOS POR VOCÊ, não conferidos contra documento.")
+    if args.dry_run:
+        print("  --dry-run: nada gravado.")
+        return 0
+    if not _confirmar(args):
+        return 3
+    print("  " + _gravar(raiz, "eventos", "evento", novo, [
+        f"Tipo: {args.tipo}", f"Razão (novas:antigas): {novo['razao'] or '(sem razão)'}",
+        f"Confirmado: {novo['confirmado']}"] + [
+        f"Saldo depois ({k[1]}): {_qtd(depois[k].qty)} @ R$ {formatar_brl(depois[k].pm)}"
+        for k in chaves]))
+    motor = caminho_motor(raiz, cfg)
+    print(f"  Agora rode: python {motor / 'scripts' / 'gerar_estado.py'} {raiz}")
+    return 0
+
+
 def _ativo(raiz, args) -> int:
     novas = []
     for par in args.pares:
@@ -287,12 +359,12 @@ def _ativo(raiz, args) -> int:
             raise ValueError(f"classe {classe!r} fora do vocabulário: "
                              f"{', '.join(sorted(CLASSES))}")
         novas.append({"ticker": ticker.upper(), "classe": classe})
+    for l in novas:
+        print(f"  {l['ticker']} → {l['classe']}")
     if args.dry_run:
         print("  --dry-run: nada gravado.")
         return 0
     n = anexar_csv("ativos", raiz / "dados" / "ativos.csv", novas)
-    for l in novas:
-        print(f"  {l['ticker']} → {l['classe']}")
     print(f"  ativos +{n} em dados/ativos.csv. A última linha por ticker vence: corrigir uma "
           "classe é anexar a linha certa, nunca apagar a errada.")
     return 0
@@ -334,6 +406,14 @@ def main():
     p.add_argument("--data", help="AAAA-MM-DD do pagamento (default: hoje)")
     p.add_argument("--conta", help="id da conta na config (default: a única, se houver uma)")
     _comuns(p)
+    p = sub.add_parser("evento", help="evento societário: proposta, ou aplicado com --confirmar")
+    p.add_argument("ticker")
+    p.add_argument("tipo", help=f"um de: {', '.join(sorted(TIPOS_EVENTO))}")
+    p.add_argument("--razao", help="novas:antigas (ex.: 2:1 no split, 1:10 no grupamento)")
+    p.add_argument("--data", help="AAAA-MM-DD do evento (default: hoje)")
+    p.add_argument("--confirmar", action="store_true",
+                   help="grava confirmado=sim: o ledger passa a aplicar")
+    _comuns(p)
     p = sub.add_parser("ativo", help="declara a classe (bloco da política) de um ou mais tickers")
     p.add_argument("pares", nargs="+", metavar="TICKER=classe")
     _comuns(p)
@@ -350,6 +430,8 @@ def main():
             codigo = _estorno(raiz, cfg, args)
         elif args.comando == "provento":
             codigo = _provento(raiz, cfg, args)
+        elif args.comando == "evento":
+            codigo = _evento(raiz, cfg, args)
         else:
             codigo = _operacao(raiz, cfg, args, args.comando)
     except ValueError as e:
