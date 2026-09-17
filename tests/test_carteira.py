@@ -1,13 +1,16 @@
+import ast
 import datetime
+from pathlib import Path
 
 import pytest
 
 from po.carteira import valorar
 from po.csvs import anexar_csv
 from test_atualizar_cotacoes import CONFIG_DUAS_CONTAS, RAIZ
-from test_validar_dados import EXEMPLO, _anexa, copia_exemplo
+from test_validar_dados import EXEMPLO, _anexa, _troca, copia_exemplo
 
 HOJE = datetime.date(2026, 9, 8)          # data das cotações do exemplo: a suíte não olha o relógio
+RELOGIO = {"valorar", "gerar_estado", "render_estado"}   # funções que recebem `hoje`
 
 
 def test_valora_exemplo():
@@ -85,9 +88,14 @@ def test_cotacao_velha_vira_aviso_e_nao_erro(tmp_path):
     assert valorar(ws, hoje=datetime.date(2026, 8, 25)).avisos == []   # dentro do limiar, calado
 
 
-def test_valorar_deriva_a_posicao_do_ledger(tmp_path):
+def test_valorar_ignora_posicoes_csv_editada_a_mao(tmp_path):
+    """Antes chamava-se test_valorar_deriva_a_posicao_do_ledger e passava com `valorar` revertido a
+    posicoes.csv (os dois caminhos davam 100 @ 30,00). Agora a tabela antiga diz 900 e o número
+    tem que continuar sendo o do ledger: é a frase da docstring do ledger, medida."""
     ws = copia_exemplo(tmp_path)
-    c = valorar(ws, hoje=datetime.date(2026, 9, 8))
+    _troca(ws, "dados/posicoes.csv", "PETR4,acoes-br,corretora-br,100,30.00",
+           "PETR4,acoes-br,corretora-br,900,30.00")
+    c = valorar(ws, hoje=HOJE)
     por_ticker = {l.ticker: l for l in c.linhas}
     assert por_ticker["PETR4"].qty == 100 and round(por_ticker["PETR4"].pm, 2) == 30.00
     assert round(c.total_brl, 2) == 12000.00
@@ -164,3 +172,19 @@ def test_valorar_recusa_fill_sem_classe_declarada(tmp_path):
          "taxa": 0.0, "conta": "corretora-br", "moeda": "BRL"}])
     with pytest.raises(ValueError, match=r"ativos\.csv.*ITSA4"):
         valorar(ws, hoje=datetime.date(2026, 9, 8))
+def test_nenhuma_valoracao_da_suite_depende_do_relogio():
+    """B1: `valorar(EXEMPLO)` sem `hoje` afirmava `avisos == []` e ficaria vermelho em 2026-09-16
+    pelo calendário (cotações do exemplo de 2026-09-08, DIAS_COTACAO_VELHA = 7), sem dado nenhum
+    ter mudado. Mesma classe que a Task 2 caçou no README. Toda chamada a valorar/gerar_estado/
+    render_estado em tests/ passa `hoje=`; a varredura é por AST, então chamada quebrada em várias
+    linhas conta igual, e chamada dentro de pytest.raises também (a regra é uma só)."""
+    sem_hoje = []
+    for arq in sorted(Path(__file__).resolve().parent.glob("test_*.py")):
+        for no in ast.walk(ast.parse(arq.read_text(encoding="utf-8"))):
+            if not isinstance(no, ast.Call):
+                continue
+            f = no.func
+            nome = f.id if isinstance(f, ast.Name) else (f.attr if isinstance(f, ast.Attribute) else "")
+            if nome in RELOGIO and not any(k.arg == "hoje" for k in no.keywords):
+                sem_hoje.append(f"{arq.name}:{no.lineno}: {nome}(...) sem hoje=")
+    assert sem_hoje == [], "chamada que herda date.today() na suíte:\n  " + "\n  ".join(sem_hoje)

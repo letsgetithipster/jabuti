@@ -1,8 +1,11 @@
+import datetime
 import re
 import shutil
 from pathlib import Path
 
 from po import csvs
+from po.estado import gerar_estado
+from po.validar import validar
 from po.validar.check_dados import checar_dados
 
 EXEMPLO = Path(__file__).resolve().parent.parent / "exemplos" / "workspace-exemplo"
@@ -55,24 +58,23 @@ def test_conta_desconhecida_e_erro(tmp_path):
     assert any("conta-fantasma" in e and "não declarada" in e for e in erros)
 
 
-def test_posicao_sem_fills_e_permitida(tmp_path):
+def test_posicao_declarada_sem_fill_e_erro_com_a_linha_do_saldo_inicial(tmp_path):
+    """B2: com a posição derivada do ledger, ITSA4 declarada só em posicoes.csv vale zero no
+    ESTADO. Antes era aviso ("PM não verificável") e o gerador publicava o total sem ela."""
     ws = copia_exemplo(tmp_path)
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") +
-                   "ITSA4,acoes-br,corretora-br,200,9.50,BRL\n", encoding="utf-8")
-    # v2 exige cotação para toda posição (deferral pago nesta task); sem isso o cross-check
-    # de fills (o que este teste exercita) fica mascarado por um erro de cotação ausente.
-    cot = ws / "dados" / "cotacoes.csv"
-    cot.write_text(cot.read_text(encoding="utf-8") +
-                   "2026-09-08,18:00,ITSA4,9.60,BRL,manual\n", encoding="utf-8")
-    erros, _ = checar_dados(ws)
-    assert erros == []
+    _anexa(ws, "dados/posicoes.csv", "ITSA4,acoes-br,corretora-br,200,9.50,BRL")
+    _anexa(ws, "dados/cotacoes.csv", "2026-09-08,18:00,ITSA4,9.60,BRL,manual")
+    erros, avisos = checar_dados(ws)
+    assert any("ITSA4" in e and "sem nenhum fill" in e and
+               "AAAA-MM-DD,ITSA4,saldo-inicial,200,9.5,0,corretora-br,BRL" in e for e in erros), erros
+    assert not any("PM não verificável" in a for a in avisos), avisos
 
 
 def test_venda_no_saldo(tmp_path):
     ws = copia_exemplo(tmp_path)
     (ws / "dados" / "fills.csv").write_text(
         "data,ticker,tipo,qty,preco,taxa,conta,moeda\n"
+        "2026-08-01,HGLG11,saldo-inicial,50,155.00,0,corretora-br,BRL\n"
         "2026-08-05,PETR4,compra,90,29.50,0,corretora-br,BRL\n"
         "2026-08-20,PETR4,compra,30,30.00,0,corretora-br,BRL\n"
         "2026-09-05,PETR4,venda,20,31.00,0,corretora-br,BRL\n",
@@ -115,11 +117,10 @@ def test_multi_conta_importada_e_permitida(tmp_path):
     cfg.write_text(cfg.read_text(encoding="utf-8").replace(
         "contas:", 'contas:\n  - id: corretora-br-2\n    nome: "Segunda corretora"\n    moeda: BRL'),
         encoding="utf-8")
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") +
-                   "PETR4,acoes-br,corretora-br-2,50,28.00,BRL\n", encoding="utf-8")
+    _anexa(ws, "dados/posicoes.csv", "PETR4,acoes-br,corretora-br-2,50,28.00,BRL")
+    _anexa(ws, "dados/fills.csv", "2026-08-01,PETR4,saldo-inicial,50,28.00,0,corretora-br-2,BRL")
     erros, _ = checar_dados(ws)
-    assert erros == []  # posição importada em outra conta, mesma moeda, sem fills: permitida
+    assert erros == []  # posição em outra conta, mesma moeda, com o saldo-inicial dela: permitida
 
 
 def test_leitura_suja_pula_cross_check(tmp_path):
@@ -178,13 +179,22 @@ def test_pm_divergente_e_erro(tmp_path):
     assert any("PETR4" in e and "pm 31 " in e and "recalculado 30 " in e for e in erros)
 
 
-def test_posicao_sem_fills_avisa_pm_nao_verificavel(tmp_path):
+def test_posicoes_csv_sem_nenhum_fill_nao_e_zero_silencioso(tmp_path):
+    """O caso duro do fechamento da Fase 1: workspace nascido de motor anterior, posicoes.csv
+    cheia e fills.csv só com cabeçalho. Medido em 17382c1: antigo R$ 3.000,00, novo R$ 0,00,
+    exit 0 no gerador e 0 erro(s) no validador. O gerador continua publicando o que o ledger
+    diz (zero); o validador é quem barra, com a linha que abre cada posição."""
     ws = copia_exemplo(tmp_path)
-    _anexa(ws, "dados/posicoes.csv", "VALE3,acoes-br,corretora-br,10,60.00,BRL")
-    _anexa(ws, "dados/cotacoes.csv", "2026-09-08,18:00,VALE3,61.00,BRL,manual")
-    erros, avisos = checar_dados(ws)
-    assert erros == []
-    assert any("VALE3" in a and "PM não verificável" in a for a in avisos)
+    (ws / "dados" / "fills.csv").write_text("data,ticker,tipo,qty,preco,taxa,conta,moeda\n", encoding="utf-8")
+    assert "Total investido: R$ 0,00" in gerar_estado(ws, hoje=datetime.date(2026, 9, 8))[1]
+    erros, _ = validar(ws)
+    assert [e for e in erros if "sem nenhum fill" in e] == [
+        "posicoes.csv: PETR4 (corretora-br) sem nenhum fill — a posição derivada do ledger é zero e o "
+        "ESTADO publicaria R$ 0,00. Registre um saldo-inicial em fills.csv: "
+        "AAAA-MM-DD,PETR4,saldo-inicial,100,30,0,corretora-br,BRL",
+        "posicoes.csv: HGLG11 (corretora-br) sem nenhum fill — a posição derivada do ledger é zero e o "
+        "ESTADO publicaria R$ 0,00. Registre um saldo-inicial em fills.csv: "
+        "AAAA-MM-DD,HGLG11,saldo-inicial,50,155,0,corretora-br,BRL"], erros
 
 
 def test_venda_que_zera_posicao_nao_exige_linha_em_posicoes(tmp_path):
@@ -403,3 +413,22 @@ def test_workspace_sem_ativos_csv_so_avisa_e_diz_o_que_colar(tmp_path):
     assert not any("ativos.csv ausente" in e for e in erros), erros
     texto = "\n".join(avisos)
     assert "dados/ativos.csv" in texto and "PETR4,acoes-br" in texto and "HGLG11,fiis" in texto
+def test_tabela_fora_de_TABELAS_DADOS_ausente_nao_e_erro(tmp_path):
+    """T4 achado 1: apagar `if nome not in TABELAS_DADOS: continue` revertia a intenção da Task 4
+    com a suíte verde, porque as duas testemunhas (indices, movimentacoes) mudaram de alvo em vez
+    de ganhar substituta. Esta é a substituta."""
+    ws = copia_exemplo(tmp_path)
+    for nome in ("indices", "movimentacoes"):
+        (ws / "dados" / f"{nome}.csv").unlink()
+    erros, avisos = checar_dados(ws)
+    assert erros == [] and not any("ausente" in a for a in avisos), (erros, avisos)
+
+
+def test_workspace_sem_ativos_csv_nem_posicoes_csv_e_erro_acionavel(tmp_path):
+    """T4 achado 2: a guarda `and posicoes.csv existe` separa workspace antigo (aviso com o que
+    colar) de workspace quebrado (erro com o cabeçalho). Sem ela o segundo virava aviso mole."""
+    ws = copia_exemplo(tmp_path)
+    (ws / "dados" / "ativos.csv").unlink()
+    (ws / "dados" / "posicoes.csv").unlink()
+    erros, _ = checar_dados(ws)
+    assert "dados/ativos.csv ausente — crie o arquivo com a linha de cabeçalho: ticker,classe" in erros, erros

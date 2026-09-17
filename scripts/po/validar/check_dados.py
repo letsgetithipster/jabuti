@@ -23,6 +23,7 @@ from po.ativos import ler_ativos
 from po.config import carregar_config, moedas_por_conta
 from po.csvs import SCHEMAS, TABELAS_DADOS, ler_csv, ultimas_cotacoes
 from po.ledger import TOLERANCIA_QTY, calcular_saldos
+from po.numeros import formatar_canonico
 
 # Derivado do schema, não literal: toda tabela com coluna `conta` entra aqui, EXCETO
 # `movimentacoes` (também tem `conta`) — excluída de propósito, porque a mensagem do laço usa
@@ -83,8 +84,8 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
                     "dados/posicoes.csv (workspace criado antes desta versão). Para fixar, crie "
                     "dados/ativos.csv com a linha de cabeçalho `ticker,classe` e estas linhas: "
                     + colar)
-                leitura_suja[nome] = True
-                continue
+                leitura_suja[nome] = True   # redundante com o default de limpos() (ausente = suja);
+                continue                    # fica pela simetria com o ramo de erro abaixo
             # Tabela nova numa versão nova do motor: um workspace antigo não a tem, e "ausente"
             # sozinho não diz o que fazer. O cabeçalho é a resposta inteira.
             erros.append(f"dados/{nome}.csv ausente — crie o arquivo com a linha de cabeçalho: "
@@ -158,10 +159,21 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
                     erros.append(
                         f"posicoes.csv: {ticker} ({conta}) pm {pm_posicao[chave]:g} "
                         f"difere do recalculado {s.pm:g} (ledger de fills)")
-        for chave in sorted(qty_posicao):
-            if chave not in saldos and chave not in suspensas:
-                avisos.append(f"posicoes.csv: {chave[0]} ({chave[1]}) sem fills — PM não verificável "
-                              "(importe posições ou registre um saldo-inicial)")
+
+    # Zero silencioso (F1.6): posição declarada na tabela antiga sem NENHUM fill. Com a posição
+    # derivada do ledger, o gerador publica R$ 0,00 com exit 0 para esse workspace (nascido de
+    # motor anterior, que aceitava posicoes.csv sem fill com um aviso). ERRO, com a linha que abre
+    # a posição no ledger. Check próprio, fora do cruzamento qty/pm acima: o sintoma sobrevive ao
+    # dia em que a tabela deixar de ser canônica.
+    if limpos("posicoes", "fills"):
+        com_fill = {(f["ticker"], f["conta"]) for f in fills}
+        for p in posicoes:
+            if (p["ticker"], p["conta"]) not in com_fill:
+                erros.append(f"posicoes.csv: {p['ticker']} ({p['conta']}) sem nenhum fill — a posição "
+                             "derivada do ledger é zero e o ESTADO publicaria R$ 0,00. Registre um "
+                             f"saldo-inicial em fills.csv: AAAA-MM-DD,{p['ticker']},saldo-inicial,"
+                             f"{formatar_canonico(p['qty'])},{formatar_canonico(p['pm'])},0,"
+                             f"{p['conta']},{p['moeda']}")
 
     # Cotações: toda posição precisa de ao menos uma, na mesma moeda; append fora de ordem é aviso.
     if limpos("posicoes", "cotacoes"):
