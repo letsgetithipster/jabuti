@@ -8,6 +8,7 @@ from pathlib import Path
 from po.csvs import anexar_csv, ler_csv
 from po.ingestao.artefatos import caminho_datado_livre
 from po.ingestao.engine import Resultado
+from po.numeros import formatar_brl, formatar_decimal_brl
 
 class GravacaoParcial(Exception):
     """A gravação morreu no meio do laço de tabelas. Carrega o que chegou a entrar em `dados/` e o
@@ -77,8 +78,9 @@ def separar(existentes: dict[str, list[dict]], res: Resultado) -> tuple[dict[str
             if restantes[k] > 0:
                 if unica and not _mesma_posicao(por_chave[k], r):
                     e = por_chave[k]
-                    conflitos.append(f"{r['ticker']} ({r['conta']}): já existe em posicoes.csv com qty {e['qty']:g} "
-                                     f"@ {e['pm']:.2f}; o documento diz {r['qty']:g} @ {r['pm']:.2f}. Ou a corretora "
+                    conflitos.append(f"{r['ticker']} ({r['conta']}): já existe em posicoes.csv com qty "
+                                     f"{formatar_decimal_brl(e['qty'])} @ {formatar_brl(e['pm'])}; o documento diz "
+                                     f"{formatar_decimal_brl(r['qty'])} @ {formatar_brl(r['pm'])}. Ou a corretora "
                                      "reapresentou a posição, ou este é o arquivo/conta errado — confira com "
                                      "--conferir antes de mexer em dados/")
                     continue
@@ -192,13 +194,16 @@ def conferir(raiz: str | Path, res: Resultado) -> tuple[list[str], bool, int]:
         doc.add(k)
         e = atual.get(k)
         if e is None:
-            linhas.append(f"  {r['ticker']} ({r['conta']}): NOVA no documento — {r['qty']:g} @ {r['pm']:.2f}")
+            linhas.append(f"  {r['ticker']} ({r['conta']}): NOVA no documento — "
+                          f"{formatar_decimal_brl(r['qty'])} @ {formatar_brl(r['pm'])}")
         elif not _mesma_posicao(e, r):
-            linhas.append(f"  {r['ticker']} ({r['conta']}): DIVERGE — dados/ {e['qty']:g} @ {e['pm']:.2f} "
-                          f"vs documento {r['qty']:g} @ {r['pm']:.2f}")
+            linhas.append(f"  {r['ticker']} ({r['conta']}): DIVERGE — dados/ "
+                          f"{formatar_decimal_brl(e['qty'])} @ {formatar_brl(e['pm'])} "
+                          f"vs documento {formatar_decimal_brl(r['qty'])} @ {formatar_brl(r['pm'])}")
             divergiu = True
         else:
-            linhas.append(f"  {r['ticker']} ({r['conta']}): OK — {r['qty']:g} @ {r['pm']:.2f}")
+            linhas.append(f"  {r['ticker']} ({r['conta']}): OK — "
+                          f"{formatar_decimal_brl(r['qty'])} @ {formatar_brl(r['pm'])}")
     for k, e in atual.items():
         # só as contas que ESTE documento cobre: posição de outra corretora não está faltando
         if k not in doc and e["conta"] in contas_do_documento:

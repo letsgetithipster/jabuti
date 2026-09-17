@@ -8,7 +8,7 @@ from po.frontmatter import extrair_frontmatter
 from po.ingestao.engine import Resultado
 from po.ingestao.escrita import GravacaoParcial, conferir, gravar
 from po.validar import validar
-from test_validar_dados import copia_exemplo
+from test_validar_dados import _anexa, copia_exemplo
 
 
 def _res(**registros):
@@ -405,3 +405,12 @@ def test_log_registra_acertos_por_regra_e_as_que_nunca_casaram(tmp_path):
     corpo = r["log"].read_text(encoding="utf-8")
     assert "Acertos por regra de `linhas`: regra 1: 1; regra 2: 0; regra 3: 0" in corpo
     assert "Regras que nunca casaram: [2, 3]" in corpo
+def test_conferir_escreve_quantidade_e_pm_em_pt_br(tmp_path):
+    """C8: a prévia escrevia "3e-08 @ 350000.00" para três satoshis a R$ 350.000,00."""
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/posicoes.csv", "BTC,cripto,corretora-br,0.00000003,350000.00,BRL")
+    linhas, _, _ = conferir(ws, _res(posicoes=[_pos("BTC", 0.00000003, 350000.0, classe="cripto"),
+                                              _pos("VALE3", 1500, 60.5)]))
+    texto = "\n".join(linhas)
+    assert "BTC (corretora-br): OK — 0,00000003 @ 350.000,00" in texto, texto
+    assert "VALE3 (corretora-br): NOVA no documento — 1.500 @ 60,50" in texto, texto

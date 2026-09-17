@@ -23,7 +23,7 @@ from po.ativos import ler_ativos
 from po.config import carregar_config, moedas_por_conta
 from po.csvs import SCHEMAS, TABELAS_DADOS, ler_csv, ultimas_cotacoes
 from po.ledger import TOLERANCIA_QTY, calcular_saldos
-from po.numeros import formatar_canonico
+from po.numeros import formatar_canonico, formatar_decimal_brl
 
 # Derivado do schema, não literal: toda tabela com coluna `conta` entra aqui, EXCETO
 # `movimentacoes` (também tem `conta`) — excluída de propósito, porque a mensagem do laço usa
@@ -142,7 +142,7 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
                 continue
             if s.qty <= TOLERANCIA_QTY:
                 if chave in qty_posicao:
-                    erros.append(f"posicoes.csv: {ticker} ({conta}) tem qty {qty_posicao[chave]:g} "
+                    erros.append(f"posicoes.csv: {ticker} ({conta}) tem qty {formatar_decimal_brl(qty_posicao[chave])} "
                                  "mas o ledger de fills zerou a posição")
                 continue
             if chave not in qty_posicao:
@@ -150,15 +150,15 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
                     f"fills.csv: {ticker} tem fills na conta {conta} mas não existe em posicoes.csv")
             elif abs(s.qty - qty_posicao[chave]) > TOLERANCIA_QTY:
                 erros.append(
-                    f"posicoes.csv: {ticker} ({conta}) qty {qty_posicao[chave]:g} "
-                    f"difere do saldo dos fills ({s.qty:g})")
+                    f"posicoes.csv: {ticker} ({conta}) qty {formatar_decimal_brl(qty_posicao[chave])} "
+                    f"difere do saldo dos fills ({formatar_decimal_brl(s.qty)})")
             else:
                 tolerancia = max(min(TOLERANCIA_PM, abs(pm_posicao[chave]) * 0.05),
                                  abs(pm_posicao[chave]) * TOLERANCIA_PM_RELATIVA)
                 if abs(s.pm - pm_posicao[chave]) > tolerancia:
                     erros.append(
-                        f"posicoes.csv: {ticker} ({conta}) pm {pm_posicao[chave]:g} "
-                        f"difere do recalculado {s.pm:g} (ledger de fills)")
+                        f"posicoes.csv: {ticker} ({conta}) pm {formatar_decimal_brl(pm_posicao[chave])} "
+                        f"difere do recalculado {formatar_decimal_brl(s.pm)} (ledger de fills)")
 
     # Zero silencioso (F1.6): posição declarada na tabela antiga sem NENHUM fill. Com a posição
     # derivada do ledger, o gerador publica R$ 0,00 com exit 0 para esse workspace (nascido de

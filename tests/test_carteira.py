@@ -6,6 +6,7 @@ import pytest
 
 from po.carteira import valorar
 from po.csvs import anexar_csv
+from po.validar.check_dados import checar_dados
 from test_atualizar_cotacoes import CONFIG_DUAS_CONTAS, RAIZ
 from test_validar_dados import EXEMPLO, _anexa, _troca, copia_exemplo
 
@@ -188,3 +189,12 @@ def test_nenhuma_valoracao_da_suite_depende_do_relogio():
             if nome in RELOGIO and not any(k.arg == "hoje" for k in no.keywords):
                 sem_hoje.append(f"{arq.name}:{no.lineno}: {nome}(...) sem hoje=")
     assert sem_hoje == [], "chamada que herda date.today() na suíte:\n  " + "\n  ".join(sem_hoje)
+def test_estorno_lido_do_csv_anula_o_fill(tmp_path):
+    """S15: todo teste de estorno era em memória. Tirar `estorno` de TIPOS_FILL passava pela suíte
+    inteira, e o CSV com estorno viraria leitura suja em vez de correção."""
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/fills.csv", "2026-09-06,PETR4,compra,7,99.00,1.5,corretora-br,BRL")
+    _anexa(ws, "dados/fills.csv", "2026-09-06,PETR4,estorno,7,99.00,1.5,corretora-br,BRL")
+    assert checar_dados(ws)[0] == []
+    petr = next(l for l in valorar(ws, hoje=HOJE).linhas if l.ticker == "PETR4")
+    assert petr.qty == 100 and round(petr.pm, 2) == 30.00

@@ -1,9 +1,9 @@
 from po.ledger import Saldo, calcular_saldos, posicoes_de_fills
 
 
-def F(data, ticker, tipo, qty, preco, taxa=0.0, conta="c"):
+def F(data, ticker, tipo, qty, preco, taxa=0.0, conta="c", moeda="BRL"):
     return {"data": data, "ticker": ticker, "tipo": tipo, "qty": float(qty),
-            "preco": float(preco), "taxa": float(taxa), "conta": conta, "moeda": "BRL"}
+            "preco": float(preco), "taxa": float(taxa), "conta": conta, "moeda": moeda}
 
 
 def test_pm_ponderado_com_taxa():
@@ -310,3 +310,79 @@ def test_propriedade_evento_aplicado_nao_muda_o_custo():
     b, _, _ = calcular_saldos([F("2026-01-01", "P", "compra", 100, 30.0)],
                               [E("2026-02-01", "P", "split", "3:1")])
     assert a[("P", "c")].custo == b[("P", "c")].custo and b[("P", "c")].qty == 300
+# --- F1.6 (C): as bordas que a sonda da Fase 1 mutou sem derrubar teste nenhum ---
+
+def test_fill_na_data_de_corte_entra():
+    """`ate` é inclusivo. Trocar `<=` por `<` no filtro de fills passava pela suíte inteira porque
+    nenhum fill caía NA data de corte (o exemplo tem 05/08 e 05/09 contra ate=31/08)."""
+    fills = [F("2026-08-05", "P", "compra", 60, 29.5), F("2026-08-31", "P", "compra", 40, 30.75)]
+    s, erros, _ = calcular_saldos(fills, ate="2026-08-31")
+    assert erros == [] and s[("P", "c")].qty == 100 and round(s[("P", "c")].pm, 4) == 30.0
+
+
+def test_evento_na_data_de_corte_aplica():
+    s, erros, _ = calcular_saldos([F("2026-01-01", "P", "compra", 100, 30.0)],
+                                  [E("2026-12-31", "P", "split", "2:1")], ate="2026-12-31")
+    assert erros == [] and s[("P", "c")].qty == 200
+
+
+def test_posicoes_de_fills_carrega_a_moeda_do_fill():
+    """S11: o helper F cravava BRL, então `moedas.get(...)` mutado para "BRL" fixo passava neste
+    arquivo (a carteira e o ESTADO o pegam, o ledger não pegava)."""
+    pos, erros = posicoes_de_fills([F("2026-01-01", "AAPL", "compra", 2, 200.0, conta="us", moeda="USD")],
+                                   [], {"AAPL": "rv-int"})
+    assert erros == [] and pos[0]["moeda"] == "USD" and pos[0]["conta"] == "us"
+
+
+def test_moeda_da_posicao_em_ate_e_a_do_ultimo_fill_ate_a_data():
+    """Defensiva sob a invariante conta->moeda (check_dados cobra moeda da linha contra a conta da
+    config): no nível do ledger o dict `moedas` também obedece ao `ate`, inclusive na borda. Sem
+    este teste, tirar o filtro OU trocá-lo por `<` passava (S15/S19 da revisão da Task 5)."""
+    fills = [F("2026-01-01", "P", "compra", 1, 1.0, moeda="USD"),
+             F("2026-12-31", "P", "compra", 1, 1.0, moeda="BRL"),
+             F("2027-01-01", "P", "compra", 1, 1.0, moeda="EUR")]
+    pos, _ = posicoes_de_fills(fills, [], {"P": "acoes-br"}, ate="2026-12-31")
+    assert pos[0]["moeda"] == "BRL" and pos[0]["qty"] == 2
+
+
+def test_estorno_com_conta_diferente_nao_casa():
+    _, erros, _ = calcular_saldos([F("2026-01-02", "P", "compra", 50, 40.0, conta="a"),
+                                   F("2026-01-02", "P", "estorno", 50, 40.0, conta="b")])
+    assert any("casa 0 fill" in e for e in erros), erros
+
+
+def test_estorno_com_taxa_diferente_nao_casa():
+    _, erros, _ = calcular_saldos([F("2026-01-02", "P", "compra", 50, 40.0, taxa=1.5),
+                                   F("2026-01-02", "P", "estorno", 50, 40.0, taxa=0.0)])
+    assert any("casa 0 fill" in e for e in erros), erros
+
+
+def test_estorno_casa_o_preco_ate_a_quarta_casa():
+    """A chave arredonda preço a 4 casas: diferença na 4ª casa NÃO casa; poeira na 5ª casa casa."""
+    _, erros, _ = calcular_saldos([F("2026-01-02", "P", "compra", 50, 40.0),
+                                   F("2026-01-02", "P", "estorno", 50, 40.0004)])
+    assert any("casa 0 fill" in e for e in erros), erros
+    s, erros, _ = calcular_saldos([F("2026-01-02", "P", "compra", 50, 40.0),
+                                   F("2026-01-02", "P", "estorno", 50, 40.00004)])
+    assert erros == [] and s == {}          # o único fill foi anulado: nem entrada de saldo sobra
+
+
+def test_razao_com_zero_e_erro_nomeado():
+    """S17: `0:1` e `1:0` batem na regex; sem a guarda de positividade viram fator 0 (posição some)
+    ou divisão por zero (traceback)."""
+    for razao in ("0:1", "1:0"):
+        _, erros, susp = calcular_saldos([F("2026-01-01", "P", "compra", 100, 30.0)],
+                                         [E("2026-02-01", "P", "split", razao)])
+        assert any("novas:antigas" in e for e in erros), (razao, erros)
+        assert ("P", "c") in susp, razao
+
+
+def test_dois_estornos_para_o_mesmo_fill_o_segundo_e_erro():
+    """S20: o fill casado sai da lista de candidatos; o segundo estorno casa zero e é erro, nunca
+    uma segunda baixa em silêncio."""
+    s, erros, _ = calcular_saldos([F("2026-01-01", "P", "compra", 100, 30.0),
+                                   F("2026-01-02", "P", "compra", 50, 40.0),
+                                   F("2026-01-02", "P", "estorno", 50, 40.0),
+                                   F("2026-01-02", "P", "estorno", 50, 40.0)])
+    assert any("casa 0 fill" in e for e in erros), erros
+    assert s[("P", "c")].qty == 100

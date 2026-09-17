@@ -432,3 +432,17 @@ def test_workspace_sem_ativos_csv_nem_posicoes_csv_e_erro_acionavel(tmp_path):
     (ws / "dados" / "posicoes.csv").unlink()
     erros, _ = checar_dados(ws)
     assert "dados/ativos.csv ausente — crie o arquivo com a linha de cabeçalho: ticker,classe" in erros, erros
+def test_divergencia_de_quantidade_fracionaria_escreve_numero_em_pt_br(tmp_path):
+    """C8: `:g` escrevia "qty 1e-08" para um satoshi e ponto decimal num produto pt-BR."""
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/posicoes.csv", "BTC,cripto,corretora-br,0.00000001,350000.00,BRL")
+    _anexa(ws, "dados/cotacoes.csv", "2026-09-08,18:00,BTC,400000,BRL,manual")
+    _anexa(ws, "dados/fills.csv", "2026-08-01,BTC,saldo-inicial,0.00000002,350000.00,0,corretora-br,BRL")
+    erros, _ = checar_dados(ws)
+    achado = next(e for e in erros if "BTC" in e and "zerou" in e)
+    assert "tem qty 0,00000001 " in achado and "e-" not in achado, achado
+    _troca(ws, "dados/posicoes.csv", "BTC,cripto,corretora-br,0.00000001", "BTC,cripto,corretora-br,1000000.5")
+    _troca(ws, "dados/fills.csv", "saldo-inicial,0.00000002", "saldo-inicial,1000000")
+    erros, _ = checar_dados(ws)
+    achado = next(e for e in erros if "BTC" in e and "difere do saldo" in e)
+    assert "qty 1.000.000,5 difere do saldo dos fills (1.000.000)" in achado, achado
