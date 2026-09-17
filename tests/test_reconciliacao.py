@@ -1,7 +1,7 @@
 """A diferença entre o livro e a foto da corretora, feita conta e nomeada."""
 import pytest
 
-from po.ingestao.reconciliacao import explicar, fill_implicito
+from po.ingestao.reconciliacao import CAVEAT_ACEITAR, explicar, fill_implicito
 
 COMANDO = "python C:/motor/scripts/registrar.py C:/ws"
 
@@ -74,3 +74,24 @@ def test_explicar_escreve_quantidade_em_pt_br_no_texto_e_no_comando():
     assert "o ledger tem 0,5 @ R$ 200.000,00" in texto
     assert f"{COMANDO} compra BTC 0,25 230.000,00" in texto
     assert "e-0" not in texto
+
+
+def test_explicar_oferece_aceitar_como_so_com_preco_implicito_e_com_o_comando_de_importacao():
+    """A terceira saída (decisão 14 da spec) só existe quando há preço implícito E quando o
+    chamador passou o comando de importação: sem o comando não há o que a pessoa digitar, e
+    sem preço não há fill que a flag possa gravar. O caveat vai junto, na hora."""
+    kw = dict(ticker="PETR4", conta="corretora-br", data="2026-09-11", registrar=COMANDO,
+              importar="python C:/motor/scripts/importar_extrato.py C:/ws inbox/foto.csv")
+    texto = "\n".join(explicar(fill_implicito(100, 30.0, 150, 32.0), qty_ledger=100, pm_ledger=30.0,
+                               qty_doc=150, pm_doc=32.0, **kw))
+    assert "python C:/motor/scripts/importar_extrato.py C:/ws inbox/foto.csv --aceitar-como compra" in texto
+    assert CAVEAT_ACEITAR in texto
+    sem_comando = "\n".join(explicar(fill_implicito(100, 30.0, 150, 32.0), qty_ledger=100, pm_ledger=30.0,
+                                     qty_doc=150, pm_doc=32.0, **{**kw, "importar": None}))
+    assert "--aceitar-como" not in sem_comando
+    custo_caiu = "\n".join(explicar(fill_implicito(100, 30.0, 150, 19.0), qty_ledger=100, pm_ledger=30.0,
+                                    qty_doc=150, pm_doc=19.0, **kw))
+    assert "--aceitar-como" not in custo_caiu
+    venda = "\n".join(explicar(fill_implicito(150, 32.0, 100, 32.0), qty_ledger=150, pm_ledger=32.0,
+                               qty_doc=100, pm_doc=32.0, **kw))
+    assert "--aceitar-como" not in venda

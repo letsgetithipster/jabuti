@@ -22,7 +22,7 @@ from po.ativos import ler_ativos
 from po.csvs import anexar_csv, ler_csv
 from po.ingestao.artefatos import caminho_datado_livre
 from po.ingestao.engine import Resultado
-from po.ingestao.reconciliacao import Diferenca, explicar, fill_implicito
+from po.ingestao.reconciliacao import CAVEAT_ACEITAR, Diferenca, explicar, fill_implicito
 from po.ledger import Saldo, calcular_saldos, posicoes_de_fills
 from po.numeros import formatar_brl, formatar_decimal_brl
 
@@ -136,20 +136,41 @@ def diferencas(existentes: dict[str, list[dict]], res: Resultado) -> list[tuple[
     return saida
 
 
-def _explicar(p: dict, s: Saldo, dif: Diferenca, registrar: str) -> list[str]:
+def _explicar(p: dict, s: Saldo, dif: Diferenca, registrar: str, importar: str | None = None) -> list[str]:
     return explicar(dif, ticker=p["ticker"], conta=p["conta"], data=p["_data"], qty_ledger=s.qty,
-                    pm_ledger=s.pm, qty_doc=p["qty"], pm_doc=p["pm"], registrar=registrar)
+                    pm_ledger=s.pm, qty_doc=p["qty"], pm_doc=p["pm"], registrar=registrar,
+                    importar=importar)
 
 
-def divergencias(existentes: dict[str, list[dict]], res: Resultado,
-                 registrar: str = REGISTRAR) -> tuple[list[str], list[str]]:
-    """(linhas que BARRAM a gravação, notas que não barram). Vazio nas duas = o documento não
-    contradiz o livro. Barra quem muda a quantidade (compra ou venda que o livro não tem);
-    `ajuste-de-custo` é nota."""
-    barram, notas = [], []
+def divergencias(existentes: dict[str, list[dict]], res: Resultado, registrar: str = REGISTRAR,
+                 importar: str | None = None, aceitar_como: str | None = None
+                 ) -> tuple[list[str], list[str], list[dict]]:
+    """(linhas que BARRAM a gravação, notas que não barram, fills implícitos aceitos). Vazio nas
+    três = o documento não contradiz o livro. Barra quem muda a quantidade (compra ou venda que
+    o livro não tem); `ajuste-de-custo` é nota.
+
+    `aceitar_como="compra"` (decisão 14 da spec) transforma a leitura `compra` COM preço
+    implícito num fill: delta de qty, preço implícito, taxa 0, DATADO NA FOTO. Nunca é default.
+    Venda continua barrando (a foto tem PM, não preço de venda), compra com custo que cai também
+    (não há preço), e ajuste-de-custo continua nota: a flag não fabrica número."""
+    if aceitar_como not in (None, "compra"):
+        raise ValueError(f"aceitar_como só aceita 'compra' (recebi {aceitar_como!r}): a foto tem "
+                         "preço médio, não preço de venda")
+    barram, notas, implicitos = [], [], []
     for p, s, dif in diferencas(existentes, res):
-        (notas if dif.leitura == "ajuste-de-custo" else barram).extend(_explicar(p, s, dif, registrar))
-    return barram, notas
+        texto = _explicar(p, s, dif, registrar, importar)
+        if dif.leitura == "ajuste-de-custo":
+            notas.extend(texto)
+        elif aceitar_como == "compra" and dif.leitura == "compra" and dif.preco_implicito is not None:
+            implicitos.append({"data": p["_data"], "ticker": p["ticker"], "tipo": "compra",
+                               "qty": dif.delta_qty, "preco": dif.preco_implicito, "taxa": 0.0,
+                               "conta": p["conta"], "moeda": p["moeda"]})
+        elif aceitar_como == "compra" and dif.leitura == "venda":
+            barram.extend(texto + ["    --aceitar-como compra não cobre venda: a foto tem preço médio, "
+                                   "não preço de venda. Registre a venda com o comando acima."])
+        else:
+            barram.extend(texto)
+    return barram, notas, implicitos
 
 
 def _aberturas(existentes: dict[str, list[dict]], res: Resultado) -> tuple[list[dict], list[str]]:
@@ -195,10 +216,13 @@ def _declaracoes(classes: dict[str, str], res: Resultado) -> list[dict]:
 
 
 def gravar(raiz: str | Path, res: Resultado, *, mapeamento: str, arquivo: str, conciliacao: str,
-           conta: str, hoje: datetime.date | None = None, registrar: str = REGISTRAR) -> dict:
+           conta: str, hoje: datetime.date | None = None, registrar: str = REGISTRAR,
+           importar: str | None = None, aceitar_como: str | None = None) -> dict:
     """Grava os registros novos e o log. Retorna {'gravadas': {...}, 'duplicadas': {...},
-    'aberturas': N, 'log': Path}. `gravadas` cobre as tabelas de evento e `ativos`; `aberturas`
-    é quantos dos fills gravados são `saldo-inicial` sintetizados a partir de posição.
+    'aberturas': N, 'implicitos': N, 'log': Path}. `gravadas` cobre as tabelas de evento e
+    `ativos`; `aberturas` é quantos dos fills gravados são `saldo-inicial` sintetizados a partir
+    de posição; `implicitos` é quantos são fills aceitos pela foto (`aceitar_como="compra"`, ver
+    `divergencias`), e o log carrega o caveat deles.
 
     ValueError em dados/ sujo ou em Resultado com erro, e `Divergencia` (também ValueError) se uma
     posição do documento contradiz o ledger na data dela: nada é gravado nesses casos, e a
@@ -213,11 +237,11 @@ def gravar(raiz: str | Path, res: Resultado, *, mapeamento: str, arquivo: str, c
     existentes = _existentes(raiz)
     classes = _classes(raiz)
     novos, duplicadas = separar(existentes, res)
-    barram, _notas = divergencias(existentes, res, registrar)
+    barram, _notas, implicitos = divergencias(existentes, res, registrar, importar, aceitar_como)
     if barram:
         raise Divergencia("o documento não bate com o seu livro — nada gravado:\n" + "\n".join(barram))
     aberturas, notas = _aberturas(existentes, res)
-    novos["fills"] = novos["fills"] + aberturas
+    novos["fills"] = novos["fills"] + aberturas + implicitos
     novos["ativos"] = _declaracoes(classes, res)
     duplicadas["ativos"] = 0
     gravadas = {t: 0 for t in (*TABELAS, "ativos")}
@@ -230,18 +254,21 @@ def gravar(raiz: str | Path, res: Resultado, *, mapeamento: str, arquivo: str, c
     except (OSError, ValueError) as e:
         # A rodada que mais precisa de registro é justamente a que morreu no meio.
         try:
+            entrou = bool(gravadas["fills"])
             log = _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, gravadas,
-                                duplicadas, len(aberturas) if gravadas["fills"] else 0, notas, falha=str(e))
+                                duplicadas, len(aberturas) if entrou else 0, notas,
+                                len(implicitos) if entrou else 0, falha=str(e))
         except OSError:
             log = None   # logs/ também travado: a causa original vale mais que o registro dela
         raise GravacaoParcial(e, gravadas, log) from e
     log = _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, gravadas, duplicadas,
-                        len(aberturas), notas)
-    return {"gravadas": gravadas, "duplicadas": duplicadas, "aberturas": len(aberturas), "log": log}
+                        len(aberturas), notas, len(implicitos))
+    return {"gravadas": gravadas, "duplicadas": duplicadas, "aberturas": len(aberturas),
+            "implicitos": len(implicitos), "log": log}
 
 
 def _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, gravadas, duplicadas,
-                  aberturas: int, notas: list[str], falha: str = "") -> Path:
+                  aberturas: int, notas: list[str], implicitos: int = 0, falha: str = "") -> Path:
     caminho = caminho_datado_livre(raiz / "logs" / "importacoes",
                                    f"{hoje.isoformat()}-{mapeamento}", ".md")
     motivos = {}
@@ -266,6 +293,10 @@ def _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, grav
         # Abertura de livro declara o custo, não a data real de aquisição: fica registrado
         # quantas entraram, para a apuração fiscal saber que lotes estão mudos sobre a data.
         f"Aberturas (saldo-inicial): {aberturas}" + ("; " + "; ".join(notas) if notas else "") + "\n\n"
+        # O fill aceito pela foto tem a data da foto, não da operação: quem apurar IR precisa
+        # saber que esses lotes estão mudos sobre o dia. Fica no registro durável, não só no eco.
+        f"Fills implícitos aceitos pela foto (--aceitar-como compra): {implicitos}"
+        + (f" — {CAVEAT_ACEITAR}" if implicitos else "") + "\n\n"
         f"Ignoradas por motivo: {ignoradas}\n\n"
         f"Linhas ignoradas: {[n for n, _ in res.ignoradas] or 'nenhuma'}\n\n"
         f"Acertos por regra de `linhas`: {acertos}\n\n"
@@ -278,8 +309,8 @@ def _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, grav
     return caminho
 
 
-def conferir(raiz: str | Path, res: Resultado,
-             registrar: str = REGISTRAR) -> tuple[list[str], bool, int]:
+def conferir(raiz: str | Path, res: Resultado, registrar: str = REGISTRAR,
+             importar: str | None = None) -> tuple[list[str], bool, int]:
     """Compara o documento com dados/ sem gravar. (linhas, houve divergência, registros novos).
 
     A posição de dados/ é a DERIVADA do ledger (fills + eventos), cortada na data de cada posição
@@ -302,7 +333,7 @@ def conferir(raiz: str | Path, res: Resultado,
     novos["fills"] = novos["fills"] + _aberturas(existentes, res)[0]
     novos["ativos"] = _declaracoes(classes, res)
     linhas, divergiu = [], False
-    explicadas = {(p["ticker"], p["conta"]): (dif, _explicar(p, s, dif, registrar))
+    explicadas = {(p["ticker"], p["conta"]): (dif, _explicar(p, s, dif, registrar, importar))
                   for p, s, dif in diferencas(existentes, res)}
     contas_do_documento = {p["conta"] for p in res.registros["posicoes"]}
     no_documento = set()

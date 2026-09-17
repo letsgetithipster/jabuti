@@ -519,3 +519,77 @@ def test_ticker_suspeito_no_ledger_nao_ganha_segunda_divergencia(tmp_path):
     _anexa(ws, "dados/fills.csv", "2026-09-06,PETR4,venda,500,40.00,0,corretora-br,BRL")
     with pytest.raises(ValueError, match="excede o saldo"):
         conferir(ws, _res(posicoes=[_pos("PETR4", 150, 32.0)]))
+
+
+# --- G3: --aceitar-como compra fecha o ledger pela foto, com o caveat impresso e logado ------
+
+def _derivada(ws, ticker):
+    from po.ativos import ler_ativos
+    from po.ledger import posicoes_de_fills
+    fills, _ = ler_csv("fills", ws / "dados" / "fills.csv")
+    eventos, _ = ler_csv("eventos", ws / "dados" / "eventos.csv")
+    pos, erros = posicoes_de_fills(fills, eventos, ler_ativos(ws)[0])
+    assert erros == []
+    return next((p["qty"], round(p["pm"], 4)) for p in pos if p["ticker"] == ticker)
+
+
+def test_aceitar_como_compra_fecha_o_ledger_pela_foto_e_loga_o_caveat(tmp_path):
+    """Decisão 14 da spec: o fill implícito (delta de qty, preço implícito, taxa 0) nasce DATADO
+    NA FOTO, não na operação, e o custo disso é dito na hora e no log. Depois, a mesma foto
+    confere OK: o ledger fechou."""
+    from po.ingestao.reconciliacao import CAVEAT_ACEITAR
+    ws = copia_exemplo(tmp_path)
+    foto = [_pos("PETR4", 150, 32.0, data="2026-09-10"), _pos("HGLG11", 50, 155.0, data="2026-09-10", classe="fiis")]
+    r = gravar(ws, _res(posicoes=list(foto)), aceitar_como="compra", **KW)
+    assert r["gravadas"]["fills"] == 1 and r["aberturas"] == 0 and r["implicitos"] == 1
+    fills, _ = ler_csv("fills", ws / "dados" / "fills.csv")
+    assert (fills[-1]["data"], fills[-1]["ticker"], fills[-1]["tipo"], fills[-1]["qty"], fills[-1]["preco"], fills[-1]["taxa"]) == \
+        ("2026-09-10", "PETR4", "compra", 50.0, 36.0, 0.0)
+    assert _derivada(ws, "PETR4") == (150.0, 32.0)
+    corpo = r["log"].read_text(encoding="utf-8")
+    assert "Fills implícitos aceitos pela foto (--aceitar-como compra): 1" in corpo and CAVEAT_ACEITAR in corpo
+    linhas, divergiu, novos = conferir(ws, _res(posicoes=list(foto)))
+    assert not divergiu and novos == 0 and "PETR4 (corretora-br): OK — 150 @ 32,00" in "\n".join(linhas)
+    _caminho, texto = gerar_estado(ws, hoje=datetime.date(2026, 9, 10))
+    assert "Total investido: R$ 14.000,00" in texto, texto     # 150×40 + 50×160: o ESTADO vê o fill
+    erros, _ = validar(ws)
+    assert erros == []
+
+
+def test_aceitar_como_compra_recusa_leitura_venda_e_nao_grava_nada(tmp_path):
+    """A foto tem preço médio, não preço de venda: a flag não cobre venda. Recusa com a
+    explicação e manda registrar.py venda; nada entra, nem a parte que seria compra."""
+    ws = copia_exemplo(tmp_path)
+    antes = _dados(ws)
+    _anexa(ws, "dados/ativos.csv", "VALE3,acoes-br")
+    _anexa(ws, "dados/fills.csv", "2026-09-06,VALE3,compra,10,60.00,0,corretora-br,BRL")
+    foto = [_pos("PETR4", 150, 32.0, data="2026-09-10"), _pos("VALE3", 4, 60.0, data="2026-09-10"),
+            _pos("HGLG11", 50, 155.0, data="2026-09-10", classe="fiis")]
+    depois_do_anexo = _dados(ws)
+    with pytest.raises(ValueError) as exc:
+        gravar(ws, _res(posicoes=list(foto)), aceitar_como="compra", **KW)
+    texto = str(exc.value)
+    assert "venda VALE3 6 <preco-de-venda>" in texto and "não cobre venda" in texto
+    assert _dados(ws) == depois_do_anexo and _dados(ws) != antes
+    assert not (ws / "logs" / "importacoes").exists()
+
+
+def test_aceitar_como_compra_nao_inventa_fill_sem_preco_nem_para_ajuste_de_custo(tmp_path):
+    """Custo que cai com quantidade que sobe não tem preço: a flag não fabrica um. Ajuste de
+    custo continua nota: nada a gravar."""
+    ws = copia_exemplo(tmp_path)
+    antes = _dados(ws)
+    with pytest.raises(ValueError, match="nenhum preço de compra explica"):
+        gravar(ws, _res(posicoes=[_pos("PETR4", 150, 19.0), _pos("HGLG11", 50, 155.0, classe="fiis")]),
+               aceitar_como="compra", **KW)
+    assert _dados(ws) == antes
+    r = gravar(ws, _res(posicoes=[_pos("PETR4", 100, 30.02), _pos("HGLG11", 50, 155.0, classe="fiis")]),
+               aceitar_como="compra", **KW)
+    assert r["gravadas"]["fills"] == 0 and r["implicitos"] == 0
+    assert "Fills implícitos aceitos pela foto (--aceitar-como compra): 0" in r["log"].read_text(encoding="utf-8")
+
+
+def test_aceitar_como_so_aceita_compra(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    with pytest.raises(ValueError, match="aceitar_como"):
+        gravar(ws, _res(posicoes=[_pos("PETR4", 100, 30.0)]), aceitar_como="venda", **KW)

@@ -192,6 +192,8 @@ def test_importar_foto_divergente_sem_conferir_para_em_3_com_a_mesma_explicacao(
     assert r.returncode == 3, r.stdout + r.stderr
     assert "preço implícito R$ 30,00" in r.stdout and "compra PETR4 20 30,00" in r.stdout
     assert "Nada novo para gravar" not in r.stdout
+    # a terceira saída cita o comando que a pessoa acabou de rodar, mais a flag
+    assert f"{doc} --mapeamento" in r.stdout and "--aceitar-como compra" in r.stdout
     assert instantaneo(ws) == antes
     assert not (ws / "logs" / "importacoes").exists()
     assert "Traceback" not in r.stderr
@@ -348,3 +350,30 @@ def test_inspecionar_arquivo_de_verdade_sai_0(tmp_path):
 def test_inspecionar_sem_argumento_sai_2():
     r = _inspeciona()
     assert r.returncode == 2, r.stdout + r.stderr
+
+
+def test_aceitar_como_compra_fecha_o_ledger_e_imprime_o_caveat(tmp_path):
+    """Decisão 14 da spec, pela linha de comando: a flag grava o fill implícito datado na foto,
+    diz o custo disso na hora, e a mesma foto passa a conferir OK. Nunca é default: o teste
+    anterior prova que sem a flag o exit é 3."""
+    from po.ingestao.reconciliacao import CAVEAT_ACEITAR
+    ws, doc = prepara(tmp_path, POSICOES_DIVERGENTES, MAPA_POSICOES, "pos.csv")
+    r = roda(ws, doc, "--data", "2026-09-10", "--total-declarado", "11350,00", "--aceitar-como", "compra")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "Gravado em dados/: fills +1" in r.stdout
+    assert "1 fill(s) implícito(s) aceito(s) pela foto (--aceitar-como compra)" in r.stdout
+    assert CAVEAT_ACEITAR in r.stdout
+    assert "2026-09-10,PETR4,compra,20,30,0,corretora-br,BRL" in (ws / "dados" / "fills.csv").read_text(encoding="utf-8")
+    log = next(iter((ws / "logs" / "importacoes").glob("*.md"))).read_text(encoding="utf-8")
+    assert CAVEAT_ACEITAR in log
+    r = roda(ws, doc, "--data", "2026-09-10", "--total-declarado", "11350,00", "--conferir")
+    assert r.returncode == 0 and "PETR4 (corretora-br): OK — 120 @ 30,00" in r.stdout, r.stdout
+    r = roda(ws, doc, "--data", "2026-09-10", "--total-declarado", "11350,00", "--aceitar-como", "compra")
+    assert r.returncode == 0 and "Nada novo para gravar" in r.stdout, r.stdout   # idempotente
+
+
+def test_aceitar_como_recusa_valor_fora_de_compra_com_exit_2(tmp_path):
+    ws, doc = prepara(tmp_path, POSICOES_DIVERGENTES, MAPA_POSICOES, "pos.csv")
+    r = roda(ws, doc, "--data", "2026-09-10", "--total-declarado", "11350,00", "--aceitar-como", "venda")
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "compra" in r.stderr     # o argparse nomeia a única escolha; flag desconhecida não nomearia

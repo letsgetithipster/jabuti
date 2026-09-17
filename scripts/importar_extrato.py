@@ -2,11 +2,18 @@
 
 Uso: python scripts/importar_extrato.py <raiz> <arquivo> [--mapeamento NOME|CAMINHO.yaml]
         [--conta ID] [--data AAAA-MM-DD] [--total-declarado VALOR] [--dry-run] [--conferir]
+        [--aceitar-como compra]
 
 Divisão rígida (GUARDRAILS, camada 1): a LLM escreve o mapeamento e o mostra a você;
 este script executa o parse e confere a aritmética do próprio documento. Não bateu,
 nada entra em dados/. Sem --mapeamento, tenta detectar pelo cabeçalho entre os
 mapeamentos do workspace (mapeamentos/) e do motor.
+
+Foto que diverge do livro em quantidade não entra: o texto traz a diferença, o preço implícito
+e o comando de cada leitura (registrar.py compra/venda/evento). `--aceitar-como compra` é a
+terceira saída, nunca o default: grava a diferença como fill de compra ao preço implícito,
+DATADO NA FOTO, e diz o custo disso na hora e no log (a apuração de IR que depende do dia da
+operação fica muda sobre esses lotes). Venda não tem essa saída: a foto tem PM, não preço de venda.
 
 Códigos de saída: 0 importou (ou --dry-run/--conferir sem divergência)
 · 1 erro que impediu a rodada: config, mapeamento, leitura, conciliação ou gravação. Nada entra em
@@ -32,6 +39,7 @@ from po.csvs import ler_csv, ultimas_cotacoes  # noqa: E402
 from po.ingestao.conciliacao import conciliar  # noqa: E402
 from po.ingestao.engine import executar  # noqa: E402
 from po.ingestao.escrita import Divergencia, GravacaoParcial, conferir, gravar  # noqa: E402
+from po.ingestao.reconciliacao import CAVEAT_ACEITAR  # noqa: E402
 from po.ingestao.leitores import DependenciaAusente, ler_tabela  # noqa: E402
 from po.ingestao.mapeamento import carregar_mapeamento, detectar_mapeamento, resolver_mapeamento  # noqa: E402
 from po.ledger import posicoes_de_fills  # noqa: E402
@@ -88,6 +96,9 @@ def main():
     ap.add_argument("--total-declarado", help="total lido por VOCÊ no documento/corretora, quando o mapeamento pede")
     ap.add_argument("--dry-run", action="store_true", help="executa e concilia, não grava")
     ap.add_argument("--conferir", action="store_true", help="compara o documento com dados/, não grava")
+    ap.add_argument("--aceitar-como", choices=["compra"], dest="aceitar_como",
+                    help="grava a diferença de quantidade contra o livro como fill de compra ao preço "
+                         "implícito, datado na foto (nunca é default; venda não tem essa saída)")
     args = ap.parse_args()
     raiz = Path(args.raiz).resolve()
     arquivo = Path(args.arquivo)
@@ -95,6 +106,9 @@ def main():
         cfg = carregar_config(raiz)
         motor = caminho_motor(raiz, cfg)
         registrar = f"python {motor / 'scripts' / 'registrar.py'} {raiz}"
+        # o comando que a pessoa acabou de digitar, sem as flags de prévia: é o que a terceira
+        # saída da divergência manda repetir com --aceitar-como compra
+        importar = "python " + " ".join(a for a in sys.argv if a not in ("--conferir", "--dry-run"))
         if args.mapeamento:
             caminho_mapa = resolver_mapeamento(args.mapeamento, raiz, motor)
         else:
@@ -162,7 +176,7 @@ def main():
     if args.conferir:
         print("\nConferência contra dados/ (nada gravado):")
         try:
-            linhas, divergiu, n_novos = conferir(raiz, res, registrar=registrar)
+            linhas, divergiu, n_novos = conferir(raiz, res, registrar=registrar, importar=importar)
         except ValueError as e:
             print(f"erro: {e}")
             sys.exit(1)
@@ -185,7 +199,7 @@ def main():
         return
     try:
         r = gravar(raiz, res, mapeamento=mapa["nome"], arquivo=arquivo.name, conciliacao=descricao,
-                   conta=conta, registrar=registrar)
+                   conta=conta, registrar=registrar, importar=importar, aceitar_como=args.aceitar_como)
     except Divergencia as e:
         # o mesmo texto e o mesmo código da prévia: a gravação não pode dizer outra coisa
         print(f"\n{e}")
@@ -223,6 +237,9 @@ def main():
     print("\n" + (f"Gravado em dados/: {novas}" if novas else "Nada novo para gravar (tudo já estava em dados/)")
           + (f" · duplicadas puladas: {dup}" if dup else ""))
     print(f"Log: {r['log'].relative_to(raiz).as_posix()}")
+    if r["implicitos"]:
+        n = r["implicitos"]
+        print(f"{n} fill(s) implícito(s) aceito(s) pela foto (--aceitar-como compra): {CAVEAT_ACEITAR}.")
     if r["aberturas"]:
         # Abertura de livro é fiscalmente honesta sobre o custo e muda sobre a data de aquisição.
         # Dizer isso na hora em que ela nasce é o que impede a invalidez fiscal de ser invisível.

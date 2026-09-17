@@ -24,6 +24,9 @@ from po.numeros import formatar_brl, formatar_decimal_brl
 TOLERANCIA_QTY = 1e-9
 TOLERANCIA_PM = 0.005     # meio centavo: PM exibido com 2 casas contra PM cheio do livro
 LEITURAS = ("igual", "compra", "venda", "ajuste-de-custo")
+# O custo de --aceitar-como compra (decisão 14 da spec), dito na hora e gravado no log: uma casa só.
+CAVEAT_ACEITAR = ("o fill nasce datado na foto, não na operação; para IR preciso, importe o extrato "
+                  "de negociações")
 
 
 @dataclass(frozen=True)
@@ -60,10 +63,16 @@ def _q(v: float) -> str:
 
 def explicar(dif: Diferenca, *, ticker: str, conta: str, data: str, qty_ledger: float,
              pm_ledger: float, qty_doc: float, pm_doc: float,
-             registrar: str = "python <motor>/scripts/registrar.py .") -> list[str]:
+             registrar: str = "python <motor>/scripts/registrar.py .",
+             importar: str | None = None) -> list[str]:
     """As linhas que a pessoa lê. Todo ramo termina num comando que EXISTE, ou em "nada a fazer".
     Nenhum ramo termina mandando fazer o que ela acabou de fazer. Quantidade e preço em pt-BR,
-    inclusive dentro do comando: registrar.py lê 0,25 e 36,00."""
+    inclusive dentro do comando: registrar.py lê 0,25 e 36,00.
+
+    `importar` é o comando de importação que a pessoa acabou de rodar; com ele, a leitura `compra`
+    com preço implícito ganha a terceira saída, `--aceitar-como compra`, com o caveat na mesma
+    linha. Sem ele (chamador sem CLI de importação) a saída não é oferecida: comando que não dá
+    para digitar não é saída."""
     if dif.leitura == "igual":
         return []
     cab = [f"  {ticker} ({conta}): o ledger tem {_q(qty_ledger)} @ R$ {formatar_brl(pm_ledger)} "
@@ -98,6 +107,10 @@ def explicar(dif: Diferenca, *, ticker: str, conta: str, data: str, qty_ledger: 
             " significa nada — registre o evento:",
             f"      {registrar} evento {ticker} split --razao <novas:antigas> --data <data> "
             "--confirmar"]
+        if importar:
+            linhas += ["    Se você confia na foto e não tem a data da compra:",
+                       f"      {importar} --aceitar-como compra",
+                       f"      ({CAVEAT_ACEITAR})"]
     linhas.append("    Depois, rode esta importação de novo: ela passa quando o livro e o"
                   " documento concordarem.")
     return linhas
