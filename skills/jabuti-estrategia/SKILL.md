@@ -66,5 +66,6 @@ Próximo: abra uma thread nova e cole
     /jabuti-importar
 
 Tenha à mão: o export de posições da sua corretora, salvo em inbox/.
-Estou do zero? Cole /jabuti-micro <primeiro bloco aberto no SETUP.md> em vez disso.
+Estou do zero? O próximo seria /jabuti-micro <bloco>, que ainda não está instalado
+(Fase 4b) — por ora o onboarding termina aqui.
 ```

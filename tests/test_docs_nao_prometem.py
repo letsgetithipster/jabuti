@@ -86,6 +86,56 @@ def test_nao_promete_no_presente_o_que_e_de_fase_futura():
                     f"{termo} citado sem marcar a fase: {bloco.strip()[:120]}"
 
 
+def test_texto_embarcado_nao_cita_caminho_nem_comando_inexistente():
+    """O invariante "nada promete no presente o que o código não cumpre" só era cobrado no README.
+    Mas o texto que chega ao workspace do usuário é outro: as SKILL.md são copiadas, rules/ é
+    compilado para dentro do CLAUDE.md e templates/workspace/ nasce lá. Por esse buraco passaram o
+    handoff para /jabuti-micro e o "a tabela compacta é GERADA" sem gerador.
+
+    Mede por ARQUIVO, não por bloco: /jabuti-micro aparece 9 vezes nas duas skills e quase toda
+    ocorrência é ponteiro legítimo ("isso é da outra skill"), não promessa. Exigir ressalva em
+    cada bloco encheria as skills de ruído.
+
+    CUSTO DECLARADO, e ele tem endereço: um arquivo que já tem ressalva não é reavaliado ao
+    ganhar promessa nova. Os três arquivos que a ressalva cobre hoje são exatamente os que a
+    fase da rotina mensal vai reescrever para apontar para /jabuti-mes, e enquanto a ressalva
+    estiver neles a guarda não vê essa citação nova. Medido nos dois sentidos. Quem apagar a
+    citação de /jabuti-micro APAGA A RESSALVA NO MESMO COMMIT: é o que devolve a visão daqui.
+
+    A ressalva exige falar de NÃO-INSTALADO. Aceitar qualquer "Fase N" deixava jabuti-importar
+    passar verde, porque ele cita "Fase 5" sobre outro assunto — falso negativo no arquivo com o
+    defeito.
+
+    Conceito ("analistas de classe") não tem guarda aqui: não é caminho, e detector de conceito
+    seria overengineering. O pino de literal removido, logo abaixo, cobre o que dá para cobrir.
+
+    exemplos/ fica FORA do escopo de propósito: o exemplo é uma fotografia de workspace no meio
+    do onboarding, e citar a próxima etapa ali é o comportamento correto do artefato.
+    README.md também fica fora: o teste por bloco que já existe cobre."""
+    escopo = [RAIZ / "GUARDRAILS.md"]
+    escopo += sorted(RAIZ.glob("rules/*.md"))
+    escopo += sorted(RAIZ.glob("skills/*/SKILL.md"))
+    escopo += sorted((RAIZ / "templates" / "workspace").rglob("*.md"))
+
+    instaladas = {p.parent.name for p in RAIZ.glob("skills/*/SKILL.md")}
+    ressalva = re.compile(r"ainda não (está|estão) instalad|ainda não instalad|não existe ainda")
+    cmd_re = re.compile(r"/(jabuti-[a-z]+)")
+    path_re = re.compile(r"(?<![\w/.])((?:scripts|metodo|rules|mapeamentos)/[\w./-]+\.(?:py|yaml|md))")
+
+    faltando = []
+    for p in escopo:
+        texto = p.read_text(encoding="utf-8")
+        rel = p.relative_to(RAIZ).as_posix()
+        tem_ressalva = bool(ressalva.search(texto))
+        for nome in sorted(set(cmd_re.findall(texto))):
+            if nome not in instaladas and not tem_ressalva:
+                faltando.append(f"{rel}: /{nome} citado, não instalado, e o arquivo não ressalva isso")
+        for caminho in sorted(set(path_re.findall(texto))):
+            if not (RAIZ / caminho).exists() and not (RAIZ / "templates" / "workspace" / caminho).exists():
+                faltando.append(f"{rel}: caminho {caminho} não existe")
+    assert faltando == [], "texto embarcado cita o que não existe:\n  " + "\n  ".join(faltando)
+
+
 def test_guardrails_declara_a_garantia_menor_do_dado_de_api():
     """Se o GUARDRAILS descrevesse só a ingestão de documento, ele estaria prometendo para o
     dado de API uma garantia que o dado de API não tem.

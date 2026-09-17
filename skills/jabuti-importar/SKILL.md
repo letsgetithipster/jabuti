@@ -99,4 +99,6 @@ Próximo: abra uma thread nova e cole
     /jabuti-micro <primeiro bloco aberto no SETUP.md>
 
 Tenha à mão: nada. A skill lê a política e propõe uma cesta semente para o bloco.
+O /jabuti-micro ainda não está instalado (Fase 4b): por ora o onboarding termina
+aqui, com a carteira lida dentro da política.
 ```
