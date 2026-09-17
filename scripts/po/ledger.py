@@ -48,6 +48,27 @@ def _chave_de_casamento(f: dict) -> tuple:
             round(float(f["qty"]), 6), round(float(f["preco"]), 4), round(float(f["taxa"]), 2))
 
 
+def casamentos_de_estornos(fills: list[dict]) -> dict[int, list[int]]:
+    """{índice do estorno: índices dos fills que ele casa exatamente}, na ordem do arquivo.
+
+    Um fill já anulado por estorno anterior não é candidato de novo. É a ÚNICA lógica de
+    casamento: o replay a usa para decidir o que sai da linha do tempo e registrar.py a usa para
+    recusar gravar um estorno que casaria zero ou mais de um fill."""
+    estornados: set[int] = set()
+    mapa: dict[int, list[int]] = {}
+    for i, f in enumerate(fills):
+        if f["tipo"] != "estorno":
+            continue
+        alvo = _chave_de_casamento(f)
+        casam = [j for j, g in enumerate(fills)
+                 if g["tipo"] in ("compra", "venda", "saldo-inicial") and j not in estornados
+                 and _chave_de_casamento(g) == alvo]
+        mapa[i] = casam
+        if len(casam) == 1:
+            estornados.add(casam[0])
+    return mapa
+
+
 def eventos_vigentes(eventos: list[dict]) -> list[dict]:
     """A última linha por (data, ticker) vence, espelhando csvs.ultimas_cotacoes: confirmar um
     evento é ANEXAR uma linha com confirmado=sim e a razão, nunca reescrever a proposta."""
@@ -112,14 +133,12 @@ def calcular_saldos(fills: list[dict], eventos: list[dict] | tuple = (), *,
 
     estornados: set[int] = set()
     efetivos: list[tuple[int, dict]] = []
+    casamentos = casamentos_de_estornos(fills)
     for i, f in enumerate(fills):
         if f["tipo"] != "estorno":
             efetivos.append((i, f))
             continue
-        alvo = _chave_de_casamento(f)
-        casam = [j for j, g in enumerate(fills)
-                 if g["tipo"] in ("compra", "venda", "saldo-inicial") and j not in estornados
-                 and _chave_de_casamento(g) == alvo]
+        casam = casamentos[i]
         if len(casam) != 1:
             erros.append(f"fills.csv: estorno de {formatar_decimal_brl(f['qty'])} {f['ticker']} "
                          f"em {f['data']} (conta {f['conta']}, R$ {formatar_brl(f['preco'])}, "

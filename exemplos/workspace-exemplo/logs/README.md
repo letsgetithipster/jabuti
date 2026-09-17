@@ -1,1 +1,1 @@
-# logs/ — histórico operacional com frontmatter (aportes/, vendas/, decisoes/, revisoes/, importacoes/). O validador cobre estes arquivos. importacoes/ é escrito pelo jabuti-importar: um log por importação, com conciliação e contagens.
+# logs/ — histórico operacional com frontmatter (aportes/, vendas/, proventos/, estornos/, decisoes/, revisoes/, importacoes/). O validador cobre estes arquivos. importacoes/ é escrito pelo jabuti-importar: um log por importação, com conciliação e contagens.
