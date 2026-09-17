@@ -90,5 +90,5 @@ def gerar_estado(raiz: str | Path, hoje: datetime.date | None = None) -> tuple[P
     texto = render_estado(raiz, hoje)
     destino = raiz / "estado" / "ESTADO.md"
     destino.parent.mkdir(parents=True, exist_ok=True)
-    destino.write_text(texto, encoding="utf-8")
+    destino.write_text(texto, encoding="utf-8", newline="\n")
     return destino, texto

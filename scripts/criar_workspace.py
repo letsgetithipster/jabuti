@@ -61,11 +61,11 @@ def criar(destino: str | Path, com_git: bool = True, data: str | None = None,
                      .replace("harness: [claude-code]", f"harness: [{harness}]")
                      .replace("__CASA__", _yaml_str(casa or NOMES_PADRAO["casa"]))
                      .replace("__USUARIO__", _yaml_str(usuario or NOMES_PADRAO["usuario"])))
-        cfg.write_text(texto_cfg, encoding="utf-8")
+        cfg.write_text(texto_cfg, encoding="utf-8", newline="\n")
         for md in destino.rglob("*.md"):
             texto = md.read_text(encoding="utf-8")
             if "__DATA__" in texto:
-                md.write_text(texto.replace("__DATA__", data), encoding="utf-8")
+                md.write_text(texto.replace("__DATA__", data), encoding="utf-8", newline="\n")
         escrever_harness(destino, motor=MOTOR)   # CLAUDE.md, .claude/rules/, .claude/skills/
         os.chmod(destino / ".githooks" / "pre-commit", 0o755)
         if com_git:

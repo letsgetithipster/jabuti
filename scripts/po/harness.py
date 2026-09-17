@@ -113,7 +113,7 @@ def escrever_harness(raiz: str | Path, motor: str | Path | None = None, com_skil
     for rel, texto in renderizar_harness(raiz, motor).items():
         alvo = raiz / rel
         alvo.parent.mkdir(parents=True, exist_ok=True)
-        alvo.write_text(texto, encoding="utf-8")
+        alvo.write_text(texto, encoding="utf-8", newline="\n")
         escritos.append(alvo)
     if com_skills:
         cfg = carregar_config(raiz)

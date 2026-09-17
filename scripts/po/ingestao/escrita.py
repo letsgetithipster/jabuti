@@ -168,7 +168,7 @@ def _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, grav
         + (f"\n**A gravação falhou no meio**: {falha}\n\nO que está na tabela acima chegou a ser "
            "gravado; o resto não. Rode de novo depois de resolver — a importação é idempotente.\n"
            if falha else ""),
-        encoding="utf-8")
+        encoding="utf-8", newline="\n")
     return caminho
 
 

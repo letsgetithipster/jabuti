@@ -50,7 +50,7 @@ def arquivar_payload(raiz: str | Path, provider: str, bruto: dict, hoje) -> Path
             "cair fora de logs/importacoes/, onde ninguém o encontraria depois")
     caminho = caminho_datado_livre(Path(raiz) / "logs" / "importacoes",
                                    f"{hoje.isoformat()}-{provider}", ".json")
-    caminho.write_text(json.dumps(bruto, ensure_ascii=False, indent=2), encoding="utf-8")
+    caminho.write_text(json.dumps(bruto, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
     return caminho
 
 
