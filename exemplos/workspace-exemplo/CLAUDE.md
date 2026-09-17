@@ -34,6 +34,7 @@ e o método em `.claude/rules/00-voz.md`. O contrato que torna tudo isto confiá
 
 ## Skills instaladas
 
+- `/jabuti-capacidade`
 - `/jabuti-divida`
 - `/jabuti-estrategia`
 - `/jabuti-importar`

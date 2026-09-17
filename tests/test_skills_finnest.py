@@ -92,3 +92,20 @@ def test_skill_finnest_cabe_no_teto():
     grandes = [f"{p.parent.name}: {p.stat().st_size} bytes" for p in _skills_finnest()
                if p.stat().st_size > TETO_BYTES]
     assert grandes == [], f"skill acima do teto de {TETO_BYTES} bytes:\n  " + "\n  ".join(grandes)
+
+
+def test_skill_capacidade_cita_os_campos_do_perfil_que_ela_grava():
+    """Mesmo defeito que test_campos_do_perfil_na_skill_batem_com_o_codigo pega no jabuti-init:
+    a skill lista campos em prosa, e prosa nao tem quem a segure. Se OBRIGATORIOS renomear um
+    destes quatro, a skill passa a mandar gravar campo que o validador nao cobra, ou a deixar de
+    gravar um que ele cobra, e o erro so aparece no workspace da pessoa."""
+    import sys
+    sys.path.insert(0, str(RAIZ / "scripts"))
+    from po.perfil import OBRIGATORIOS
+
+    campos = {"custo-vida-mensal", "capacidade-aporte-mensal",
+              "funcao-objetivo-provisoria", "degrau-if"}
+    assert campos <= OBRIGATORIOS, f"campo fora de OBRIGATORIOS: {sorted(campos - OBRIGATORIOS)}"
+    texto = (RAIZ / "skills" / "jabuti-capacidade" / "SKILL.md").read_text(encoding="utf-8")
+    faltando = sorted(c for c in campos if f"`{c}`" not in texto)
+    assert faltando == [], f"a skill nao cita os campos que grava: {faltando}"

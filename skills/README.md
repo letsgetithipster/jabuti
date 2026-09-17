@@ -30,3 +30,4 @@ Exigem o MCP da Finnest conectado na sessão (`docs/provider-finnest.md`). Sem e
 | Skill | Quando | Escreve | Nunca |
 |---|---|---|---|
 | `/jabuti-divida` | antes do aporte, com fatura ou empréstimo em aberto | `logs/decisoes/` | move dinheiro, sincroniza conexão, escreve em `dados/` |
+| `/jabuti-capacidade` | para medir custo de vida e capacidade de aporte em vez de declarar de cabeça | `politica/00-perfil.md`, `logs/decisoes/` | decide o aporte, escolhe ativo, escreve em `dados/` |

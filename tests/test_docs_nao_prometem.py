@@ -28,6 +28,7 @@ FASE_DO_COMANDO = {
     "jabuti-mes": 5,
     "preparar-ir": 6,
     "jabuti-divida": 4,
+    "jabuti-capacidade": 4,
 }
 
 # Os três nomes que a spec §4 fundiu em /jabuti-mes. Saíram do roadmap; o teste abaixo impede

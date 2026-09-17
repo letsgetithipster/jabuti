@@ -9,6 +9,7 @@ description: "Use quando o usuário pedir '/jabuti-divida', 'tenho dívida, poss
 
 - Antes de decidir o aporte do mês, quando existe fatura de cartão ou empréstimo em aberto
 - Quando a pessoa pergunta se investe ou quita primeiro
+- Chamada pelo `/jabuti-capacidade` quando ele acha dívida em aberto
 
 Frases típicas: "/jabuti-divida", "devo quitar o cartão antes de aportar?", "quanto eu devo hoje".
 
