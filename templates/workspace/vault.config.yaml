@@ -15,7 +15,7 @@ cotacoes:
 contas:
   - id: corretora-br
     nome: "Minha corretora"
-    moeda: BRL                # moeda de TODAS as linhas dessa conta em posicoes/fills/proventos
+    moeda: BRL                # moeda de TODAS as linhas dessa conta em fills/proventos
     blocos: []                # propósito: quais blocos esta conta serve (vazio = qualquer); o /jabuti-importar preenche
 caminhos:
   motor: __MOTOR__            # preenchido pelo criar_workspace.py; NÃO editar à mão

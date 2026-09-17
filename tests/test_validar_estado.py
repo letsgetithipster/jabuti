@@ -57,9 +57,7 @@ def test_moeda_sem_cambio_declarado_suspende(tmp_path):
     de câmbio, e o aviso tem que nomear o par que falta para a suspensão ser acionável."""
     ws = tmp_path / "ws"
     shutil.copytree(EXEMPLO, ws)
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") +
-                   "VOO,rv-int,corretora-br,2,500.00,USD\n", encoding="utf-8")
+    _anexa(ws, "dados/ativos.csv", "VOO,rv-int")
     fills = ws / "dados" / "fills.csv"
     fills.write_text(fills.read_text(encoding="utf-8") +
                      "2026-08-01,VOO,saldo-inicial,2,500.00,0,corretora-br,USD\n", encoding="utf-8")
@@ -84,8 +82,8 @@ def test_mensagem_de_divergencia_em_ptbr(tmp_path):
 def test_dados_com_erro_suspende_com_aviso(tmp_path):
     ws = tmp_path / "ws"
     shutil.copytree(EXEMPLO, ws)
-    (ws / "dados" / "posicoes.csv").write_text(
-        "ticker,classe,conta,qty,pm,moeda\nPETR4,acoes-br,corretora-br,cem,30.00,BRL\n",
+    (ws / "dados" / "fills.csv").write_text(
+        "data,ticker,tipo,qty,preco,taxa,conta,moeda\n2026-08-05,PETR4,compra,cem,29.50,0,corretora-br,BRL\n",
         encoding="utf-8")
     erros, avisos = checar_estado(ws)
     assert erros == []
@@ -109,7 +107,7 @@ def test_total_adulterado_com_carteira_multi_moeda_e_erro(tmp_path):
     R$ 999.999,00 contra R$ 14.300,00 reais, e o validador passava."""
     ws = copia_exemplo(tmp_path)
     (ws / "vault.config.yaml").write_text(CONFIG_DUAS_CONTAS.format(motor=MOTOR.as_posix()), encoding="utf-8")
-    _anexa(ws, "dados/posicoes.csv", "AAPL,rv-int,corretora-us,2,200.00,USD")
+    _anexa(ws, "dados/ativos.csv", "AAPL,rv-int")
     _anexa(ws, "dados/fills.csv", "2026-08-01,AAPL,saldo-inicial,2,200.00,0,corretora-us,USD")
     _anexa(ws, "dados/cotacoes.csv", "2026-09-08,18:00,AAPL,230.00,USD,manual")
     _anexa(ws, "dados/cotacoes.csv", "2026-09-08,00:00,USDBRL,5.00,BRL,manual")
@@ -130,7 +128,7 @@ def test_multi_moeda_com_total_correto_nao_acusa(tmp_path):
     a edição à mão que ele existe para pegar. O jeito de ter o número certo é regenerar."""
     ws = copia_exemplo(tmp_path)
     (ws / "vault.config.yaml").write_text(CONFIG_DUAS_CONTAS.format(motor=MOTOR.as_posix()), encoding="utf-8")
-    _anexa(ws, "dados/posicoes.csv", "AAPL,rv-int,corretora-us,2,200.00,USD")
+    _anexa(ws, "dados/ativos.csv", "AAPL,rv-int")
     _anexa(ws, "dados/fills.csv", "2026-08-01,AAPL,saldo-inicial,2,200.00,0,corretora-us,USD")
     _anexa(ws, "dados/cotacoes.csv", "2026-09-08,18:00,AAPL,230.00,USD,manual")
     _anexa(ws, "dados/cotacoes.csv", "2026-09-08,00:00,USDBRL,5.00,BRL,manual")
@@ -143,7 +141,7 @@ def test_posicao_sem_cotacao_continua_suspendendo_com_aviso_e_nao_erro(tmp_path)
     """A suspensão legítima não virou erro no caminho: quando a valoração recusa número parcial,
     a comparação suspende e nomeia a causa. Quem acusa a origem é o check de dados."""
     ws = copia_exemplo(tmp_path)
-    _anexa(ws, "dados/posicoes.csv", "VALE3,acoes-br,corretora-br,10,60.00,BRL")
+    _anexa(ws, "dados/ativos.csv", "VALE3,acoes-br")
     _anexa(ws, "dados/fills.csv", "2026-08-01,VALE3,saldo-inicial,10,60.00,0,corretora-br,BRL")
     erros, avisos = checar_estado(ws)
     assert erros == []

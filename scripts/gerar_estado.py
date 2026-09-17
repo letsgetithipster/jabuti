@@ -34,7 +34,7 @@ def main():
     # e `gerar_estado.py exemplos/workspace-exemplo`, o comando que regenera o exemplo do
     # repo, passa caminho relativo.
     raiz = Path(args.raiz).resolve()
-    if not raiz.is_dir():   # mesma frase do validador; sem isto o erro sai como "dados/posicoes.csv não encontrado"
+    if not raiz.is_dir():   # mesma frase do validador; sem isto o erro sai como "dados/fills.csv não encontrado"
         print(f"erro: workspace {args.raiz} não existe")
         sys.exit(1)
     hoje = None

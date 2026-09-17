@@ -94,8 +94,9 @@ def test_valorar_ignora_posicoes_csv_editada_a_mao(tmp_path):
     posicoes.csv (os dois caminhos davam 100 @ 30,00). Agora a tabela antiga diz 900 e o número
     tem que continuar sendo o do ledger: é a frase da docstring do ledger, medida."""
     ws = copia_exemplo(tmp_path)
-    _troca(ws, "dados/posicoes.csv", "PETR4,acoes-br,corretora-br,100,30.00",
-           "PETR4,acoes-br,corretora-br,900,30.00")
+    # workspace antigo: a tabela ainda está no disco (G1 a tirou do template e do exemplo)
+    (ws / "dados" / "posicoes.csv").write_text(
+        "ticker,classe,conta,qty,pm,moeda\nPETR4,acoes-br,corretora-br,900,30.00,BRL\n", encoding="utf-8")
     c = valorar(ws, hoje=HOJE)
     por_ticker = {l.ticker: l for l in c.linhas}
     assert por_ticker["PETR4"].qty == 100 and round(por_ticker["PETR4"].pm, 2) == 30.00

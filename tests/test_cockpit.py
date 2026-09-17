@@ -92,7 +92,7 @@ def test_classe_sem_banda_ganha_linha_e_o_denominador_fica_completo(tmp_path):
     """Se a posição de classe sem banda ficasse fora da tabela Blocos, o Total dela seria menor
     que o das Posições e TODO percentual da carteira sairia errado, em silêncio."""
     ws_raiz = copia_exemplo(tmp_path)
-    _anexa(ws_raiz, "dados/posicoes.csv", "BTC,cripto,corretora-br,1,100000.00,BRL")
+    _anexa(ws_raiz, "dados/ativos.csv", "BTC,cripto")
     _anexa(ws_raiz, "dados/fills.csv", "2026-08-01,BTC,saldo-inicial,1,100000.00,0,corretora-br,BRL")
     _anexa(ws_raiz, "dados/cotacoes.csv", "2026-09-08,18:00,BTC,120000.00,BRL,manual")
     _, wb = _abre(ws_raiz)
@@ -160,7 +160,7 @@ def test_regerar_sobrescreve_e_nao_acumula(tmp_path):
 
 def test_dados_que_nao_sustentam_o_numero_nao_geram_planilha(tmp_path):
     ws_raiz = copia_exemplo(tmp_path)
-    _anexa(ws_raiz, "dados/posicoes.csv", "VALE3,acoes-br,corretora-br,10,60.00,BRL")
+    _anexa(ws_raiz, "dados/ativos.csv", "VALE3,acoes-br")
     _anexa(ws_raiz, "dados/fills.csv", "2026-08-01,VALE3,saldo-inicial,10,60.00,0,corretora-br,BRL")
     with pytest.raises(ValueError, match="VALE3 sem cotação"):
         gerar_cockpit(ws_raiz, agora=AGORA)
@@ -190,7 +190,7 @@ def test_cli_raiz_inexistente_sai_1_sem_traceback(tmp_path):
 @pytest.mark.slow
 def test_cli_dados_sujos_sai_1_com_frase(tmp_path):
     ws_raiz = copia_exemplo(tmp_path)
-    _anexa(ws_raiz, "dados/posicoes.csv", "VALE3,acoes-br,corretora-br,10,60.00,BRL")
+    _anexa(ws_raiz, "dados/ativos.csv", "VALE3,acoes-br")
     _anexa(ws_raiz, "dados/fills.csv", "2026-08-01,VALE3,saldo-inicial,10,60.00,0,corretora-br,BRL")
     r = _roda(str(ws_raiz))
     assert r.returncode == 1

@@ -37,7 +37,7 @@ def test_gera_total_tabela_e_pendencias(tmp_path):
 def test_evento_pendente_e_bloco_sem_banda_viram_pendencia(tmp_path):
     ws = copia_exemplo(tmp_path)
     _anexa(ws, "dados/eventos.csv", "2026-09-08,PETR4,variacao-anomala,-50%,nao")
-    _anexa(ws, "dados/posicoes.csv", "BTC,cripto,corretora-br,0.01,300000.00,BRL")
+    _anexa(ws, "dados/ativos.csv", "BTC,cripto")
     _anexa(ws, "dados/fills.csv", "2026-08-01,BTC,saldo-inicial,0.01,300000.00,0,corretora-br,BRL")
     _anexa(ws, "dados/cotacoes.csv", "2026-09-08,18:00,BTC,400000.00,BRL,manual")
     texto = gerar_estado(ws, hoje=datetime.date(2026, 9, 8))[1]
@@ -51,7 +51,7 @@ def test_evento_pendente_e_bloco_sem_banda_viram_pendencia(tmp_path):
 def test_sem_cotacao_nao_gera_e_declara(tmp_path):
     ws = copia_exemplo(tmp_path)
     antes = (ws / "estado" / "ESTADO.md").read_text(encoding="utf-8")
-    _anexa(ws, "dados/posicoes.csv", "VALE3,acoes-br,corretora-br,10,60.00,BRL")
+    _anexa(ws, "dados/ativos.csv", "VALE3,acoes-br")
     _anexa(ws, "dados/fills.csv", "2026-08-01,VALE3,saldo-inicial,10,60.00,0,corretora-br,BRL")
     try:
         gerar_estado(ws, hoje=datetime.date(2026, 9, 8))
@@ -211,7 +211,7 @@ def test_cambio_velho_vira_pendencia_mesmo_com_cotacao_fresca(tmp_path):
     estrangeira sem que nenhum ticker apareça como desatualizado."""
     ws = copia_exemplo(tmp_path)
     (ws / "vault.config.yaml").write_text(CONFIG_DUAS_CONTAS.format(motor=MOTOR.as_posix()), encoding="utf-8")
-    _anexa(ws, "dados/posicoes.csv", "AAPL,rv-int,corretora-us,2,200.00,USD")
+    _anexa(ws, "dados/ativos.csv", "AAPL,rv-int")
     _anexa(ws, "dados/fills.csv", "2026-08-01,AAPL,saldo-inicial,2,200.00,0,corretora-us,USD")
     _anexa(ws, "dados/cotacoes.csv", "2026-09-08,18:00,AAPL,230.00,USD,manual")
     _anexa(ws, "dados/cotacoes.csv", "2026-08-01,00:00,USDBRL,5.00,BRL,manual")
@@ -253,7 +253,7 @@ def test_frase_de_sem_banda_aparece_exatamente_uma_vez(tmp_path):
     Carteira.avisos não tinha consumidor. Agora o ESTADO estende as pendências com c.avisos:
     consumir os dois lados sem apagar o local imprimiria a pendência em dobro."""
     ws = copia_exemplo(tmp_path)
-    _anexa(ws, "dados/posicoes.csv", "BTC,cripto,corretora-br,1,100000.00,BRL")
+    _anexa(ws, "dados/ativos.csv", "BTC,cripto")
     _anexa(ws, "dados/fills.csv", "2026-08-01,BTC,saldo-inicial,1,100000.00,0,corretora-br,BRL")
     _anexa(ws, "dados/cotacoes.csv", "2026-09-08,18:00,BTC,120000.00,BRL,manual")
     texto = render_estado(ws, hoje=HOJE)

@@ -18,8 +18,8 @@ Frases típicas: "importa o extrato da Clear", "sobe o CSV da Schwab", "/jabuti-
 - **Quem lê o documento é o script.** A LLM lê o *dump* de `inspecionar_extrato.py`, não o binário, e nunca copia número dele para `dados/`.
 - **Mapeamento é dado, e o usuário vê antes.** Se nenhum mapeamento pronto casa, a LLM escreve um YAML novo em `mapeamentos/` do workspace (vocabulário em `mapeamentos/README.md` do motor), mostra o arquivo inteiro ao usuário e só roda depois do "de acordo".
 - **Conciliação obrigatória.** Todo mapeamento declara como o documento prova a própria soma. Linha que não casa regra nenhuma PARA a importação; a LLM acrescenta a regra (ou um `ignorar` com motivo explícito) e mostra de novo.
-- **Reimportar é seguro**: duplicata é pulada e contada. Posição que diverge da existente é conflito, nunca sobrescrita.
-- **A mesma posição duas vezes no MESMO documento é conflito, não duas linhas.** `posicoes.csv` é uma linha por ticker/conta. Corretora que quebra a posição por lote ou por agente de custódia (B3 e Schwab fazem isso) exige consolidação **no mapeamento**, antes de importar — e quem escreve o mapeamento é a LLM. Somar as duas linhas à mão em `dados/` não é opção.
+- **Reimportar é seguro**: duplicata é pulada e contada. Nada em `dados/` é sobrescrito: posição que diverge da derivada do ledger aparece no `--conferir` como DIVERGE, e a diferença é a operação que o livro ainda não tem.
+- **Posição não é tabela.** Cada linha de posição do documento vira um fill `saldo-inicial` em `fills.csv` (só para ticker/conta sem nenhum fill) e uma linha `ticker,classe` em `ativos.csv` (só para ticker ainda não declarado; a declaração da pessoa vence a do documento). Corretora que quebra a posição por lote ou por agente de custódia (B3 e Schwab fazem isso) gera UMA abertura consolidada por ticker/conta (qty somada, PM ponderado), e o log de importação nomeia a consolidação. Somar à mão em `dados/` não é opção.
 
 ## Contexto canônico a ler antes
 
@@ -54,7 +54,7 @@ Conta já declarada no config não é perguntada de novo; documento já importad
    - ERRO de linha não classificada → voltar ao passo 3 e acrescentar a regra.
    - ERRO de conciliação → não "ajustar" nada para bater: mostrar a linha apontada ao usuário; documento e mapeamento é que se corrigem.
    - ERRO "nenhuma linha de dados abaixo do cabeçalho" → aba errada, cabeçalho que o mapeamento não achou, ou export em branco: voltar ao `inspecionar_extrato.py`.
-5. Rodar sem `--dry-run`. Relatar o que entrou (`posicoes +N`, `fills +N`...), duplicadas puladas e o caminho do log em `logs/importacoes/`.
+5. Rodar sem `--dry-run`. Relatar o que entrou (`fills +N (N aberturas, tipo=saldo-inicial) · ativos +N`, `proventos +N`...), duplicadas puladas e o caminho do log em `logs/importacoes/`.
 6. Ticker que entra **sem nenhum fill** ganha um fill `saldo-inicial` (qty e preço = PM, na data do documento ou de `--data`): dizer isso ao usuário; é o que fecha o ledger. A condição é "sem fill", não "posição nova" — ticker que já tem fill de verdade nunca ganha abertura sintética, e uma rodada de recuperação completa a abertura que faltou sem duplicar nada.
 7. Rodar `validar_workspace.py`. Posição importada sem cotação é ERRO esperado: seguir com `/jabuti-cotacoes` e depois `python <motor>/scripts/gerar_estado.py <raiz>` (e `gerar_cockpit.py`, se o usuário usa o cockpit).
 

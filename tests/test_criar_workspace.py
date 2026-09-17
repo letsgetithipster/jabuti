@@ -4,14 +4,18 @@ from pathlib import Path
 import pytest
 import yaml
 
-from criar_workspace import MOTOR, criar, instalar_skills
+from criar_workspace import MOTOR, TEMPLATE, criar, instalar_skills
+from po.csvs import TABELAS_DADOS
 
 
 def test_cria_workspace_completo(tmp_path):
     destino = tmp_path / "meu-vault"
     criar(destino, com_git=False, data="2026-09-08")
     assert (destino / "vault.config.yaml").exists()
-    assert (destino / "dados" / "posicoes.csv").exists()
+    # G1: dados/ nasce com as CINCO tabelas de TABELAS_DADOS e nenhuma outra. `posicoes`,
+    # `indices` e `movimentacoes` saíram do template; se voltarem, este assert cai.
+    assert sorted(p.name for p in (destino / "dados").glob("*.csv")) == \
+        sorted(f"{t}.csv" for t in TABELAS_DADOS) and len(TABELAS_DADOS) == 5
     # Tabela de TABELAS_DADOS criada vazia pelo template: sem esta linha, nada provaria que
     # o arquivo novo chega a um workspace novo, e o check_dados dele só acusaria depois.
     assert (destino / "dados" / "ativos.csv").read_text(encoding="utf-8").strip() == "ticker,classe"
@@ -125,3 +129,14 @@ def test_yaml_str_sobrevive_a_nome_com_dois_pontos_e_a_nome_que_o_yaml_resolveri
     for nome in ("minha casa de gestão", "Casa: a minha", "Casa d'Ana", "on", "sim", "2026"):
         lido = yaml.safe_load(f"casa:\n  nome: {_yaml_str(nome)}\n")["casa"]["nome"]
         assert lido == nome, f"{nome!r} voltou do YAML como {lido!r}"
+
+
+def test_template_e_exemplo_carregam_exatamente_cinco_csv():
+    """G1, a metade perdida da F1: o produto distribuía oito CSVs e o README ia afirmar "de 7
+    para 5". Template e exemplo carregam exatamente o que TABELAS_DADOS exige — nem a tabela
+    morta (`posicoes`, que a ingestão parou de gravar) nem as órfãs (`indices`, `movimentacoes`,
+    sem escritor). O disco é a testemunha; SCHEMAS é forma, não distribuição."""
+    esperado = sorted(f"{t}.csv" for t in TABELAS_DADOS)
+    assert len(esperado) == 5
+    for pasta in (TEMPLATE / "dados", MOTOR / "exemplos" / "workspace-exemplo" / "dados"):
+        assert sorted(p.name for p in pasta.glob("*.csv")) == esperado, pasta

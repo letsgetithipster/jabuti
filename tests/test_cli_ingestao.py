@@ -87,7 +87,7 @@ HGLG11,fiis,50,155.00
 """
 
 # Posição que dados/ ainda não tem: assim a gravação tem duas tabelas para morrer no meio de,
-# posicoes e o saldo-inicial em fills.
+# a declaração em ativos e o saldo-inicial em fills.
 POSICOES_NOVAS = """\
 Ativo,Classe,Quantidade,Preco
 VALE3,acoes-br,10,60.00
@@ -234,7 +234,7 @@ def test_conferir_sem_divergencia_mas_com_registro_novo_diz_quantos(tmp_path):
 def test_gravacao_parcial_nomeia_o_que_entrou_e_a_rodada_seguinte_completa(tmp_path):
     """I1 de ponta a ponta, com um arquivo de verdade travado. O código de saída 1 era
     documentado como "nada gravado", e isso é falso quando a gravação morre no meio: aqui
-    posicoes já entrou e fills não. O CLI tem que nomear a tabela, apontar o log e dizer como
+    ativos já entrou e fills não. O CLI tem que nomear a tabela, apontar o log e dizer como
     se recuperar, e a promessa "a importação é idempotente" tem que ser verdade na rodada
     seguinte, senão o texto é conselho ruim."""
     ws, doc = prepara(tmp_path, POSICOES_NOVAS, MAPA_POSICOES, "pos.csv")
@@ -250,20 +250,22 @@ def test_gravacao_parcial_nomeia_o_que_entrou_e_a_rodada_seguinte_completa(tmp_p
     # a causa vira a MESMA frase acionável do resto do CLI, não o repr cru do OSError
     assert "dados/fills.csv" in r.stdout and "aberto no Excel" in r.stdout
     assert "OSError" not in r.stdout and "Traceback" not in r.stderr
-    assert "O que chegou a entrar em dados/: posicoes +1" in r.stdout
+    assert "O que chegou a entrar em dados/: ativos +1" in r.stdout
     assert "a importação é idempotente" in r.stdout
     logs = sorted((ws / "logs" / "importacoes").glob("*.md"))
     assert len(logs) == 1
     assert f"Log: logs/importacoes/{logs[0].name}" in r.stdout
     corpo = logs[0].read_text(encoding="utf-8")
     assert "**A gravação falhou no meio**" in corpo
-    assert "| posicoes | 1 | 0 |" in corpo and "| fills | 0 | 0 |" in corpo
+    assert "| ativos | 1 | 0 |" in corpo and "| fills | 0 | 0 |" in corpo
 
     r2 = roda(ws, doc, *conferencia)                     # a rodada de recuperação
     assert r2.returncode == 0, r2.stdout + r2.stderr
-    assert "Gravado em dados/: fills +1" in r2.stdout
-    posicoes = (ws / "dados" / "posicoes.csv").read_text(encoding="utf-8").splitlines()
-    assert sum(1 for linha in posicoes if linha.startswith("VALE3,")) == 1     # não duplicou
+    assert "Gravado em dados/: fills +1 (1 abertura, tipo=saldo-inicial)" in r2.stdout
+    assert "abertura(s) de livro" in r2.stdout and "não a data real de aquisição" in r2.stdout
+    assert "Sem cotação em dados/: VALE3" in r2.stdout
+    ativos = (ws / "dados" / "ativos.csv").read_text(encoding="utf-8").splitlines()
+    assert sum(1 for linha in ativos if linha.startswith("VALE3,")) == 1     # não duplicou
     fills = (ws / "dados" / "fills.csv").read_text(encoding="utf-8").splitlines()
     abertura = [linha for linha in fills if ",VALE3," in linha]                # e a abertura nasceu
     assert abertura == ["2026-09-08,VALE3,saldo-inicial,10,60,0,corretora-br,BRL"]

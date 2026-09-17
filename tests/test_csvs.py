@@ -2,7 +2,8 @@ import csv
 
 import pytest
 
-from po.csvs import (SCHEMAS, TABELAS_DADOS, anexar_csv, ler_csv, ultimas_cotacoes,
+from po import csvs
+from po.csvs import (SCHEMAS, TABELAS_DADOS, VOCABULARIOS, anexar_csv, ler_csv, ultimas_cotacoes,
                      validar_linha)
 
 
@@ -17,7 +18,11 @@ def test_schemas_cobrem_toda_forma_que_o_motor_sabe_ler():
     ingestão produz um registro com essa forma (que vira fill + ativo) e porque o caminho
     retrocompatível ainda lê o arquivo antigo — mas ela não é mais tabela de dados/."""
     assert set(SCHEMAS) == {"posicoes", "ativos", "cotacoes", "fills", "proventos", "eventos",
-                            "indices", "movimentacoes"}
+                            "movimentacoes"}
+    # G1: `indices` saiu inteira (schema, vocabulário, regra de valor positivo): nenhum código
+    # não-teste a escrevia nem lia, e o câmbio que ela prometia já mora em cotacoes.csv.
+    assert "indices" not in SCHEMAS and not hasattr(csvs, "INDICES")
+    assert not any(t == "indices" for t, _ in VOCABULARIOS)
     assert SCHEMAS["ativos"] == ["ticker", "classe"]
     assert "posicoes" not in TABELAS_DADOS
     assert "ativos" in TABELAS_DADOS
@@ -116,9 +121,9 @@ def test_cnpj_opcional_em_proventos(tmp_path):
 
 
 def test_data_impossivel(tmp_path):
-    p = escreve(tmp_path, "indices",
-                "data,indice,valor,fonte\n2026-13-45,ibov,140000,manual\n")
-    _, erros = ler_csv("indices", p)
+    p = escreve(tmp_path, "cotacoes",
+                "data,hora,ticker,preco,moeda,fonte\n2026-13-45,18:00,PETR4,40.00,BRL,manual\n")
+    _, erros = ler_csv("cotacoes", p)
     assert any("data" in e for e in erros)
 
 
@@ -193,12 +198,6 @@ def test_evento_tipo_e_confirmado(tmp_path):
     _, erros = ler_csv("eventos", p)
     assert any("eventos.csv:2" in e and "tipo" in e for e in erros)
     assert any("eventos.csv:3" in e and "confirmado" in e for e in erros)
-
-
-def test_indice_fora_do_vocabulario(tmp_path):
-    p = _csv(tmp_path, "indices", "data,indice,valor,fonte\n2026-08-31,dow,40000,manual\n")
-    _, erros = ler_csv("indices", p)
-    assert any("indice" in e and "vocabulário" in e for e in erros)
 
 
 def test_fonte_de_cotacao_fora_do_vocabulario(tmp_path):
@@ -309,12 +308,6 @@ def test_validar_linha_int_nao_finito_tipo_errado_e_chave_faltando():
         validar_linha("posicoes", {"ticker": "PETR4"}, "x")
 
 
-def test_indices_fonte_no_vocabulario(tmp_path):
-    p = _csv(tmp_path, "indices", "data,indice,valor,fonte\n2026-08-31,ibov,140000,chute\n")
-    _, erros = ler_csv("indices", p)
-    assert any("fonte" in e and "vocabulário" in e for e in erros)
-
-
 def _provento(bruto, liquido):
     return {"data": "2026-08-20", "ticker": "WELL", "cnpj": "", "tipo": "dividendo",
             "valor_bruto": bruto, "valor_liquido": liquido, "conta": "corretora-us", "moeda": "USD"}
@@ -379,12 +372,6 @@ def test_preco_nao_positivo_recusado_tambem_vindo_da_ingestao():
     linha = {"data": "2026-09-08", "hora": "18:00", "ticker": "PETR4", "preco": 0.0,
              "moeda": "BRL", "fonte": "yahoo"}
     assert any("positivo" in e for e in validar_linha("cotacoes", linha, "ingestão:1"))
-
-
-def test_valor_de_indice_nao_positivo_recusado(tmp_path):
-    p = escreve(tmp_path, "indices", "data,indice,valor,fonte\n2026-08-31,ibov,0,manual\n")
-    _, erros = ler_csv("indices", p)
-    assert any("valor de índice deve ser positivo" in e for e in erros)
 
 
 # --- N1: o desempate da cotação vencedora olha a hora, não só a data ---

@@ -25,13 +25,36 @@ from po.cli import mensagem_os, preparar_console  # noqa: E402
 preparar_console()   # antes dos demais imports de po.*: se um deles
                      # quebrar, o traceback ainda sai legível no cp1252
 
+from po.ativos import ler_ativos  # noqa: E402
 from po.config import carregar_config, moedas_por_conta  # noqa: E402
+from po.csvs import ler_csv, ultimas_cotacoes  # noqa: E402
 from po.ingestao.conciliacao import conciliar  # noqa: E402
 from po.ingestao.engine import executar  # noqa: E402
 from po.ingestao.escrita import GravacaoParcial, conferir, gravar  # noqa: E402
 from po.ingestao.leitores import DependenciaAusente, ler_tabela  # noqa: E402
 from po.ingestao.mapeamento import carregar_mapeamento, detectar_mapeamento, resolver_mapeamento  # noqa: E402
+from po.ledger import posicoes_de_fills  # noqa: E402
 from po.numeros import parse_valor  # noqa: E402
+
+
+def _sem_cotacao(raiz: Path) -> list[str]:
+    """Tickers da carteira DERIVADA (fills + eventos + ativos) sem nenhuma cotação em dados/.
+    É exatamente o que o validador vai acusar; ler dados/ depois da gravação, em vez de olhar o
+    que esta rodada gravou, cobre a rodada de recuperação (o fill entrou na tentativa anterior)
+    e não lembra de cotar ticker cuja venda zerou a posição. Qualquer leitura suja devolve
+    vazio: quem acusa dado sujo é o validador, não este lembrete."""
+    lidas = {}
+    for nome in ("fills", "eventos", "cotacoes"):
+        linhas, erros = ler_csv(nome, raiz / "dados" / f"{nome}.csv")
+        if erros:
+            return []
+        lidas[nome] = linhas
+    classes, erros, _ = ler_ativos(raiz)
+    if erros:
+        return []
+    derivadas, _ = posicoes_de_fills(lidas["fills"], lidas["eventos"], classes)
+    cotadas = ultimas_cotacoes(lidas["cotacoes"])
+    return sorted({p["ticker"] for p in derivadas if p["ticker"] not in cotadas})
 
 
 def _motor(raiz: Path, cfg: dict) -> Path:
@@ -179,18 +202,30 @@ def main():
     except OSError as e:
         print(mensagem_os(e, raiz))
         sys.exit(1)
-    novas = ", ".join(f"{t} +{n}" for t, n in r["gravadas"].items() if n)
+    partes = []
+    for t, n in r["gravadas"].items():
+        if not n:
+            continue
+        if t == "fills" and r["aberturas"]:
+            a = r["aberturas"]
+            partes.append(f"fills +{n} ({a} abertura{'s' if a != 1 else ''}, tipo=saldo-inicial)")
+        else:
+            partes.append(f"{t} +{n}")
+    novas = " · ".join(partes)
     dup = ", ".join(f"{t} {n}" for t, n in r["duplicadas"].items() if n)
     print("\n" + (f"Gravado em dados/: {novas}" if novas else "Nada novo para gravar (tudo já estava em dados/)")
           + (f" · duplicadas puladas: {dup}" if dup else ""))
     print(f"Log: {r['log'].relative_to(raiz).as_posix()}")
-    if res.registros.get("posicoes"):
+    if r["aberturas"]:
+        # Abertura de livro é fiscalmente honesta sobre o custo e muda sobre a data de aquisição.
+        # Dizer isso na hora em que ela nasce é o que impede a invalidez fiscal de ser invisível.
+        print(f"{r['aberturas']} abertura(s) de livro (saldo-inicial): registram o custo declarado na "
+              "data do documento, não a data real de aquisição de cada lote.")
+    sem_cotacao = _sem_cotacao(raiz)
+    if sem_cotacao:
         # posição sem cotação deixa o validador vermelho, e inventar preço a partir do PM seria
-        # fabricar número de mercado. Então o CLI manda cotar antes de validar. A condição é "o
-        # documento trouxe posição", não "gravou posição": numa rodada de recuperação a posição já
-        # entrou na tentativa anterior, e é justamente aí que o lembrete some se ele olhar gravadas.
-        tickers = sorted({p["ticker"] for p in res.registros["posicoes"]})
-        print(f"Posição(ões) no documento: {', '.join(tickers)}. Cote antes de validar: "
+        # fabricar número de mercado. Então o CLI manda cotar antes de validar.
+        print(f"Sem cotação em dados/: {', '.join(sem_cotacao)}. Cote antes de validar: "
               f"python {motor / 'scripts' / 'atualizar_cotacoes.py'} {raiz}")
     print(f"Agora rode: python {motor / 'scripts' / 'validar_workspace.py'} {raiz}")
 

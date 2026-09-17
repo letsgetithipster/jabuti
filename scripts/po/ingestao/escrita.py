@@ -1,13 +1,22 @@
-"""Escrita em dados/ após conciliação: dedupe por multiconjunto contra dados/, saldo-inicial
-para ticker sem NENHUM fill, log de importação em logs/importacoes/. Nada aqui roda sem a
-conciliação ter passado: `gravar` recusa Resultado com erro."""
+"""Escrita em dados/ após conciliação: dedupe por multiconjunto contra dados/, abertura de livro
+(fill `saldo-inicial`) e linha em ativos.csv para cada posição do documento, log de importação
+em logs/importacoes/. Nada aqui roda sem a conciliação ter passado: `gravar` recusa Resultado
+com erro.
+
+Posição não é tabela: é o que o ledger deriva de fills + eventos + a classe declarada em
+ativos.csv (po.ledger.posicoes_de_fills). O documento de posição da corretora vira, por linha,
+UM fill `saldo-inicial` (só para ticker/conta sem NENHUM fill) e UMA linha `ticker,classe` em
+ativos.csv (só para ticker ainda não declarado). Reimportar o mesmo documento não grava nada."""
 import datetime
+import math
 from collections import Counter
 from pathlib import Path
 
+from po.ativos import ler_ativos
 from po.csvs import anexar_csv, ler_csv
 from po.ingestao.artefatos import caminho_datado_livre
 from po.ingestao.engine import Resultado
+from po.ledger import posicoes_de_fills
 from po.numeros import formatar_brl, formatar_decimal_brl
 
 class GravacaoParcial(Exception):
@@ -21,12 +30,13 @@ class GravacaoParcial(Exception):
         self.causa, self.gravadas, self.log = causa, gravadas, log
 
 
-TABELAS = ("posicoes", "fills", "proventos", "eventos")
+# As tabelas de evento que o documento alimenta. `ativos` não está aqui de propósito: não é
+# evento, é a declaração de classe, e entra pela posição do documento (ver `gravar`).
+TABELAS = ("fills", "proventos", "eventos")
 CHAVES = {
     "proventos": lambda r: (r["data"], r["ticker"], r["tipo"], r["conta"], round(float(r["valor_bruto"]), 2)),
     "fills": lambda r: (r["data"], r["ticker"], r["tipo"], r["conta"], round(float(r["qty"]), 6), round(float(r["preco"]), 4)),
     "eventos": lambda r: (r["data"], r["ticker"], r["tipo"]),
-    "posicoes": lambda r: (r["ticker"], r["conta"]),
 }
 
 
@@ -40,111 +50,126 @@ def _existentes(raiz: Path) -> dict[str, list[dict]]:
     return tabelas
 
 
-def _mesma_posicao(a: dict, b: dict) -> bool:
-    return abs(a["qty"] - b["qty"]) <= 1e-6 and abs(a["pm"] - b["pm"]) <= 0.005
+def _classes(raiz: Path) -> dict[str, str]:
+    classes, erros, _ = ler_ativos(raiz)
+    if erros:
+        raise ValueError(f"dados/ativos.csv com erros — corrija antes de importar (rode o validador): {erros[0]}")
+    return classes
 
 
-def separar(existentes: dict[str, list[dict]], res: Resultado) -> tuple[dict[str, list[dict]], dict[str, int], list[str]]:
-    """(novos por tabela, duplicadas por tabela, conflitos de posição).
+def separar(existentes: dict[str, list[dict]], res: Resultado) -> tuple[dict[str, list[dict]], dict[str, int]]:
+    """(novos por tabela, duplicadas por tabela).
 
-    Duas semânticas, porque as tabelas são de naturezas diferentes:
-
-    - **Ledger** (`fills`, `proventos`, `eventos`): MULTICONJUNTO contra o que já está em `dados/`,
-      nunca do documento contra ele mesmo. Duas execuções parciais da mesma ordem no mesmo dia,
-      pelo mesmo preço, são dois eventos reais e rotineiros em B3 e Schwab; deduplicar o documento
-      contra si mesmo perderia a segunda em silêncio, e a conciliação já tinha abençoado as duas.
-    - **`posicoes`**: `(ticker, conta)` é restrição de UNICIDADE, e `check_dados` trata a segunda
-      linha com a mesma chave como erro. Tabela de chave única não é multiconjunto: o documento que
-      traz a mesma posição duas vezes (quebra por lote ou por agente de custódia, como B3 e Schwab
-      às vezes exportam) é conflito, nunca duas linhas. Aplicar o multiconjunto aqui deixava passar
-      uma segunda linha divergente sem nunca comparar com a primeira, e o patrimônio dobrava."""
-    novos, duplicadas, conflitos = {}, {}, []
+    MULTICONJUNTO contra o que já está em `dados/`, nunca do documento contra ele mesmo. Duas
+    execuções parciais da mesma ordem no mesmo dia, pelo mesmo preço, são dois eventos reais e
+    rotineiros em B3 e Schwab; deduplicar o documento contra si mesmo perderia a segunda em
+    silêncio, e a conciliação já tinha abençoado as duas."""
+    novos, duplicadas = {}, {}
     for nome in TABELAS:
         chave = CHAVES[nome]
-        unica = nome == "posicoes"
         restantes = Counter(chave(e) for e in existentes[nome])
-        por_chave = {chave(e): e for e in existentes[nome]}
         novos[nome], duplicadas[nome] = [], 0
-        vistas = set()
         for r in res.registros.get(nome, []):
             k = chave(r)
-            if unica and k in vistas:
-                conflitos.append(f"{r['ticker']} ({r['conta']}): o documento traz esta posição duas vezes — "
-                                 "posicoes.csv é uma linha por ticker/conta. Se a sua corretora quebra a "
-                                 "posição por lote ou por agente de custódia, consolide no mapeamento "
-                                 "antes de importar")
-                continue
-            vistas.add(k)
             if restantes[k] > 0:
-                if unica and not _mesma_posicao(por_chave[k], r):
-                    e = por_chave[k]
-                    conflitos.append(f"{r['ticker']} ({r['conta']}): já existe em posicoes.csv com qty "
-                                     f"{formatar_decimal_brl(e['qty'])} @ {formatar_brl(e['pm'])}; o documento diz "
-                                     f"{formatar_decimal_brl(r['qty'])} @ {formatar_brl(r['pm'])}. Ou a corretora "
-                                     "reapresentou a posição, ou este é o arquivo/conta errado — confira com "
-                                     "--conferir antes de mexer em dados/")
-                    continue
                 restantes[k] -= 1
                 duplicadas[nome] += 1
                 continue
             novos[nome].append(r)
-    return novos, duplicadas, conflitos
+    return novos, duplicadas
+
+
+def _aberturas(existentes: dict[str, list[dict]], res: Resultado) -> tuple[list[dict], list[str]]:
+    """(aberturas, notas). Decisão 6, spec §2.1: posição do documento para ticker/conta sem NENHUM
+    fill vira UM fill `saldo-inicial` na data do documento. A condição é "sem fill", não "posição
+    nova": se uma gravação anterior morreu no meio, a rodada seguinte completa a abertura que
+    faltou. Ticker que já tem fill de verdade (em dados/ ou no próprio documento) nunca ganha
+    abertura sintética.
+
+    O ledger abre cada (ticker, conta) uma vez só. Documento que traz a mesma posição em mais de
+    uma linha (quebra por lote ou por agente de custódia, como B3 e Schwab exportam) vira uma
+    abertura consolidada: qty somada, preço = PM ponderado, data da primeira linha. A soma é
+    aritmética sobre as linhas que a conciliação do documento já provou, e a consolidação fica
+    nomeada em `notas` para o log — nunca acontece em silêncio."""
+    com_fills = {(f["ticker"], f["conta"]) for f in existentes["fills"]}
+    com_fills |= {(f["ticker"], f["conta"]) for f in res.registros.get("fills", [])}
+    lotes: dict[tuple, list[dict]] = {}
+    for p in res.registros.get("posicoes", []):
+        if (p["ticker"], p["conta"]) not in com_fills:
+            lotes.setdefault((p["ticker"], p["conta"]), []).append(p)
+    aberturas, notas = [], []
+    for (ticker, conta), ps in lotes.items():
+        qty = sum(p["qty"] for p in ps)
+        preco = sum(p["qty"] * p["pm"] for p in ps) / qty if len(ps) > 1 else ps[0]["pm"]
+        if len(ps) > 1:
+            notas.append(f"{ticker} ({conta}): {len(ps)} lotes consolidados numa abertura")
+        aberturas.append({"data": ps[0]["_data"], "ticker": ticker, "tipo": "saldo-inicial", "qty": qty,
+                          "preco": preco, "taxa": 0.0, "conta": conta, "moeda": ps[0]["moeda"]})
+    return aberturas, notas
+
+
+def _declaracoes(classes: dict[str, str], res: Resultado) -> list[dict]:
+    """Linha `ticker,classe` para cada ticker do documento ainda sem declaração. Ticker já
+    declarado fica como está, mesmo que o documento traga outra classe: ativos.csv é a
+    declaração da pessoa (decisão 10), e o documento não a sobrescreve."""
+    novas, vistos = [], set(classes)
+    for p in res.registros.get("posicoes", []):
+        if p["ticker"] in vistos:
+            continue
+        vistos.add(p["ticker"])
+        novas.append({"ticker": p["ticker"], "classe": p["classe"]})
+    return novas
 
 
 def gravar(raiz: str | Path, res: Resultado, *, mapeamento: str, arquivo: str, conciliacao: str,
            conta: str, hoje: datetime.date | None = None) -> dict:
-    """Grava os registros novos e o log. Retorna {'gravadas': {...}, 'duplicadas': {...}, 'log': Path}.
+    """Grava os registros novos e o log. Retorna {'gravadas': {...}, 'duplicadas': {...},
+    'aberturas': N, 'log': Path}. `gravadas` cobre as tabelas de evento e `ativos`; `aberturas`
+    é quantos dos fills gravados são `saldo-inicial` sintetizados a partir de posição.
 
-    ValueError em conflito de posição, em dados/ sujo ou em Resultado com erro: nada é gravado
-    nesses casos, e a checagem acontece antes de qualquer escrita. `GravacaoParcial` se o laço de
-    tabelas morrer no meio (arquivo travado no Excel, disco cheio): aí parte entrou, e a exceção
-    diz qual parte e onde está o log. É a única saída de erro em que dados/ mudou."""
+    ValueError em dados/ sujo ou em Resultado com erro: nada é gravado nesses casos, e a
+    checagem acontece antes de qualquer escrita. `GravacaoParcial` se o laço de tabelas morrer
+    no meio (arquivo travado no Excel, disco cheio): aí parte entrou, e a exceção diz qual parte
+    e onde está o log. É a única saída de erro em que dados/ mudou."""
     raiz = Path(raiz)
     hoje = hoje or datetime.date.today()
     if res.erros:   # o contrato do módulo é este; sem a guarda ele valia só por disciplina
         raise ValueError("a ingestão reportou erro — nada gravado: " + res.erros[0])
     existentes = _existentes(raiz)
-    novos, duplicadas, conflitos = separar(existentes, res)
-    if conflitos:
-        raise ValueError("conflito com dados/ existente — nada gravado:\n  " + "\n  ".join(conflitos))
-    # Decisão 6: posição sem NENHUM fill ganha um saldo-inicial, e o ledger fecha. A condição é
-    # "sem fill", não "posição nova": se uma gravação anterior morreu no meio (arquivo travado),
-    # a posição já está lá e a rodada seguinte precisa conseguir completar a abertura que
-    # faltou. Ticker que já tem fill de verdade nunca ganha abertura sintética.
-    com_fills = {(f["ticker"], f["conta"]) for f in existentes["fills"]}
-    com_fills |= {(f["ticker"], f["conta"]) for f in novos["fills"]}
-    for p in res.registros.get("posicoes", []):
-        chave = (p["ticker"], p["conta"])
-        if chave in com_fills:
-            continue
-        novos["fills"].append({"data": p["_data"], "ticker": p["ticker"], "tipo": "saldo-inicial", "qty": p["qty"],
-                               "preco": p["pm"], "taxa": 0.0, "conta": p["conta"], "moeda": p["moeda"]})
-        com_fills.add(chave)
-    gravadas = {t: 0 for t in TABELAS}
+    classes = _classes(raiz)
+    novos, duplicadas = separar(existentes, res)
+    aberturas, notas = _aberturas(existentes, res)
+    novos["fills"] = novos["fills"] + aberturas
+    novos["ativos"] = _declaracoes(classes, res)
+    duplicadas["ativos"] = 0
+    gravadas = {t: 0 for t in (*TABELAS, "ativos")}
     try:
-        for nome in TABELAS:
+        # ativos antes dos fills: se a rodada morrer no meio, o fill que entrou já tem classe e
+        # o gerador de ESTADO não para em "ticker sem classe declarada" enquanto a pessoa recupera
+        for nome in ("ativos", *TABELAS):
             if novos[nome]:
                 gravadas[nome] = anexar_csv(nome, raiz / "dados" / f"{nome}.csv", novos[nome])
     except (OSError, ValueError) as e:
         # A rodada que mais precisa de registro é justamente a que morreu no meio.
         try:
             log = _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, gravadas,
-                                duplicadas, falha=str(e))
+                                duplicadas, len(aberturas) if gravadas["fills"] else 0, notas, falha=str(e))
         except OSError:
             log = None   # logs/ também travado: a causa original vale mais que o registro dela
         raise GravacaoParcial(e, gravadas, log) from e
-    log = _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, gravadas, duplicadas)
-    return {"gravadas": gravadas, "duplicadas": duplicadas, "log": log}
+    log = _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, gravadas, duplicadas,
+                        len(aberturas), notas)
+    return {"gravadas": gravadas, "duplicadas": duplicadas, "aberturas": len(aberturas), "log": log}
 
 
 def _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, gravadas, duplicadas,
-                  falha: str = "") -> Path:
+                  aberturas: int, notas: list[str], falha: str = "") -> Path:
     caminho = caminho_datado_livre(raiz / "logs" / "importacoes",
                                    f"{hoje.isoformat()}-{mapeamento}", ".md")
     motivos = {}
     for _, motivo in res.ignoradas:
         motivos[motivo] = motivos.get(motivo, 0) + 1
-    tabela = "\n".join(f"| {t} | {gravadas[t]} | {duplicadas[t]} |" for t in TABELAS)
+    tabela = "\n".join(f"| {t} | {gravadas[t]} | {duplicadas.get(t, 0)} |" for t in gravadas)
     ignoradas = "; ".join(f"{m}: {c}" for m, c in motivos.items()) or "nenhuma"
     # Regra morta neste documento é sintoma fraco (mapa real tem uma regra por tipo de evento e
     # um mês aciona duas ou três), então não vira aviso gritado em toda rodada. Mas some se não
@@ -160,6 +185,9 @@ def _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, grav
         f"Arquivo `{arquivo}` na conta `{conta}`: {res.linhas_lidas} linha(s) lidas, "
         f"{res.classificadas} classificadas, {len(res.ignoradas)} ignoradas.\n\n"
         "| Tabela | Gravadas | Duplicadas (puladas) |\n|---|---|---|\n" + tabela + "\n\n"
+        # Abertura de livro declara o custo, não a data real de aquisição: fica registrado
+        # quantas entraram, para a apuração fiscal saber que lotes estão mudos sobre a data.
+        f"Aberturas (saldo-inicial): {aberturas}" + ("; " + "; ".join(notas) if notas else "") + "\n\n"
         f"Ignoradas por motivo: {ignoradas}\n\n"
         f"Linhas ignoradas: {[n for n, _ in res.ignoradas] or 'nenhuma'}\n\n"
         f"Acertos por regra de `linhas`: {acertos}\n\n"
@@ -172,31 +200,41 @@ def _escrever_log(raiz, hoje, mapeamento, arquivo, conciliacao, conta, res, grav
     return caminho
 
 
+def _bate(a: float, b: float) -> bool:
+    # Sem tolerância de satoshi: o ledger arredonda a 8 casas, e um satoshi (1e-8) a mais no
+    # documento é divergência, não ruído. O 1e-9 só absorve representação binária de float.
+    return math.isclose(a, b, rel_tol=0.0, abs_tol=1e-9)
+
+
 def conferir(raiz: str | Path, res: Resultado) -> tuple[list[str], bool, int]:
     """Compara o documento com dados/ sem gravar. (linhas, houve divergência, registros novos).
 
-    Usa o MESMO `separar` da gravação, para que a prévia não possa prometer um número que a
-    gravação não vai cumprir — foi o que acontecia quando cada um contava do seu jeito. O terceiro
-    valor existe porque "sem divergência" e "nada a fazer" são coisas diferentes: um documento pode
+    A posição de dados/ é a DERIVADA do ledger (fills + eventos + ativos), a mesma que o ESTADO
+    publica: não existe tabela de posição para comparar. Usa o MESMO `separar` da gravação, para
+    que a prévia não possa prometer um número que a gravação não vai cumprir. O terceiro valor
+    existe porque "sem divergência" e "nada a fazer" são coisas diferentes: um documento pode
     bater com dados/ em tudo que já existe e ainda trazer lançamento novo para gravar."""
     raiz = Path(raiz)
     if res.erros:   # mesmo contrato de `gravar`: prévia sobre resultado que a gravação recusaria mente
         raise ValueError("a ingestão reportou erro — nada a conferir: " + res.erros[0])
     existentes = _existentes(raiz)
-    novos, duplicadas, conflitos = separar(existentes, res)
-    linhas, divergiu = [], bool(conflitos)
-    chave = CHAVES["posicoes"]
-    atual = {chave(e): e for e in existentes["posicoes"]}
+    novos, duplicadas = separar(existentes, res)
+    derivadas, erros = posicoes_de_fills(existentes["fills"], existentes["eventos"], _classes(raiz))
+    if erros:
+        raise ValueError("dados/ com erro no ledger — nada a conferir (rode o validador): " + erros[0])
+    novos["fills"] = novos["fills"] + _aberturas(existentes, res)[0]
+    linhas, divergiu = [], False
+    atual = {(e["ticker"], e["conta"]): e for e in derivadas}
     contas_do_documento = {r["conta"] for r in res.registros["posicoes"]}
     doc = set()
     for r in res.registros["posicoes"]:
-        k = chave(r)
+        k = (r["ticker"], r["conta"])
         doc.add(k)
         e = atual.get(k)
         if e is None:
             linhas.append(f"  {r['ticker']} ({r['conta']}): NOVA no documento — "
                           f"{formatar_decimal_brl(r['qty'])} @ {formatar_brl(r['pm'])}")
-        elif not _mesma_posicao(e, r):
+        elif not (_bate(e["qty"], r["qty"]) and _bate(e["pm"], r["pm"])):
             linhas.append(f"  {r['ticker']} ({r['conta']}): DIVERGE — dados/ "
                           f"{formatar_decimal_brl(e['qty'])} @ {formatar_brl(e['pm'])} "
                           f"vs documento {formatar_decimal_brl(r['qty'])} @ {formatar_brl(r['pm'])}")
@@ -209,7 +247,7 @@ def conferir(raiz: str | Path, res: Resultado) -> tuple[list[str], bool, int]:
         if k not in doc and e["conta"] in contas_do_documento:
             linhas.append(f"  {e['ticker']} ({e['conta']}): só em dados/ (ausente no documento)")
             divergiu = True
-    for nome in ("fills", "proventos", "eventos"):
+    for nome in TABELAS:
         if res.registros[nome]:
             linhas.append(f"  {nome}: {len(novos[nome])} nova(s), {duplicadas[nome]} já presente(s)")
     if not linhas:

@@ -15,7 +15,7 @@ cotacoes:
 contas:
   - id: corretora-br
     nome: "Minha corretora"
-    moeda: BRL                # moeda de TODAS as linhas dessa conta em posicoes/fills/proventos
+    moeda: BRL                # moeda de TODAS as linhas dessa conta em fills/proventos
     blocos: [acoes-br, fiis, rf-br]   # propósito: quais blocos esta conta serve
 caminhos:
   motor: '../..'            # preenchido pelo criar_workspace.py; NÃO editar à mão

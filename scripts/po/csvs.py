@@ -39,7 +39,6 @@ SCHEMAS = {
     "fills": ["data", "ticker", "tipo", "qty", "preco", "taxa", "conta", "moeda"],
     "proventos": ["data", "ticker", "cnpj", "tipo", "valor_bruto", "valor_liquido", "conta", "moeda"],
     "eventos": ["data", "ticker", "tipo", "razao", "confirmado"],
-    "indices": ["data", "indice", "valor", "fonte"],
     # Movimentação de caixa (entrada e saída), de provider de open finance ou digitada à mão.
     # `valor` carrega o SINAL: gasto é negativo, receita é positiva — ao contrário de qty e
     # preço, onde sinal é erro. `data_referencia` é a data que o PROVIDER declara para o dado,
@@ -51,8 +50,10 @@ SCHEMAS = {
 }
 # O que mora em dados/: o que o template cria, o que check_dados exige e o que o usuário carrega.
 # `posicoes` NÃO está aqui — ela é a forma que a ingestão produz (e que vira fill + ativo) e a
-# fonte do caminho retrocompatível, não um arquivo que o motor escreve. `indices` e
-# `movimentacoes` voltam no commit que trouxer o executor de cada uma.
+# fonte do caminho retrocompatível, não um arquivo que o motor escreve. `movimentacoes` volta
+# no commit que trouxer o executor dela (F4a). `indices` saiu de SCHEMAS inteira: nada a
+# escrevia nem lia, e o câmbio que ela prometia já mora em cotacoes.csv como o ticker USDBRL;
+# volta com a comparação com benchmark, escritor junto.
 TABELAS_DADOS = ("ativos", "fills", "eventos", "proventos", "cotacoes")
 NUMERICOS = {"qty", "pm", "preco", "taxa", "valor_bruto", "valor_liquido", "valor"}
 CLASSES = {"acoes-br", "fiis", "rv-int", "reits-us", "rf-br", "cripto", "caixa", "commodities"}
@@ -62,7 +63,6 @@ TIPOS_PROVENTO = {"dividendo", "jcp", "rendimento", "juros", "outro"}
 TIPOS_EVENTO = {"split", "grupamento", "bonificacao", "subscricao", "fusao", "cisao",
                 "variacao-anomala", "outro"}
 CONFIRMADO = {"sim", "nao"}
-INDICES = {"ibov", "sp500", "usdbrl", "cdi", "ipca", "selic"}
 FONTES_COTACAO = {"yahoo", "brapi", "bcb-sgs", "manual", "definicao"}   # registry de providers + manual
 # definicao: valor que decorre da unidade (saldo em conta vale 1,00), não observação de mercado
 # Providers de movimentação. Vocabulário fechado pelo mesmo motivo de FONTES_COTACAO: origem
@@ -78,10 +78,6 @@ VOCABULARIOS = {
     ("proventos", "tipo"): TIPOS_PROVENTO,
     ("eventos", "tipo"): TIPOS_EVENTO,
     ("eventos", "confirmado"): CONFIRMADO,
-    ("indices", "indice"): INDICES,
-    # Compartilha o vocabulário de cotacoes.fonte por conveniência; "definicao" não tem
-    # sentido aqui (nenhum índice é definicional), só ainda não vale a pena um set separado.
-    ("indices", "fonte"): FONTES_COTACAO,
     ("cotacoes", "fonte"): FONTES_COTACAO,
     ("movimentacoes", "origem"): ORIGENS_MOVIMENTACAO,
 }
@@ -180,8 +176,6 @@ def validar_linha(nome: str, linha: dict, onde: str) -> list[str]:
         pista = ("cotação zerada é o que a fonte devolve para ativo parado, não um preço"
                  if linha["preco"] == 0 else "preço negativo não existe; confira o sinal da linha")
         erros.append(f"{onde}: preço deve ser positivo (veio {linha['preco']:g}) — {pista}")
-    if nome == "indices" and isinstance(linha["valor"], float) and linha["valor"] <= 0:
-        erros.append(f"{onde}: valor de índice deve ser positivo (veio {linha['valor']:g})")
     if nome == "proventos":
         bruto, liquido = linha["valor_bruto"], linha["valor_liquido"]
         if isinstance(bruto, float) and isinstance(liquido, float):

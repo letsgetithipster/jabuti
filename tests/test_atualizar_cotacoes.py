@@ -162,8 +162,7 @@ def test_proposta_nao_gravada_vira_aviso_sem_perder_a_cotacao(tmp_path, monkeypa
 
 def test_manual_cobre_classe_sem_mercado_e_provider_faz_o_resto(tmp_path):
     ws = _ws_yahoo(tmp_path)
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") + "CDB-X,rf-br,corretora-br,1,1000.00,BRL\n", encoding="utf-8")
+    _anexa(ws, "dados/ativos.csv", "CDB-X,rf-br")
     fills = ws / "dados" / "fills.csv"
     fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,CDB-X,saldo-inicial,1,1000.00,0,corretora-br,BRL\n", encoding="utf-8")
     rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0}), manual={"CDB-X": 1050.0})
@@ -191,15 +190,13 @@ def test_manual_ticker_sem_posicao_vira_falha_mas_nao_trava_o_resto(tmp_path):
 
 def test_saldo_em_conta_vale_um_por_definicao(tmp_path):
     ws = _ws_yahoo(tmp_path)
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") + "CAIXA,caixa,corretora-br,5000,1.00,BRL\n", encoding="utf-8")
+    _anexa(ws, "dados/ativos.csv", "CAIXA,caixa")
     fills = ws / "dados" / "fills.csv"
     fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,CAIXA,saldo-inicial,5000,1.00,0,corretora-br,BRL\n", encoding="utf-8")
     rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0}))
     assert rel.falhas == [] and rel.sinteticas == ["CAIXA"]
     assert any(c.ticker == "CAIXA" and c.preco == 1.0 and c.fonte == "definicao" for c in rel.obtidas)
-    rf = ws / "dados" / "posicoes.csv"          # rf-br continua exigindo --manual: o valor muda
-    rf.write_text(rf.read_text(encoding="utf-8") + "CDB-X,rf-br,corretora-br,1,1000.00,BRL\n", encoding="utf-8")
+    _anexa(ws, "dados/ativos.csv", "CDB-X,rf-br")          # rf-br continua exigindo --manual: o valor muda
     fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-02,CDB-X,saldo-inicial,1,1000.00,0,corretora-br,BRL\n", encoding="utf-8")
     rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0}), dry_run=True)
     assert any("CDB-X" in f for f in rel.falhas)
@@ -207,8 +204,7 @@ def test_saldo_em_conta_vale_um_por_definicao(tmp_path):
 
 def test_saldo_ja_sintetizado_hoje_nao_duplica(tmp_path):
     ws = _ws_yahoo(tmp_path)
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") + "CAIXA,caixa,corretora-br,5000,1.00,BRL\n", encoding="utf-8")
+    _anexa(ws, "dados/ativos.csv", "CAIXA,caixa")
     fills = ws / "dados" / "fills.csv"
     fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,CAIXA,saldo-inicial,5000,1.00,0,corretora-br,BRL\n", encoding="utf-8")
     agora = datetime.datetime(2026, 9, 9, 12, 0)
@@ -223,10 +219,9 @@ def test_saldo_ja_sintetizado_hoje_nao_duplica(tmp_path):
 
 def test_carteira_so_caixa_no_segundo_dia_nao_diz_que_nao_tem_posicoes(tmp_path):
     """Achado 3 do revisor: carteira só de caixa, na segunda rodada do dia, tinha obtidas=[] e
-    falhas=[] — igual a posicoes.csv vazio — e o CLI mentia 'não tem posições ainda'."""
+    falhas=[] — igual a fills.csv vazio — e o CLI mentia 'não tem posições ainda'."""
     ws = copia_exemplo(tmp_path)
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text("ticker,classe,conta,qty,pm,moeda\nCAIXA,caixa,corretora-br,5000,1.00,BRL\n", encoding="utf-8")
+    (ws / "dados" / "ativos.csv").write_text("ticker,classe\nCAIXA,caixa\n", encoding="utf-8")
     fills = ws / "dados" / "fills.csv"
     fills.write_text("data,ticker,tipo,qty,preco,taxa,conta,moeda\n"
                      "2026-08-01,CAIXA,saldo-inicial,5000,1.00,0,corretora-br,BRL\n", encoding="utf-8")
@@ -243,8 +238,7 @@ def test_cli_carteira_so_caixa_segundo_dia_diz_nada_novo_a_buscar(tmp_path):
     cfg = ws / "vault.config.yaml"
     cfg.write_text(cfg.read_text(encoding="utf-8").replace("provider: manual", "provider: yahoo"),
                    encoding="utf-8")
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text("ticker,classe,conta,qty,pm,moeda\nCAIXA,caixa,corretora-br,5000,1.00,BRL\n", encoding="utf-8")
+    (ws / "dados" / "ativos.csv").write_text("ticker,classe\nCAIXA,caixa\n", encoding="utf-8")
     fills = ws / "dados" / "fills.csv"
     fills.write_text("data,ticker,tipo,qty,preco,taxa,conta,moeda\n"
                      "2026-08-01,CAIXA,saldo-inicial,5000,1.00,0,corretora-br,BRL\n", encoding="utf-8")
@@ -262,8 +256,7 @@ def test_cli_carteira_so_caixa_segundo_dia_diz_nada_novo_a_buscar(tmp_path):
 def test_saldo_em_conta_moeda_estrangeira(tmp_path):
     ws = _ws_yahoo(tmp_path)
     (ws / "vault.config.yaml").write_text(CONFIG_DUAS_CONTAS.format(motor=RAIZ.as_posix()), encoding="utf-8")
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") + "CAIXA-US,caixa,corretora-us,500,1.00,USD\n", encoding="utf-8")
+    _anexa(ws, "dados/ativos.csv", "CAIXA-US,caixa")
     fills = ws / "dados" / "fills.csv"
     fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,CAIXA-US,saldo-inicial,500,1.00,0,corretora-us,USD\n", encoding="utf-8")
     rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0}),
@@ -276,8 +269,7 @@ def test_saldo_em_conta_moeda_estrangeira(tmp_path):
 def test_moeda_ambigua_entre_contas_barra_a_rodada(tmp_path):
     ws = _ws_yahoo(tmp_path)
     (ws / "vault.config.yaml").write_text(CONFIG_DUAS_CONTAS.format(motor=RAIZ.as_posix()), encoding="utf-8")
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") + "PETR4,acoes-br,corretora-us,10,8.00,USD\n", encoding="utf-8")
+    _anexa(ws, "dados/ativos.csv", "PETR4,acoes-br")
     fills = ws / "dados" / "fills.csv"
     fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,PETR4,saldo-inicial,10,8.00,0,corretora-us,USD\n", encoding="utf-8")
     with pytest.raises(ValueError, match="mais de uma moeda"):
@@ -294,8 +286,7 @@ def test_provider_manual_na_config_sem_manual_lista_falhas(tmp_path):
 def test_posicao_em_usd_pede_cambio_ao_provider_de_cambio(tmp_path):
     ws = _ws_yahoo(tmp_path)
     (ws / "vault.config.yaml").write_text(CONFIG_DUAS_CONTAS.format(motor=RAIZ.as_posix()), encoding="utf-8")
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") + "AAPL,rv-int,corretora-us,2,200.00,USD\n", encoding="utf-8")
+    _anexa(ws, "dados/ativos.csv", "AAPL,rv-int")
     fills = ws / "dados" / "fills.csv"
     fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,AAPL,saldo-inicial,2,200.00,0,corretora-us,USD\n", encoding="utf-8")
     rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0, "AAPL": 230.0}),
@@ -309,8 +300,7 @@ def test_cambio_manual_na_config_sem_cambio_lista_falha(tmp_path):
     (ws / "vault.config.yaml").write_text(
         CONFIG_DUAS_CONTAS.format(motor=RAIZ.as_posix()).replace("cambio: bcb-sgs", "cambio: manual"),
         encoding="utf-8")
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") + "AAPL,rv-int,corretora-us,2,200.00,USD\n", encoding="utf-8")
+    _anexa(ws, "dados/ativos.csv", "AAPL,rv-int")
     fills = ws / "dados" / "fills.csv"
     fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,AAPL,saldo-inicial,2,200.00,0,corretora-us,USD\n", encoding="utf-8")
     rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0, "AAPL": 230.0}))
@@ -321,8 +311,7 @@ def test_cambio_manual_na_config_sem_cambio_lista_falha(tmp_path):
 def test_sem_rede_no_cambio_depois_do_mercado_ok_nao_grava_nada(tmp_path):
     ws = _ws_yahoo(tmp_path)
     (ws / "vault.config.yaml").write_text(CONFIG_DUAS_CONTAS.format(motor=RAIZ.as_posix()), encoding="utf-8")
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") + "AAPL,rv-int,corretora-us,2,200.00,USD\n", encoding="utf-8")
+    _anexa(ws, "dados/ativos.csv", "AAPL,rv-int")
     fills = ws / "dados" / "fills.csv"
     fills.write_text(fills.read_text(encoding="utf-8") + "2026-08-01,AAPL,saldo-inicial,2,200.00,0,corretora-us,USD\n", encoding="utf-8")
     antes = (ws / "dados" / "cotacoes.csv").read_text(encoding="utf-8")
@@ -397,7 +386,7 @@ def test_cli_manual_valor_ambiguo_rejeitado(tmp_path):
     ("0,00012345", 0.00012345), ("US$1,5", 1.5),
     ("41.50", 41.5), ("0.5", 0.5), ("30.00", 30.0), ("160.75", 160.75),   # ponto decimal: o
     ("1,234.56", 1234.56), ("12.345.678", 12345678.0),                    # formato do próprio
-    ("0.001", 0.001), ("0.00012345", 0.00012345), ("1.234.567,89", 1234567.89),  # posicoes.csv
+    ("0.001", 0.001), ("0.00012345", 0.00012345), ("1.234.567,89", 1234567.89),  # formato canônico
 ])
 def test_preco_digitado_em_ptbr_e_em_ponto_decimal(digitado, esperado):
     assert cli_mod._preco_digitado(digitado) == pytest.approx(esperado)
@@ -439,9 +428,7 @@ def test_cli_dry_run_relata_quantidade_de_propostas(tmp_path):
 @pytest.mark.slow
 def test_cli_preco_satoshi_nao_vira_0_00(tmp_path):
     ws = copia_exemplo(tmp_path)
-    pos = ws / "dados" / "posicoes.csv"
-    pos.write_text(pos.read_text(encoding="utf-8") + "SHIB,cripto,corretora-br,1000000,0.00000100,BRL\n",
-                   encoding="utf-8")
+    _anexa(ws, "dados/ativos.csv", "SHIB,cripto")
     fills = ws / "dados" / "fills.csv"
     fills.write_text(fills.read_text(encoding="utf-8")
                      + "2026-08-01,SHIB,saldo-inicial,1000000,0.00000100,0,corretora-br,BRL\n", encoding="utf-8")
