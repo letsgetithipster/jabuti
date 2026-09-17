@@ -54,7 +54,7 @@ def test_sem_cotacao_nao_gera_e_declara(tmp_path):
     _anexa(ws, "dados/posicoes.csv", "VALE3,acoes-br,corretora-br,10,60.00,BRL")
     _anexa(ws, "dados/fills.csv", "2026-08-01,VALE3,saldo-inicial,10,60.00,0,corretora-br,BRL")
     try:
-        gerar_estado(ws)
+        gerar_estado(ws, hoje=datetime.date(2026, 9, 8))
         assert False, "deveria ter levantado"
     except ValueError as e:
         assert "VALE3 sem cotação" in str(e)
