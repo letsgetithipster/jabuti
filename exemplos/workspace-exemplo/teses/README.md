@@ -1,1 +1,0 @@
-# teses/ — uma pasta por classe. Tese-semente (não validada, sem nota) vira tese (com nota) quando o /jabuti-tese existir — ele ainda não está instalado (Fase 4b). Por ora as teses são escritas e lidas à mão.

@@ -11,7 +11,11 @@ SETUP_TEMPLATE = (RAIZ / "templates" / "workspace" / "estado" / "SETUP.md").read
 SETUP_EXEMPLO = (RAIZ / "exemplos" / "workspace-exemplo" / "estado" / "SETUP.md").read_text(encoding="utf-8")
 # Skills que o SETUP.md já sequencia mas que só nascem no spec 4b. Guarda de duas vias: quando a
 # pasta existir, este conjunto tem que esvaziar, senão o teste abaixo acusa.
-PLANEJADAS = {"jabuti-micro", "jabuti-tese"}
+# Vazio de propósito. Enquanto o SETUP.md podia sequenciar skill "planejada", o onboarding
+# terminava mandando colar /jabuti-micro, que não existe — no arquivo que abre toda sessão.
+# A regra agora é uma só: nada é sequenciado sem estar instalado, então /jabuti-micro nasce no
+# mesmo commit que o cita.
+PLANEJADAS: set[str] = set()
 LINHA_SKILL = re.compile(r"^- \[[ x]\] `/(jabuti-[a-z]+)", re.MULTILINE)
 PROXIMO = re.compile(r"^Próximo: `/(jabuti-[a-z]+)", re.MULTILINE)
 
@@ -106,3 +110,20 @@ def test_a_skill_da_rotina_existe_e_nao_passa_do_teto():
     assert tamanho <= TETO_ROTINA, (
         f"jabuti-mes tem {tamanho} bytes e o teto declarado é {TETO_ROTINA}. "
         "Empurre caso especial para dentro do CLI em vez de engordar a skill.")
+
+
+def test_setup_nao_sequencia_skill_que_nao_existe():
+    """C2: o onboarding terminava em `Próximo: /jabuti-micro fiis`, e a skill não existe. Vale
+    para o template E para o exemplo, que é o workspace que o estranho lê no GitHub sem clonar."""
+    for nome_arq, texto in (("template", SETUP_TEMPLATE), ("exemplo", SETUP_EXEMPLO)):
+        citadas = set(re.findall(r"`/(jabuti-[a-z]+)", texto))
+        fora = sorted(citadas - _instaladas())
+        assert fora == [], f"SETUP.md do {nome_arq} sequencia skill não instalada: {fora}"
+
+
+def test_o_onboarding_do_exemplo_fecha_na_rotina():
+    """Spec §2.1: depois do fecho comum a pessoa nunca mais lê o SETUP e nunca mais precisa de
+    outro nome. O exemplo mostra isso: onboarding cumprido, `Próximo: /jabuti-mes`."""
+    assert PROXIMO.findall(SETUP_EXEMPLO) == ["jabuti-mes"]
+    assert not re.search(r"^\s*- \[ \]", SETUP_EXEMPLO, re.MULTILINE), (
+        "o exemplo ainda tem etapa de onboarding aberta")

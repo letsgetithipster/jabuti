@@ -11,10 +11,11 @@ Próximo: `/jabuti-init`
 > atualiza a linha `Próximo:` acima e termina com o bloco de handoff pronto para colar.
 > Três estados por linha: aberta `- [ ]`, fechada `- [x]`, e `- [x] ... — n/a, começando do zero`
 > para etapa que não se aplica.
-> As linhas de `/jabuti-micro` e `/jabuti-tese` ainda não estão instaladas (Fase 4b).
+> Cumpridas as três, o onboarding acaba: daqui em diante você só precisa de `/jabuti-mes`,
+> uma vez por mês, e nunca mais deste arquivo.
 
 - [ ] `/jabuti-init` — quem você é: perfil em `politica/00-perfil.md`
-- [ ] `/jabuti-estrategia` — qual é sua política: bandas e caps em `politica/01-alocacao-alvo.md` (acrescenta abaixo uma linha de `/jabuti-micro <bloco>` por bloco com alvo)
+- [ ] `/jabuti-estrategia` — qual é sua política: bandas e caps em `politica/01-alocacao-alvo.md`
 - [ ] `/jabuti-importar` — o que você já tem: carteira em `dados/`, lida dentro da política em `estado/ESTADO.md`
 
 **Regra do onboarding:** aporte só flui para ETF ou para ativo que você estudou.
