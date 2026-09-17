@@ -59,8 +59,12 @@ def main():
     except OSError as e:
         print(mensagem_os(e, raiz))
         sys.exit(1)
-    total = next(l for l in texto.splitlines() if l.startswith("Total investido:"))
-    print(f"{caminho.relative_to(raiz).as_posix()} regenerado — {total}")
+    rel = caminho.relative_to(raiz).as_posix()
+    total = next((l for l in texto.splitlines() if l.startswith("Total investido:")), None)
+    if total is None:   # ledger sem posição: o ESTADO é a linha única (po.estado.LINHA_SEM_POSICAO)
+        print(f"{rel} regenerado — {texto.rstrip().splitlines()[-1]}")
+        return
+    print(f"{rel} regenerado — {total}")
     pendencias = texto.split("## Pendências\n", 1)[1].strip()
     print("Pendências:\n" + pendencias)
 

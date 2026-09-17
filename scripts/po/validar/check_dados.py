@@ -125,7 +125,7 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
         for p in posicoes:
             if (p["ticker"], p["conta"]) not in com_fill:
                 erros.append(f"posicoes.csv: {p['ticker']} ({p['conta']}) sem nenhum fill — a posição "
-                             "derivada do ledger é zero e o ESTADO publicaria R$ 0,00. Registre um "
+                             "derivada do ledger é zero e o ESTADO não a veria. Registre um "
                              f"saldo-inicial em fills.csv: AAAA-MM-DD,{p['ticker']},saldo-inicial,"
                              f"{formatar_canonico(p['qty'])},{formatar_canonico(p['pm'])},0,"
                              f"{p['conta']},{p['moeda']}")

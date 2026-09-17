@@ -598,3 +598,15 @@ def test_cli_ciclo_fill_cotar_gerar_estado_fecha_sem_beco(tmp_path):
     r = subprocess.run([sys.executable, str(GERADOR), str(ws), "--data", "2026-09-08"],
                        capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert r.returncode == 0 and "R$ 12.105,00" in r.stdout, r.stdout + r.stderr
+
+
+@pytest.mark.slow
+def test_cli_manual_repetido_nao_engole_o_primeiro(tmp_path):
+    """Decisão 16 da spec: `--manual PETR4=36 --manual HGLG11=160` devolvia só o segundo, em
+    silêncio, e a FALHA resultante mandava a pessoa fazer o gesto que acabou de falhar."""
+    ws = copia_exemplo(tmp_path)
+    r = subprocess.run([sys.executable, str(CLI), str(ws), "--dry-run",
+                        "--manual", "PETR4=41,50", "--manual", "HGLG11=160"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "41,50" in r.stdout and "HGLG11" in r.stdout and "FALHA" not in r.stdout, r.stdout

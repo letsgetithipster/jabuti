@@ -168,17 +168,19 @@ def test_posicoes_csv_sem_nenhum_fill_nao_e_zero_silencioso(tmp_path):
     """O caso duro do fechamento da Fase 1: workspace nascido de motor anterior, posicoes.csv
     cheia e fills.csv só com cabeçalho. Medido em 17382c1: antigo R$ 3.000,00, novo R$ 0,00,
     exit 0 no gerador e 0 erro(s) no validador. O gerador continua publicando o que o ledger
-    diz (zero); o validador é quem barra, com a linha que abre cada posição."""
+    diz (hoje a linha única de quem não tem posição, G6); o validador é quem barra, com a
+    linha que abre cada posição."""
     ws = _workspace_antigo(copia_exemplo(tmp_path))
     (ws / "dados" / "fills.csv").write_text("data,ticker,tipo,qty,preco,taxa,conta,moeda\n", encoding="utf-8")
-    assert "Total investido: R$ 0,00" in gerar_estado(ws, hoje=datetime.date(2026, 9, 8))[1]
+    texto = gerar_estado(ws, hoje=datetime.date(2026, 9, 8))[1]
+    assert "Total investido" not in texto and "Nenhuma posição em dados/ ainda" in texto
     erros, _ = validar(ws)
     assert [e for e in erros if "sem nenhum fill" in e] == [
         "posicoes.csv: PETR4 (corretora-br) sem nenhum fill — a posição derivada do ledger é zero e o "
-        "ESTADO publicaria R$ 0,00. Registre um saldo-inicial em fills.csv: "
+        "ESTADO não a veria. Registre um saldo-inicial em fills.csv: "
         "AAAA-MM-DD,PETR4,saldo-inicial,100,30,0,corretora-br,BRL",
         "posicoes.csv: HGLG11 (corretora-br) sem nenhum fill — a posição derivada do ledger é zero e o "
-        "ESTADO publicaria R$ 0,00. Registre um saldo-inicial em fills.csv: "
+        "ESTADO não a veria. Registre um saldo-inicial em fills.csv: "
         "AAAA-MM-DD,HGLG11,saldo-inicial,50,155,0,corretora-br,BRL"], erros
 
 

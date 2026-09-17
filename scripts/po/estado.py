@@ -15,6 +15,13 @@ from po.csvs import ler_csv
 from po.ledger import eventos_vigentes
 from po.numeros import formatar_brl
 
+# Ledger sem posição nenhuma (spec §2.1, Maria): uma linha, em vez de "Total investido: R$ 0,00"
+# com pendências corretas e inúteis ("acoes-br abaixo do mínimo (0,0% vs 25%)"). O ESTADO é a
+# tela; a tela de quem ainda não comprou diz o que fazer quando comprar.
+LINHA_SEM_POSICAO = ("Nenhuma posição em dados/ ainda. Quando você comprar, cole /jabuti-mes — "
+                     "ou registre agora: python <motor>/scripts/registrar.py . compra TICKER QTY PRECO "
+                     "--data AAAA-MM-DD")
+
 
 def _uma_casa(frac: float) -> str:
     """Percentual com uma casa, em pt-BR. O inteiro sozinho fazia a pendência ler '45% vs 45%',
@@ -33,6 +40,18 @@ def render_estado(raiz: str | Path, hoje: datetime.date | None = None) -> str:
     raiz = Path(raiz)
     hoje = hoje or datetime.date.today()
     c = valorar(raiz, hoje=hoje)
+    cabecalho = (
+        "---\n"
+        "tipo: estado\n"
+        "gerado-por: gerar-estado\n"
+        f"data-referencia: {hoje.isoformat()}\n"
+        "---\n\n"
+        "# ESTADO — leitura de 1 tela\n\n"
+        "> GERADO por scripts/gerar_estado.py a partir de dados/ e da política. Nunca editar à mão.\n"
+        "> Primeira leitura para qualquer pergunta de alocação.\n\n"
+    )
+    if not c.linhas:
+        return cabecalho + LINHA_SEM_POSICAO + "\n"
     bandas = {b.bloco: b for b in c.bandas}
     linhas_tab, pendencias = [], []
     ordem = [b.bloco for b in c.bandas] + sorted(bl for bl in c.por_bloco if bl not in bandas)
@@ -68,20 +87,13 @@ def render_estado(raiz: str | Path, hoje: datetime.date | None = None) -> str:
            if c.linhas else "Cotações: nenhuma posição")
     corpo = "\n".join(f"- {p}" for p in pendencias) if pendencias else "(nenhuma)"
     return (
-        "---\n"
-        "tipo: estado\n"
-        "gerado-por: gerar-estado\n"
-        f"data-referencia: {hoje.isoformat()}\n"
-        "---\n\n"
-        "# ESTADO — leitura de 1 tela\n\n"
-        "> GERADO por scripts/gerar_estado.py a partir de dados/ e da política. Nunca editar à mão.\n"
-        "> Primeira leitura para qualquer pergunta de alocação.\n\n"
-        f"Total investido: R$ {formatar_brl(c.total_brl)}\n\n"
-        "| Bloco | Valor | % | Banda | Desvio |\n|---|---|---|---|---|\n"
+        cabecalho
+        + f"Total investido: R$ {formatar_brl(c.total_brl)}\n\n"
+        + "| Bloco | Valor | % | Banda | Desvio |\n|---|---|---|---|---|\n"
         + "\n".join(linhas_tab) + "\n\n"
-        f"{cot}\n\n"
-        "## Pendências\n"
-        f"{corpo}\n"
+        + f"{cot}\n\n"
+        + "## Pendências\n"
+        + f"{corpo}\n"
     )
 
 

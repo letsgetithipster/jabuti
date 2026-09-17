@@ -98,11 +98,15 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("raiz", help="raiz do workspace")
     ap.add_argument("--dry-run", action="store_true", help="busca e reporta, não grava")
-    ap.add_argument("--manual", nargs="*", default=[], metavar="TICKER=PRECO",
-                    help="cotação colada pelo usuário (fonte gravada como manual)")
+    # action=append + nargs=+ e achatamento: com nargs="*", `--manual PETR4=36 --manual HGLG11=160`
+    # devolvia só o segundo, em silêncio (decisão 16). `--manual A=1 B=2` numa flag só continua valendo.
+    ap.add_argument("--manual", action="append", nargs="+", default=None, metavar="TICKER=PRECO",
+                    help="cotação colada pelo usuário (fonte gravada como manual); "
+                         "vários por flag, e a flag pode repetir")
     args = ap.parse_args()
+    manual = [item for grupo in (args.manual or []) for item in grupo]
     try:
-        rel = atualizar(args.raiz, manual=_manual(args.manual), dry_run=args.dry_run)
+        rel = atualizar(args.raiz, manual=_manual(manual), dry_run=args.dry_run)
     except SemRede as e:
         print(f"Sem acesso à rede ({e}). Nada gravado — não uso preço de memória. "
               "Tente de novo com conexão ou passe --manual TICKER=PRECO.")

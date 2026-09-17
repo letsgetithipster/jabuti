@@ -259,3 +259,35 @@ def test_frase_de_sem_banda_aparece_exatamente_uma_vez(tmp_path):
     texto = render_estado(ws, hoje=HOJE)
     assert sum(1 for l in texto.splitlines() if "nenhuma banda declarada" in l) == 1
     assert "| cripto | R$ 120.000,00 | 91 | — | sem banda |" in texto
+
+
+# --- G6, spec §2.1 (Maria): quem nunca comprou não recebe um total zero com pendências inúteis ---
+
+def _sem_fill(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    (ws / "dados" / "fills.csv").write_text("data,ticker,tipo,qty,preco,taxa,conta,moeda\n",
+                                            encoding="utf-8", newline="\n")
+    return ws
+
+
+def test_sem_nenhum_fill_o_estado_e_uma_linha_e_nao_um_total_zero(tmp_path):
+    from po.estado import LINHA_SEM_POSICAO
+
+    ws = _sem_fill(tmp_path)
+    texto = render_estado(ws, hoje=datetime.date(2026, 9, 8))
+    assert "Total investido" not in texto and "abaixo do mínimo" not in texto
+    assert "Cotações" not in texto and "Pendências" not in texto
+    assert texto.endswith("\n\n" + LINHA_SEM_POSICAO + "\n")
+    assert "/jabuti-mes" in LINHA_SEM_POSICAO and "registrar.py . compra" in LINHA_SEM_POSICAO
+    gerar_estado(ws, hoje=datetime.date(2026, 9, 8))
+    erros, _ = validar(ws)
+    assert erros == []
+
+
+@pytest.mark.slow
+def test_cli_sem_nenhum_fill_imprime_a_linha_e_nao_traceback(tmp_path):
+    ws = _sem_fill(tmp_path)
+    r = _roda(str(ws), "--data", "2026-09-08")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "Nenhuma posição em dados/ ainda" in r.stdout and "Traceback" not in r.stderr
+    assert "Total investido" not in r.stdout

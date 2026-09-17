@@ -5,6 +5,7 @@ Uso: python scripts/criar_workspace.py C:\\caminho\\meu-vault [--sem-git] [--dat
 """
 import argparse
 import datetime
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -15,6 +16,33 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from po.cli import preparar_console  # noqa: E402
 
 preparar_console()
+
+
+def _checar_ambiente(com_git: bool = True) -> list[str]:
+    """Falha na porta, com o comando de correção, em vez de falhar no terceiro passo (spec §2.1).
+
+    Erro (SystemExit): Python < 3.11, pyyaml ausente, git fora do PATH quando o workspace vai
+    nascer versionado. Aviso (devolvido): openpyxl ausente, que só tira o .xlsx e o cockpit.
+    Chamada também na importação deste módulo, antes de `po.config` importar `yaml`: sem isso a
+    falta de pyyaml seria um traceback de import, não uma frase.
+    """
+    if sys.version_info < (3, 11):
+        v = ".".join(str(x) for x in sys.version_info[:2])
+        raise SystemExit(f"erro: Python {v} — o jabuti precisa de Python 3.11 ou mais novo: "
+                         "https://www.python.org/downloads/")
+    if importlib.util.find_spec("yaml") is None:
+        raise SystemExit("erro: pyyaml não instalado — rode: python -m pip install -r requirements.txt")
+    if com_git and shutil.which("git") is None:
+        raise SystemExit("erro: git não encontrado no PATH — instale (https://git-scm.com/downloads) "
+                         "ou rode com --sem-git")
+    avisos = []
+    if importlib.util.find_spec("openpyxl") is None:
+        avisos.append("aviso: openpyxl não instalado — extrato .xlsx e cockpit ficam de fora até: "
+                      "python -m pip install -r requirements-xlsx.txt")
+    return avisos
+
+
+_checar_ambiente(com_git=False)   # Python e pyyaml, antes do import abaixo puxar `yaml`
 
 from po.config import HARNESSES, NOMES_PADRAO  # noqa: E402
 from po.harness import escrever_harness, instalar_skills  # noqa: E402,F401  (reexportado: os testes importam daqui)
@@ -40,6 +68,8 @@ def criar(destino: str | Path, com_git: bool = True, data: str | None = None,
     é limpo — nunca sobra workspace pela metade.
     """
     destino = Path(destino).resolve()
+    for aviso in _checar_ambiente(com_git=com_git):   # antes de qualquer cópia
+        print(aviso)
     if harness not in HARNESSES:
         raise SystemExit(f"erro: harness {harness!r} desconhecido — use um de {sorted(HARNESSES)}")
     if destino.exists() and not destino.is_dir():

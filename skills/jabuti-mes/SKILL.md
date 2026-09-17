@@ -66,7 +66,7 @@ Ramificar pelo **código de saída**, nunca pelo texto:
 ## Casos especiais
 
 - **Mês sem aporte**: ramo A com `consultar_aporte.py . 0`. Sobra zero, nenhuma sugestão, e o ESTADO diz o que o mercado moveu nas bandas. Não há ritual de fechamento separado.
-- **Carteira vazia**: o ESTADO sai com total zero e `Cotações: nenhuma posição`. Oferecer o ramo B, não um zerado inútil.
+- **Carteira vazia**: o ESTADO sai com uma linha só ("Nenhuma posição em `dados/` ainda", com o `registrar.py . compra` pronto), sem total nem pendência. Oferecer o ramo B.
 - **Provento**: `registrar.py . provento <TICKER> <VALOR> --tipo rendimento --data ...`. Se o extrato entrar por `/jabuti-importar`, não registrar de novo.
 - **Venda**: `registrar.py . venda <TICKER> <QTY> <PRECO> --data ...`. O CLI baixa ao PM corrente, imprime o resultado realizado e grava `logs/vendas/`. Venda acima do saldo é recusada com a frase pronta.
 - **Evento societário**: `registrar.py . evento <TICKER> split --razao 2:1 --data ... --confirmar`. A razão é sempre `novas:antigas`. Tipo que o ledger não sabe aplicar (`cisao`, `fusao`, `subscricao`) é erro nomeado: registrar o efeito como fill e deixar o evento como registro não aplicável.

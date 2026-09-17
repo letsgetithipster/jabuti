@@ -9,13 +9,4 @@ data-referencia: __DATA__
 > GERADO por scripts/gerar_estado.py a partir de dados/ e da política. Nunca editar à mão.
 > Primeira leitura para qualquer pergunta de alocação.
 
-Total investido: R$ 0,00
-
-| Bloco | Valor | % | Banda | Desvio |
-|---|---|---|---|---|
-
-
-Cotações: nenhuma posição
-
-## Pendências
-(nenhuma)
+Nenhuma posição em dados/ ainda. Quando você comprar, cole /jabuti-mes — ou registre agora: python <motor>/scripts/registrar.py . compra TICKER QTY PRECO --data AAAA-MM-DD

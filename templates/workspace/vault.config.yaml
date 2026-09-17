@@ -10,7 +10,7 @@ usuario:
 coordenador:
   nome: Otávio                # o gestor que fala com você; troque se quiser
 cotacoes:
-  provider: manual            # manual | yahoo | brapi (brapi lê o token de BRAPI_TOKEN e cobre SÓ a B3 em BRL: com ativo internacional, use yahoo)
+  provider: yahoo             # yahoo (default: sem token, sem cadastro) | brapi (lê o token de BRAPI_TOKEN e cobre SÓ a B3 em BRL) | manual (nada sai pela rede: você cola os preços com --manual TICKER=PRECO)
   cambio: bcb-sgs             # bcb-sgs | yahoo | manual — usado quando há posição fora do BRL
 contas:
   - id: corretora-br

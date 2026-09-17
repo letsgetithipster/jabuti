@@ -143,3 +143,59 @@ def test_template_e_exemplo_carregam_exatamente_cinco_csv():
     assert len(esperado) == 5
     for pasta in (TEMPLATE / "dados", MOTOR / "exemplos" / "workspace-exemplo" / "dados"):
         assert sorted(p.name for p in pasta.glob("*.csv")) == esperado, pasta
+
+
+# --- G6: o primeiro comando falha na porta, com o comando de correção, e não no terceiro passo ---
+
+def test_checar_ambiente_python_velho_falha_na_porta(monkeypatch):
+    import criar_workspace
+    monkeypatch.setattr(criar_workspace.sys, "version_info", (3, 10, 4, "final", 0))
+    with pytest.raises(SystemExit, match="3.11"):
+        criar_workspace._checar_ambiente()
+
+
+def test_checar_ambiente_sem_pyyaml_diz_o_pip(monkeypatch):
+    import criar_workspace
+    real = criar_workspace.importlib.util.find_spec
+    monkeypatch.setattr(criar_workspace.importlib.util, "find_spec",
+                        lambda nome, *a: None if nome == "yaml" else real(nome, *a))
+    with pytest.raises(SystemExit, match=r"pip install -r requirements\.txt"):
+        criar_workspace._checar_ambiente()
+
+
+def test_checar_ambiente_sem_git_diz_onde_baixar_e_o_sem_git(monkeypatch):
+    import criar_workspace
+    monkeypatch.setattr(criar_workspace.shutil, "which", lambda nome, *a, **k: None)
+    with pytest.raises(SystemExit, match="git-scm.com") as exc:
+        criar_workspace._checar_ambiente()
+    assert "--sem-git" in str(exc.value)
+    assert criar_workspace._checar_ambiente(com_git=False) == []   # --sem-git é caminho suportado
+
+
+def test_checar_ambiente_sem_openpyxl_e_aviso_nao_erro(monkeypatch):
+    import criar_workspace
+    real = criar_workspace.importlib.util.find_spec
+    monkeypatch.setattr(criar_workspace.importlib.util, "find_spec",
+                        lambda nome, *a: None if nome == "openpyxl" else real(nome, *a))
+    avisos = criar_workspace._checar_ambiente(com_git=False)
+    assert len(avisos) == 1 and "requirements-xlsx.txt" in avisos[0]
+
+
+def test_criar_checa_o_ambiente_antes_de_copiar(tmp_path, monkeypatch):
+    """A checagem vem ANTES da cópia: destino intocado, nada a limpar."""
+    import criar_workspace
+
+    def porta_fechada(com_git=True):
+        raise SystemExit("erro: ambiente incompleto")
+    monkeypatch.setattr(criar_workspace, "_checar_ambiente", porta_fechada)
+    destino = tmp_path / "ws"
+    with pytest.raises(SystemExit, match="ambiente incompleto"):
+        criar(destino, com_git=False)
+    assert not destino.exists()
+
+
+def test_template_nasce_com_provider_que_funciona_sem_configurar():
+    """Decisão 15 da spec: com `manual`, quem segue o README recebe `FALHA PETR4: provider da
+    config é 'manual'` em todo ticker no primeiro cotar. Yahoo funciona sem token."""
+    cfg = yaml.safe_load((TEMPLATE / "vault.config.yaml").read_text(encoding="utf-8"))
+    assert cfg["cotacoes"]["provider"] == "yahoo"
