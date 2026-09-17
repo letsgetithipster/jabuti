@@ -22,3 +22,11 @@ O `criar_workspace.py` copia estas pastas para `.claude/skills/` do workspace (`
 **Critério:** skill existe quando há decisão a tomar no meio do procedimento. Sequência fixa de comandos é regra do harness; comando só é um comando — por isso `registrar.py`, `consultar_aporte.py` e `atualizar_cotacoes.py` são CLIs chamados de dentro do `/jabuti-mes`, e não skills.
 
 A rotina da Fase 5 é uma skill só. Não há skill separada de fechamento: o mês sem aporte é a mesma decisão rodada com valor zero. `/preparar-ir` é da Fase 6 e ainda não está instalada.
+
+## Finnest, opcional e só leitura
+
+Exigem o MCP da Finnest conectado na sessão (`docs/provider-finnest.md`). Sem ele, cada uma para e declara. Nenhuma escreve em `dados/`: a carteira canônica só recebe operação conciliada contra documento.
+
+| Skill | Quando | Escreve | Nunca |
+|---|---|---|---|
+| `/jabuti-divida` | antes do aporte, com fatura ou empréstimo em aberto | `logs/decisoes/` | move dinheiro, sincroniza conexão, escreve em `dados/` |
