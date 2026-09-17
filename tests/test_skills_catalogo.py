@@ -91,3 +91,18 @@ def test_setup_do_template_nasce_com_tudo_aberto_e_aponta_a_primeira_etapa():
     assert PROXIMO.findall(SETUP_TEMPLATE) == ["jabuti-init"], (
         "SETUP.md do template deve apontar Próximo para a primeira etapa")
     assert fechada.search(SETUP_EXEMPLO), "SETUP.md do exemplo devia mostrar etapas ja cumpridas"
+
+
+TETO_ROTINA = 8192
+
+
+def test_a_skill_da_rotina_existe_e_nao_passa_do_teto():
+    """Spec §4: o argumento contra três skills de rotina é que uma pergunta custa menos que dois
+    nomes na memória. Se /jabuti-mes engordar, o argumento se vira contra ela, e a resposta certa
+    é empurrar caso especial para dentro do CLI — não cortar a tradução de erro da skill."""
+    arq = SKILLS / "jabuti-mes" / "SKILL.md"
+    assert arq.exists(), "a rotina mensal é uma skill, e ela tem que existir em skills/"
+    tamanho = arq.stat().st_size
+    assert tamanho <= TETO_ROTINA, (
+        f"jabuti-mes tem {tamanho} bytes e o teto declarado é {TETO_ROTINA}. "
+        "Empurre caso especial para dentro do CLI em vez de engordar a skill.")

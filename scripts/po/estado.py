@@ -1,7 +1,7 @@
 """Gerador mínimo de estado/ESTADO.md a partir de dados/ e da política declarada.
 
-ESTADO.md é gerado, nunca editado à mão (camada de consistência, regra 3). O fechar-mes
-da Fase 5 absorve este gerador; até lá, ele roda depois de importar/cotar.
+ESTADO.md é gerado, nunca editado à mão (camada de consistência, regra 3). A rotina mensal
+chama este gerador depois de cotar e depois de registrar; ele não é absorvido por nada.
 Formato pinado pelo check_estado, que compara o ARQUIVO INTEIRO contra este render,
 ancorado no `data-referencia` do próprio ESTADO. Consequência para quem mexer aqui: mudar
 qualquer linha que este módulo imprime trava o commit até `exemplos/workspace-exemplo/estado/

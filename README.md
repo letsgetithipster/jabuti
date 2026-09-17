@@ -80,8 +80,9 @@ web do compilador.
 
 **Próximas fases:** cesta semente por bloco e tese validada com nota, `/jabuti-micro` e
 `/jabuti-tese`, mais personas por classe e os outros alvos do compilador multi-LLM (4b);
-skills de rotina `/registrar-aporte`, `/consultar-aporte`, `/fechar-mes` (5);
-`/preparar-ir` e `fiscal/` (6).
+`/preparar-ir` e `fiscal/` (6). A rotina mensal da Fase 5 é uma skill só, `/jabuti-mes`,
+que decide o aporte e registra o que aconteceu; o mês sem aporte é a mesma decisão
+rodada com valor zero, e por isso não há skill nem script de fechamento.
 
 ## Começando
 

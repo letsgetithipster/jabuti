@@ -1,8 +1,8 @@
 """Provider BCB/SGS: PTAX (USDBRL) e séries de indexadores (CDI, Selic, IPCA).
 
 Fonte diária sem hora: grava hora 00:00 (convenção a documentar no mapeamentos/README e no
-LEIAME do cockpit quando eles nascerem). cotar() atende só USDBRL; serie() é consumida pelo
-fechar-mes (Fase 5).
+LEIAME do cockpit quando eles nascerem). cotar() atende só USDBRL; serie() não tem consumidor no motor: ela
+volta com a comparação contra benchmark, que traz indices.csv de volta com escritor junto.
 """
 import datetime
 import math

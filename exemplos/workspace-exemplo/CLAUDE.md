@@ -38,6 +38,7 @@ e o método em `.claude/rules/00-voz.md`. O contrato que torna tudo isto confiá
 - `/jabuti-estrategia`
 - `/jabuti-importar`
 - `/jabuti-init`
+- `/jabuti-mes`
 
 Catálogo, com quando usar e o que cada uma nunca faz: `skills/README.md` do motor. O caminho
 do motor está em `vault.config.yaml`, `caminhos.motor`.

@@ -25,9 +25,14 @@ EXTENSOES_DE_TEXTO = {".py", ".md", ".yaml", ".template"}
 FASE_DO_COMANDO = {
     "jabuti-cotacoes": 2, "jabuti-importar": 2,
     "jabuti-init": 4, "jabuti-estrategia": 4, "jabuti-micro": 4, "jabuti-tese": 4,
-    "registrar-aporte": 5, "consultar-aporte": 5, "fechar-mes": 5,
+    "jabuti-mes": 5,
     "preparar-ir": 6,
 }
+
+# Os três nomes que a spec §4 fundiu em /jabuti-mes. Saíram do roadmap; o teste abaixo impede
+# que voltem por prosa. Nome nu, sem barra: o defeito real estava em docstring de módulo
+# ("o fechar-mes da Fase 5 absorve este gerador"), não em linha de skill.
+ROTINA_FUNDIDA = ("registrar-aporte", "consultar-aporte", "fechar-mes")
 
 
 def _versionados_de_texto():
@@ -271,6 +276,28 @@ def test_numero_de_fase_citado_bate_com_o_roadmap():
                             achados.append(f"{rel}:{n}: {comando} citado com Fase {f}, "
                                            f"devia ser {esperada}")
     assert achados == [], "numeração de fase divergente do roadmap:\n  " + "\n  ".join(achados)
+
+
+def test_nenhum_doc_promete_a_rotina_em_tres_skills():
+    """A rotina é UMA skill com UMA pergunta: decidir onde aportar, ou registrar o que já
+    aconteceu. Três nomes obrigam a pessoa a saber em qual metade do mês está antes de digitar.
+    E não existe fechamento separado: o mês sem aporte é a decisão rodada com valor zero, o que
+    apaga um script, um nome e um ritual de uma vez."""
+    achados = []
+    for rel in _versionados_de_texto():
+        caminho = RAIZ / rel
+        if caminho.resolve() == ESTE_ARQUIVO:
+            continue
+        try:
+            texto = caminho.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for n, linha in enumerate(texto.splitlines(), start=1):
+            for nome in ROTINA_FUNDIDA:
+                if nome in linha:
+                    achados.append(f"{rel}:{n}: cita {nome!r}, fundido em /jabuti-mes")
+    assert achados == [], (
+        "documento promete a rotina em três skills:\n  " + "\n  ".join(achados))
 
 
 PROMESSA_DE_FONTE_UNICA = "É a única fonte de qty e PM"
