@@ -512,6 +512,55 @@ def test_ajuste_de_custo_e_nota_e_nao_barra_a_importacao(tmp_path):
     assert r["gravadas"]["fills"] == 0
 
 
+def test_ticker_com_fill_e_saldo_zero_na_data_da_foto_e_divergencia_nao_abertura(tmp_path):
+    """Revisão do grupo F: HGLG11 vendida inteira em 06/09 e a foto de 08/09 diz 50 @ 155. Antes,
+    a prévia prometia "abre o livro como saldo-inicial" e a gravação passava em silêncio com
+    "nada novo" (`_aberturas` nunca abre quem já tem fill): o beco silencioso de volta, por
+    outra porta. Agora é divergência a partir do zero, com o comando, e --aceitar-como compra
+    fecha o ledger datado na foto. Vale também para a foto ANTERIOR ao primeiro fill do ticker."""
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/fills.csv", "2026-09-06,HGLG11,venda,50,160.00,0,corretora-br,BRL")
+    foto = [_pos("PETR4", 100, 30.0), _pos("HGLG11", 50, 155.0, classe="fiis")]
+    linhas, divergiu, novos = conferir(ws, _res(posicoes=list(foto)))
+    texto = "\n".join(linhas)
+    assert divergiu and novos == 0, texto
+    assert "HGLG11 (corretora-br): o ledger está zerado em 2026-09-08" in texto, texto
+    assert "compra HGLG11 50 155,00" in texto and "abre o livro" not in texto and "evento" not in texto
+    antes = _dados(ws)
+    with pytest.raises(ValueError, match="não bate com o seu livro"):
+        _grava_pos(ws, *foto)
+    assert _dados(ws) == antes
+    r = gravar(ws, _res(posicoes=list(foto)), aceitar_como="compra", **KW)
+    assert r["gravadas"]["fills"] == 1 and r["aberturas"] == 0 and r["implicitos"] == 1
+    assert _derivada(ws, "HGLG11") == (50.0, 155.0)
+    # foto anterior ao primeiro fill do ticker: o livro de 15/08 não tem VALE3, e a foto diz que tinha
+    ws = copia_exemplo(tmp_path / "b")
+    _anexa(ws, "dados/ativos.csv", "VALE3,acoes-br")
+    _anexa(ws, "dados/fills.csv", "2026-09-06,VALE3,compra,10,60.00,0,corretora-br,BRL")
+    foto = [_pos("PETR4", 60, 29.5, data="2026-08-15"), _pos("VALE3", 10, 60.0, data="2026-08-15")]
+    linhas, divergiu, _ = conferir(ws, _res(posicoes=list(foto)))
+    assert divergiu and "VALE3 (corretora-br): o ledger está zerado em 2026-08-15" in "\n".join(linhas)
+    with pytest.raises(ValueError, match="não bate com o seu livro"):
+        _grava_pos(ws, *foto)
+
+
+def test_lotes_do_mesmo_ticker_sao_consolidados_antes_de_comparar_com_o_ledger(tmp_path):
+    """Corretora que quebra PETR4 em dois lotes (60 + 40) contra um ledger de 100: uma posição,
+    zero divergência. Dois lotes que somam 150 @ 32: UMA divergência, não duas."""
+    ws = copia_exemplo(tmp_path)
+    iguais = [_pos("PETR4", 60, 30.0), _pos("PETR4", 40, 30.0), _pos("HGLG11", 50, 155.0, classe="fiis")]
+    linhas, divergiu, _ = conferir(ws, _res(posicoes=list(iguais)))
+    texto = "\n".join(linhas)
+    assert not divergiu, texto
+    assert texto.count("PETR4 (corretora-br): OK — 100 @ 30,00") == 1, texto
+    assert _grava_pos(ws, *iguais)["gravadas"]["fills"] == 0
+    lotes = [_pos("PETR4", 100, 30.0), _pos("PETR4", 50, 36.0), _pos("HGLG11", 50, 155.0, classe="fiis")]
+    linhas, divergiu, _ = conferir(ws, _res(posicoes=list(lotes)))
+    texto = "\n".join(linhas)
+    assert divergiu and texto.count("PETR4 (corretora-br):") == 1, texto
+    assert "o documento diz 150 @ R$ 32,00" in texto and "preço implícito R$ 36,00" in texto
+
+
 def test_ticker_suspeito_no_ledger_nao_ganha_segunda_divergencia(tmp_path):
     """Livro com erro nomeado (venda acima do saldo) já tem a frase do validador; empilhar uma
     divergência derivada em cima esconderia a causa. A conferência recusa com a frase do ledger."""
@@ -587,6 +636,22 @@ def test_aceitar_como_compra_nao_inventa_fill_sem_preco_nem_para_ajuste_de_custo
                aceitar_como="compra", **KW)
     assert r["gravadas"]["fills"] == 0 and r["implicitos"] == 0
     assert "Fills implícitos aceitos pela foto (--aceitar-como compra): 0" in r["log"].read_text(encoding="utf-8")
+
+
+def test_aceitar_como_compra_nao_grava_fill_que_o_livro_recusaria(tmp_path):
+    """Revisão do grupo F: HGLG11 abriu com saldo-inicial em 01/08; uma foto de 15/07 aceita como
+    compra poria um fill ANTES da abertura, e o validador acusaria o livro logo depois de uma
+    gravação que devolveu sucesso. A guarda recusa com a frase do ledger e nada entra."""
+    ws = copia_exemplo(tmp_path)
+    antes = _dados(ws)
+    foto = [_pos("HGLG11", 50, 150.0, data="2026-07-15", classe="fiis")]
+    with pytest.raises(ValueError) as exc:
+        gravar(ws, _res(posicoes=list(foto)), aceitar_como="compra", **KW)
+    assert "deixaria o livro com erro" in str(exc.value) and "vem depois de outros fills" in str(exc.value)
+    assert _dados(ws) == antes
+    assert not (ws / "logs" / "importacoes").exists()
+    erros, _ = validar(ws)
+    assert erros == []
 
 
 def test_aceitar_como_so_aceita_compra(tmp_path):

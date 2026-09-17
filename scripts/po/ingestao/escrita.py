@@ -110,9 +110,17 @@ def _consolidadas(res: Resultado) -> list[dict]:
     return saida
 
 
+def _com_fills(existentes: dict[str, list[dict]]) -> set[tuple[str, str]]:
+    return {(f["ticker"], f["conta"]) for f in existentes["fills"]}
+
+
 def diferencas(existentes: dict[str, list[dict]], res: Resultado) -> list[tuple[dict, Saldo, Diferenca]]:
     """(posição do documento, saldo do ledger na data dela, diferença), só para ticker/conta que
-    já tem fill e cuja leitura não é `igual`. Ticker sem fill é abertura de livro, não divergência.
+    já tem fill em dados/ e cuja leitura não é `igual`. Ticker sem fill nenhum é abertura de
+    livro, não divergência. Ticker COM fill e saldo zero na data (vendido inteiro antes da foto,
+    ou comprado só depois dela) é divergência a partir do zero: a foto afirma uma posição que o
+    livro não tem nessa data, e `_aberturas` nunca vai abrir o que já tem fill — sem isto, a
+    prévia prometia "abre o livro" e a gravação passava em silêncio com "nada novo".
 
     A posição do livro é DERIVADA (fills + eventos, cortados na data do documento), nunca lida de
     uma tabela de estado: é o que permite conferir uma foto de 01/08 contra o livro como ele era
@@ -122,14 +130,18 @@ def diferencas(existentes: dict[str, list[dict]], res: Resultado) -> list[tuple[
     ValueError se o ledger já tem erro nomeado: empilhar divergência derivada sobre erro de origem
     esconderia a causa, e a frase certa é a do ledger."""
     saida = []
+    com_fills = _com_fills(existentes)
     for p in _consolidadas(res):
         saldos, erros, _suspeitas = calcular_saldos(existentes["fills"], existentes["eventos"],
                                                     ate=p["_data"])
         if erros:
             raise ValueError("dados/ com erro no ledger — nada a conferir (rode o validador): " + erros[0])
-        s = saldos.get((p["ticker"], p["conta"]))
+        k = (p["ticker"], p["conta"])
+        s = saldos.get(k)
         if s is None or s.qty <= 0:
-            continue
+            if k not in com_fills:
+                continue
+            s = Saldo()
         dif = fill_implicito(s.qty, s.pm, p["qty"], p["pm"])
         if dif.leitura != "igual":
             saida.append((p, s, dif))
@@ -170,6 +182,16 @@ def divergencias(existentes: dict[str, list[dict]], res: Resultado, registrar: s
                                    "não preço de venda. Registre a venda com o comando acima."])
         else:
             barram.extend(texto)
+    if implicitos:
+        # O fill aceito pela foto entra no livro como qualquer outro, e o livro pode recusá-lo:
+        # foto anterior ao saldo-inicial do ticker, por exemplo, poria uma compra antes da
+        # abertura. Gravar e deixar o validador descobrir seria a gravação que passa e o
+        # workspace que quebra. A frase é a do ledger, que é quem sabe o motivo.
+        _s, erros, _x = calcular_saldos(existentes["fills"] + implicitos, existentes["eventos"])
+        if erros:
+            barram.append("  --aceitar-como compra deixaria o livro com erro, então nada foi gravado: "
+                          + erros[0] + ". Registre a operação com a data certa (registrar.py compra) "
+                          "ou corrija a data do documento.")
     return barram, notas, implicitos
 
 
@@ -336,13 +358,15 @@ def conferir(raiz: str | Path, res: Resultado, registrar: str = REGISTRAR,
     explicadas = {(p["ticker"], p["conta"]): (dif, _explicar(p, s, dif, registrar, importar))
                   for p, s, dif in diferencas(existentes, res)}
     contas_do_documento = {p["conta"] for p in res.registros["posicoes"]}
+    com_fills = _com_fills(existentes)
     no_documento = set()
     for p in _consolidadas(res):
         k = (p["ticker"], p["conta"])
         no_documento.add(k)
         saldos, _e, _s = calcular_saldos(existentes["fills"], existentes["eventos"], ate=p["_data"])
         s = saldos.get(k)
-        if s is None or s.qty <= 0:
+        if (s is None or s.qty <= 0) and k not in com_fills:
+            # o mesmo critério de `_aberturas`: só abre o livro quem não tem fill nenhum
             linhas.append(f"  {p['ticker']} ({p['conta']}): NOVA no documento — "
                           f"{formatar_decimal_brl(p['qty'])} @ {formatar_brl(p['pm'])}, "
                           "abre o livro como saldo-inicial")

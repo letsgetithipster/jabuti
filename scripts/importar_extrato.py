@@ -70,6 +70,26 @@ RODAPE_DIVERGENCIA = ("\nNada gravado. O texto acima diz a diferença e o comand
                       "depois de registrar, rode esta importação de novo.")
 
 
+def _sem_flags_de_previa(argv: list[str]) -> list[str]:
+    """O argv sem --conferir, --dry-run e sem um --aceitar-como já dado: é o comando que a
+    explicação da divergência manda repetir com `--aceitar-como compra`, e ele tem que gravar
+    quando digitado (com --conferir sobrando, nunca gravaria) e não duplicar a flag."""
+    saida, pular = [], False
+    for a in argv:
+        if pular:
+            pular = False
+            continue
+        if a in ("--conferir", "--dry-run"):
+            continue
+        if a == "--aceitar-como":
+            pular = True
+            continue
+        if a.startswith("--aceitar-como="):
+            continue
+        saida.append(a)
+    return saida
+
+
 def _descrever(mapa: dict, caminho: Path) -> list[str]:
     verificado = "sim" if mapa.get("verificado-contra-export-real") else "NÃO (contribua uma fixture)"
     out = [f"Mapeamento: {mapa['nome']} ({caminho}) · verificado contra export real: {verificado}",
@@ -108,7 +128,7 @@ def main():
         registrar = f"python {motor / 'scripts' / 'registrar.py'} {raiz}"
         # o comando que a pessoa acabou de digitar, sem as flags de prévia: é o que a terceira
         # saída da divergência manda repetir com --aceitar-como compra
-        importar = "python " + " ".join(a for a in sys.argv if a not in ("--conferir", "--dry-run"))
+        importar = "python " + " ".join(_sem_flags_de_previa(sys.argv))
         if args.mapeamento:
             caminho_mapa = resolver_mapeamento(args.mapeamento, raiz, motor)
         else:

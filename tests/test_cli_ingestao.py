@@ -178,6 +178,10 @@ def test_conferir_com_divergencia_sai_3(tmp_path):
     assert "Nada gravado" in r.stdout and "rode esta importação de novo" in r.stdout
     # o beco: nenhuma das duas saídas manda fazer o que a pessoa acabou de fazer
     assert "Resolva antes de importar" not in r.stdout and "confira com --conferir" not in r.stdout
+    # a terceira saída é o comando que a pessoa acabou de rodar SEM --conferir: com a flag de
+    # prévia sobrando, o comando copiado nunca gravaria
+    terceira = next(l for l in r.stdout.splitlines() if "--aceitar-como compra" in l and "importar_extrato" in l)
+    assert "--conferir" not in terceira and "--dry-run" not in terceira, terceira
     assert instantaneo(ws) == antes
     assert "Traceback" not in r.stderr
 
@@ -370,6 +374,19 @@ def test_aceitar_como_compra_fecha_o_ledger_e_imprime_o_caveat(tmp_path):
     assert r.returncode == 0 and "PETR4 (corretora-br): OK — 120 @ 30,00" in r.stdout, r.stdout
     r = roda(ws, doc, "--data", "2026-09-10", "--total-declarado", "11350,00", "--aceitar-como", "compra")
     assert r.returncode == 0 and "Nada novo para gravar" in r.stdout, r.stdout   # idempotente
+
+
+def test_aceitar_como_com_conferir_e_previa_e_o_comando_citado_nao_duplica_a_flag(tmp_path):
+    """--conferir manda: nada grava, exit 3 na divergência. E o comando citado na terceira saída
+    não repete um --aceitar-como que já veio no argv."""
+    ws, doc = prepara(tmp_path, POSICOES_DIVERGENTES, MAPA_POSICOES, "pos.csv")
+    antes = instantaneo(ws)
+    r = roda(ws, doc, "--data", "2026-09-10", "--total-declarado", "11350,00", "--conferir",
+             "--aceitar-como", "compra")
+    assert r.returncode == 3, r.stdout + r.stderr
+    terceira = next(l for l in r.stdout.splitlines() if "--aceitar-como compra" in l and "importar_extrato" in l)
+    assert terceira.count("--aceitar-como") == 1 and "--conferir" not in terceira, terceira
+    assert instantaneo(ws) == antes
 
 
 def test_aceitar_como_recusa_valor_fora_de_compra_com_exit_2(tmp_path):

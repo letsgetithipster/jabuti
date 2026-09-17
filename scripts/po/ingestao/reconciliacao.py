@@ -75,8 +75,11 @@ def explicar(dif: Diferenca, *, ticker: str, conta: str, data: str, qty_ledger: 
     para digitar não é saída."""
     if dif.leitura == "igual":
         return []
-    cab = [f"  {ticker} ({conta}): o ledger tem {_q(qty_ledger)} @ R$ {formatar_brl(pm_ledger)} "
-           f"em {data}; o documento diz {_q(qty_doc)} @ R$ {formatar_brl(pm_doc)}."]
+    zerado = qty_ledger <= 0
+    cab = [f"  {ticker} ({conta}): o ledger " + (
+        f"está zerado em {data} (tem fills, mas nenhuma posição nessa data)" if zerado else
+        f"tem {_q(qty_ledger)} @ R$ {formatar_brl(pm_ledger)} em {data}")
+        + f"; o documento diz {_q(qty_doc)} @ R$ {formatar_brl(pm_doc)}."]
     if dif.leitura == "ajuste-de-custo":
         return cab + [
             f"    A quantidade bate e o custo não: diferença de R$ {formatar_brl(dif.delta_custo)}."
@@ -102,11 +105,13 @@ def explicar(dif: Diferenca, *, ticker: str, conta: str, data: str, qty_ledger: 
         linhas += [
             "    Se foi compra que você ainda não registrou:",
             f"      {registrar} compra {ticker} {_q(dif.delta_qty)} "
-            f"{formatar_brl(dif.preco_implicito)} --data <data-da-compra>",
-            "    Se foi evento societário (split, grupamento, bonificação), o preço implícito não"
-            " significa nada — registre o evento:",
-            f"      {registrar} evento {ticker} split --razao <novas:antigas> --data <data> "
-            "--confirmar"]
+            f"{formatar_brl(dif.preco_implicito)} --data <data-da-compra>"]
+        if not zerado:   # evento societário multiplica uma posição; do zero não sai nada
+            linhas += [
+                "    Se foi evento societário (split, grupamento, bonificação), o preço implícito não"
+                " significa nada — registre o evento:",
+                f"      {registrar} evento {ticker} split --razao <novas:antigas> --data <data> "
+                "--confirmar"]
         if importar:
             linhas += ["    Se você confia na foto e não tem a data da compra:",
                        f"      {importar} --aceitar-como compra",
