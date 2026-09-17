@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from po.cli import mensagem_os, preparar_console  # noqa: E402
+from po.cli import caminho_motor, mensagem_os, preparar_console  # noqa: E402
 
 preparar_console()   # antes dos demais imports de po.*: se um deles
                      # quebrar, o traceback ainda sai legível no cp1252
@@ -57,11 +57,6 @@ def _sem_cotacao(raiz: Path) -> list[str]:
     return sorted({p["ticker"] for p in derivadas if p["ticker"] not in cotadas})
 
 
-def _motor(raiz: Path, cfg: dict) -> Path:
-    m = Path(str(cfg["caminhos"]["motor"]))
-    return m if m.is_absolute() else (raiz / m).resolve()
-
-
 def _descrever(mapa: dict, caminho: Path) -> list[str]:
     verificado = "sim" if mapa.get("verificado-contra-export-real") else "NÃO (contribua uma fixture)"
     out = [f"Mapeamento: {mapa['nome']} ({caminho}) · verificado contra export real: {verificado}",
@@ -93,7 +88,7 @@ def main():
     arquivo = Path(args.arquivo)
     try:
         cfg = carregar_config(raiz)
-        motor = _motor(raiz, cfg)
+        motor = caminho_motor(raiz, cfg)
         if args.mapeamento:
             caminho_mapa = resolver_mapeamento(args.mapeamento, raiz, motor)
         else:

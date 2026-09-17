@@ -37,3 +37,12 @@ def mensagem_os(e: OSError, raiz: str | Path | None = None, padrao: str = "") ->
     motivo = e.strerror or str(e)
     return (f"erro: não consegui ler/gravar {caminho} ({motivo}). "
             "O arquivo está aberto no Excel ou o OneDrive está sincronizando?")
+
+
+def caminho_motor(raiz: str | Path, cfg: dict) -> Path:
+    """Raiz do motor declarada em `caminhos.motor`, absolutizada contra o workspace.
+
+    Vivia copiada dentro de importar_extrato.py, e todo CLI que imprime "agora rode ..."
+    precisa dela: um fato mora em um lugar só."""
+    m = Path(str(cfg["caminhos"]["motor"]))
+    return m if m.is_absolute() else (Path(raiz) / m).resolve()

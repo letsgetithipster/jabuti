@@ -12,6 +12,11 @@ Este documento é o contrato de TODAS as fases do produto; o que já está const
 - O modelo NÃO digita preço. Todo número de mercado entra por script, com
   fonte, data e hora gravadas em `dados/cotacoes.csv` (append-only).
 - Sem internet na sessão: a skill PARA e declara. Nunca preço de memória.
+- A fronteira do que VOCÊ pode digitar é esta, e ela é explícita: preço de
+  mercado entra por script de cotação; OPERAÇÃO SUA (compra, venda, a classe
+  de um ticker) entra por `scripts/registrar.py`, com eco de confirmação,
+  `--dry-run` e log datado. O que você declara ali nasce marcado como
+  declarado por você, não conferido contra documento.
 - Extrato de corretora só entra em `dados/` depois que o script confere a
   aritmética declarada no próprio documento (saldo corrente, valor da linha
   ou total declarado). O mapeamento do documento é um arquivo que você vê

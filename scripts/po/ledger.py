@@ -208,6 +208,6 @@ def posicoes_de_fills(fills: list[dict], eventos: list[dict] | tuple = (),
                          "moeda": moedas.get((ticker, conta), "BRL")})
     for ticker in sem_classe:
         erros.append(f"dados/ativos.csv: {ticker} tem fill mas nenhuma classe declarada — "
-                     f"acrescente a linha `{ticker},<classe>` em dados/ativos.csv "
+                     f"rode: python <motor>/scripts/registrar.py <raiz> ativo {ticker}=<classe> "
                      "(acoes-br, fiis, rv-int, reits-us, rf-br, cripto, caixa, commodities)")
     return posicoes, erros

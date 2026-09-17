@@ -1,1 +1,1 @@
-# scripts/ — CLIs finos sobre o package po/: validar_workspace, criar_workspace, inspecionar_extrato, importar_extrato, atualizar_cotacoes, gerar_estado, gerar_cockpit. Testes em tests/. Nenhum caminho absoluto de máquina entra aqui; rede só em po/cotacoes/http.py.
+# scripts/ — CLIs finos sobre o package po/: validar_workspace, criar_workspace, inspecionar_extrato, importar_extrato, registrar, atualizar_cotacoes, gerar_estado, gerar_cockpit. Testes em tests/. Nenhum caminho absoluto de máquina entra aqui; rede só em po/cotacoes/http.py.

@@ -49,7 +49,7 @@ def test_fill_sem_classe_declarada_e_erro_acionavel(tmp_path):
                      encoding="utf-8")
     erros, _ = checar_dados(ws)
     assert any("dados/ativos.csv: VALE3 tem fill mas nenhuma classe declarada" in e
-               and "`VALE3,<classe>`" in e for e in erros), erros
+               and " ativo VALE3=<classe>" in e for e in erros), erros
 
 
 def test_conta_desconhecida_e_erro(tmp_path):
