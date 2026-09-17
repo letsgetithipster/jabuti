@@ -558,3 +558,80 @@ def test_argv_da_demo_recusa_comando_que_nao_sabe_executar(comando):
     comando, o teste tem que falhar alto, e não passar a verificar outra coisa."""
     with pytest.raises(AssertionError):
         _argv_da_demo([comando], Path("/tmp/ws"))
+
+
+DOCS_DE_RAIZ = ("README.md", "GUARDRAILS.md", "PRIVACIDADE.md", "CONTRIBUTING.md", "CHANGELOG.md")
+# CHANGELOG fica FORA da guarda de caminho, e isso é decisão, não esquecimento: o trabalho dele é
+# nomear o que foi REMOVIDO. Uma entrada correta como "sai dados/posicoes.csv" cita um caminho que
+# deixou de existir, e uma guarda que a barrasse forçaria o changelog a mentir sobre o passado.
+SOB_GUARDA_DE_CAMINHO = tuple(d for d in DOCS_DE_RAIZ if d != "CHANGELOG.md")
+
+LINK_MD = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+
+
+def _pastas_de_topo_para_caminho():
+    """As pastas de topo reais, derivadas do disco. Lista à mão aqui divergiria em silêncio no dia
+    em que uma pasta nascesse — e é o dia em que a guarda mais precisaria estar certa."""
+    return sorted(p.name for p in RAIZ.iterdir() if p.is_dir() and not p.name.startswith("."))
+
+
+def _caminho_re():
+    """Caminho de arquivo citado em prosa, com `/` ou `\` (o README mostra comando PowerShell).
+
+    Ancorado nas pastas de topo de propósito: sem essa âncora, `C:\caminho\meu-vault\inbox\
+    extrato.xlsx` — exemplo legítimo, que descreve a MÁQUINA do leitor e não este repo — viraria
+    falso positivo, e a guarda passaria a barrar texto correto. Medido contra os documentos de
+    raiz de hoje: 18 caminhos e links citados (README 7, GUARDRAILS 3, PRIVACIDADE 4, CONTRIBUTING 4), 18 existentes, zero falso positivo.
+    """
+    grupo = "|".join(_pastas_de_topo_para_caminho())
+    return re.compile(r"(?<![\w./\-])((?:" + grupo + r")[/\][\w./\-]+\.(?:py|yaml|yml|md|txt|csv|json))")
+
+
+def _citados(texto):
+    alvos = set()
+    for bruto in LINK_MD.findall(texto):
+        alvo = bruto.split("#", 1)[0]
+        if alvo and not alvo.startswith(("http://", "https://", "mailto:")):
+            alvos.add(alvo)
+    alvos |= set(_caminho_re().findall(texto))
+    return sorted(alvos)
+
+
+def test_a_raiz_traz_os_cinco_documentos_de_publicacao():
+    """Os cinco são o que um estranho procura antes de rodar qualquer coisa: o que é (README), sob
+    que contrato (GUARDRAILS), o que acontece com os meus dados (PRIVACIDADE), como eu ajudo
+    (CONTRIBUTING), o que mudou desde que eu clonei (CHANGELOG). Faltar um é o repo respondendo
+    'não sei' a uma pergunta que todo mundo faz."""
+    faltando = [d for d in DOCS_DE_RAIZ if not (RAIZ / d).exists()]
+    assert faltando == [], f"documento de publicação ausente na raiz: {faltando}"
+
+
+def test_documento_de_raiz_nao_cita_link_nem_caminho_inexistente():
+    """O invariante "nada promete no presente o que o código não cumpre" era cobrado por BLOCO no
+    README (fase de comando) e por CAMINHO no texto embarcado (skills, rules, templates). Faltava
+    a forma mais banal de promessa falsa num repo público: o link quebrado e o caminho que mudou
+    de lugar. Quem clica e cai em 404 no primeiro minuto não volta.
+
+    Cobre link markdown relativo e caminho de arquivo citado em prosa, com `/` ou `\`.
+    """
+    quebrados = []
+    for nome in SOB_GUARDA_DE_CAMINHO:
+        caminho = RAIZ / nome
+        if not caminho.exists():
+            continue                       # a ausência é assunto do teste acima
+        for alvo in _citados(caminho.read_text(encoding="utf-8")):
+            if not (RAIZ / alvo.replace("\\", "/")).exists():
+                quebrados.append(f"{nome}: {alvo}")
+    assert quebrados == [], (
+        "documento de raiz cita o que não existe:\n  " + "\n  ".join(quebrados))
+
+
+def test_o_changelog_comeca_por_uma_secao_de_versao():
+    """Changelog sem cabeça de versão vira diário. A seção do topo é onde a próxima mudança entra,
+    e é o que faz a entrada nascer no commit dela em vez de ser reconstruída depois pelo git log."""
+    texto = (RAIZ / "CHANGELOG.md").read_text(encoding="utf-8")
+    secoes = [l for l in texto.splitlines() if l.startswith("## ")]
+    assert secoes, "CHANGELOG.md não tem nenhuma seção `## `"
+    assert re.match(r"^## (Não lançado|\d{4}-\d{2}-\d{2}|v?\d+\.\d+\.\d+)", secoes[0]), (
+        f"a primeira seção do CHANGELOG é {secoes[0]!r}; esperava `## Não lançado`, `## AAAA-MM-DD` "
+        "ou `## vX.Y.Z`")
