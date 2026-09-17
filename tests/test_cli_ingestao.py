@@ -171,9 +171,29 @@ def test_conferir_com_divergencia_sai_3(tmp_path):
     antes = instantaneo(ws)
     r = roda(ws, doc, "--conferir", "--data", "2026-09-10", "--total-declarado", "11350,00")
     assert r.returncode == 3, r.stdout + r.stderr
-    assert "PETR4 (corretora-br): DIVERGE" in r.stdout
-    assert "nada gravado" in r.stdout
+    assert "PETR4 (corretora-br): o ledger tem 100 @ R$ 30,00 em 2026-09-10; o documento diz 120 @ R$ 30,00." in r.stdout
+    assert "preço implícito R$ 30,00" in r.stdout
+    assert f"registrar.py {ws} compra PETR4 20 30,00" in r.stdout
+    assert " evento PETR4 split" in r.stdout
+    assert "Nada gravado" in r.stdout and "rode esta importação de novo" in r.stdout
+    # o beco: nenhuma das duas saídas manda fazer o que a pessoa acabou de fazer
+    assert "Resolva antes de importar" not in r.stdout and "confira com --conferir" not in r.stdout
     assert instantaneo(ws) == antes
+    assert "Traceback" not in r.stderr
+
+
+def test_importar_foto_divergente_sem_conferir_para_em_3_com_a_mesma_explicacao(tmp_path):
+    """Medido em 1d93b23: sem --conferir a foto divergente passava em silêncio ("Nada novo para
+    gravar", exit 0), porque a conferência comparava contra uma tabela que já não existia.
+    Agora a gravação recusa com o MESMO texto da prévia e o mesmo código 3."""
+    ws, doc = prepara(tmp_path, POSICOES_DIVERGENTES, MAPA_POSICOES, "pos.csv")
+    antes = instantaneo(ws)
+    r = roda(ws, doc, "--data", "2026-09-10", "--total-declarado", "11350,00")
+    assert r.returncode == 3, r.stdout + r.stderr
+    assert "preço implícito R$ 30,00" in r.stdout and "compra PETR4 20 30,00" in r.stdout
+    assert "Nada novo para gravar" not in r.stdout
+    assert instantaneo(ws) == antes
+    assert not (ws / "logs" / "importacoes").exists()
     assert "Traceback" not in r.stderr
 
 

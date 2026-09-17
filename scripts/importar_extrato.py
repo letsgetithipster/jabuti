@@ -13,7 +13,8 @@ Códigos de saída: 0 importou (ou --dry-run/--conferir sem divergência)
   dados/ sem a conciliação passar; a única exceção é a gravação que morre no meio (arquivo travado,
   disco cheio), e aí o texto e o log de importação nomeiam tabela por tabela o que chegou a entrar
 · 2 uso inválido da linha de comando (argparse)
-· 3 --conferir achou divergência entre o documento e dados/ (nada gravado; não é erro de execução)
+· 3 o documento contradiz o livro (com ou sem --conferir): nada gravado, e o texto traz a aritmética
+  da diferença e o comando de cada saída. Não é erro de execução
 """
 import argparse
 import sys
@@ -30,7 +31,7 @@ from po.config import carregar_config, moedas_por_conta  # noqa: E402
 from po.csvs import ler_csv, ultimas_cotacoes  # noqa: E402
 from po.ingestao.conciliacao import conciliar  # noqa: E402
 from po.ingestao.engine import executar  # noqa: E402
-from po.ingestao.escrita import GravacaoParcial, conferir, gravar  # noqa: E402
+from po.ingestao.escrita import Divergencia, GravacaoParcial, conferir, gravar  # noqa: E402
 from po.ingestao.leitores import DependenciaAusente, ler_tabela  # noqa: E402
 from po.ingestao.mapeamento import carregar_mapeamento, detectar_mapeamento, resolver_mapeamento  # noqa: E402
 from po.ledger import posicoes_de_fills  # noqa: E402
@@ -55,6 +56,10 @@ def _sem_cotacao(raiz: Path) -> list[str]:
     derivadas, _ = posicoes_de_fills(lidas["fills"], lidas["eventos"], classes)
     cotadas = ultimas_cotacoes(lidas["cotacoes"])
     return sorted({p["ticker"] for p in derivadas if p["ticker"] not in cotadas})
+
+
+RODAPE_DIVERGENCIA = ("\nNada gravado. O texto acima diz a diferença e o comando de cada saída; "
+                      "depois de registrar, rode esta importação de novo.")
 
 
 def _descrever(mapa: dict, caminho: Path) -> list[str]:
@@ -89,6 +94,7 @@ def main():
     try:
         cfg = carregar_config(raiz)
         motor = caminho_motor(raiz, cfg)
+        registrar = f"python {motor / 'scripts' / 'registrar.py'} {raiz}"
         if args.mapeamento:
             caminho_mapa = resolver_mapeamento(args.mapeamento, raiz, motor)
         else:
@@ -156,7 +162,7 @@ def main():
     if args.conferir:
         print("\nConferência contra dados/ (nada gravado):")
         try:
-            linhas, divergiu, n_novos = conferir(raiz, res)
+            linhas, divergiu, n_novos = conferir(raiz, res, registrar=registrar)
         except ValueError as e:
             print(f"erro: {e}")
             sys.exit(1)
@@ -168,7 +174,7 @@ def main():
         if divergiu:
             # divergência não é erro de execução: a rodada fez o que foi pedida. O código
             # separado existe para quem chama ramificar sem parsear texto.
-            print("\nDivergência entre o documento e dados/ — nada gravado. Resolva antes de importar.")
+            print(RODAPE_DIVERGENCIA)
             sys.exit(3)
         print("\nSem divergência: nada em dados/ conflita com o documento"
               + (f", e há {n_novos} registro(s) novo(s) a gravar." if n_novos
@@ -178,7 +184,13 @@ def main():
         print("\n--dry-run: nada gravado.")
         return
     try:
-        r = gravar(raiz, res, mapeamento=mapa["nome"], arquivo=arquivo.name, conciliacao=descricao, conta=conta)
+        r = gravar(raiz, res, mapeamento=mapa["nome"], arquivo=arquivo.name, conciliacao=descricao,
+                   conta=conta, registrar=registrar)
+    except Divergencia as e:
+        # o mesmo texto e o mesmo código da prévia: a gravação não pode dizer outra coisa
+        print(f"\n{e}")
+        print(RODAPE_DIVERGENCIA)
+        sys.exit(3)
     except GravacaoParcial as e:
         entrou = ", ".join(f"{t} +{n}" for t, n in e.gravadas.items() if n) or "nada"
         # a causa vira a MESMA frase acionável do resto do CLI (caminho relativo ao

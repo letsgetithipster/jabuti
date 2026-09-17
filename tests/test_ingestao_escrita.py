@@ -30,7 +30,9 @@ def _fill(data, ticker, qty, preco, tipo="compra", conta="corretora-br"):
             "taxa": 0.0, "conta": conta, "moeda": "BRL"}
 
 
-def _pos(ticker, qty, pm, data="2026-09-01", classe="acoes-br", conta="corretora-br"):
+def _pos(ticker, qty, pm, data="2026-09-08", classe="acoes-br", conta="corretora-br"):
+    # data default DEPOIS do último fill do exemplo (09-05): a conferência corta o ledger na data
+    # da foto, e uma foto de 09-01 com PETR4 100 @ 30 diverge do livro de 09-01 (60 @ 29,50)
     return {"ticker": ticker, "classe": classe, "conta": conta, "qty": float(qty), "pm": float(pm),
             "moeda": "BRL", "_data": data}
 
@@ -91,23 +93,28 @@ def test_posicao_nova_nasce_com_saldo_inicial_e_valida(tmp_path):
 def test_posicao_igual_e_duplicada_sem_saldo_inicial(tmp_path):
     ws = copia_exemplo(tmp_path)
     pos = {"ticker": "PETR4", "classe": "acoes-br", "conta": "corretora-br", "qty": 100.0, "pm": 30.0, "moeda": "BRL",
-           "_data": "2026-09-01"}
+           "_data": "2026-09-08"}   # depois da compra de 09-05: em 09-01 o livro tinha 60 @ 29,50
     r = gravar(ws, _res(posicoes=[pos]), mapeamento="m", arquivo="p.csv", conciliacao="x", conta="corretora-br")
     assert r["gravadas"]["fills"] == 0 and r["gravadas"]["ativos"] == 0 and r["aberturas"] == 0
 
 
-def test_posicao_divergente_nao_e_conflito_nem_abertura(tmp_path):
-    """Sem tabela de posição não há o que conflitar: PETR4 já tem fill, então a linha do documento
-    (120 contra os 100 do ledger) não vira abertura nem barra o provento. A diferença aparece no
-    `conferir` como DIVERGE e é a operação que o livro ainda não tem."""
+def test_posicao_divergente_barra_a_gravacao_inteira_inclusive_o_provento(tmp_path):
+    """PETR4 já tem fill e o documento diz 120 contra os 100 do ledger: a diferença é a operação
+    que o livro ainda não tem, e o motor não escolhe qual. Nada entra, nem o provento que veio no
+    mesmo documento: gravar metade de um documento que contradiz o livro esconderia a contradição
+    atrás de um "proventos +1". (O G1 dizia o contrário; a semântica de "não é conflito" morreu
+    junto com a tabela contra a qual ela valia.)"""
     ws = copia_exemplo(tmp_path)
-    fills_antes = (ws / "dados" / "fills.csv").read_text(encoding="utf-8")
+    antes = _dados(ws)
     res = _res(posicoes=[_pos("PETR4", 120, 30.0)], proventos=[_prov("2026-10-05", "HGLG11", 1.0)])
     linhas, divergiu, _ = conferir(ws, res)
-    assert divergiu and "PETR4 (corretora-br): DIVERGE — dados/ 100 @ 30,00 vs documento 120 @ 30,00" in "\n".join(linhas)
-    r = gravar(ws, res, mapeamento="m", arquivo="p.csv", conciliacao="x", conta="corretora-br")
-    assert r["gravadas"] == {"fills": 0, "proventos": 1, "eventos": 0, "ativos": 0}
-    assert (ws / "dados" / "fills.csv").read_text(encoding="utf-8") == fills_antes
+    texto = "\n".join(linhas)
+    assert divergiu and "PETR4 (corretora-br): o ledger tem 100 @ R$ 30,00 em 2026-09-08; o documento diz 120 @ R$ 30,00." in texto
+    assert "preço implícito R$ 30,00" in texto
+    with pytest.raises(ValueError, match="não bate com o seu livro"):
+        gravar(ws, res, mapeamento="m", arquivo="p.csv", conciliacao="x", conta="corretora-br")
+    assert _dados(ws) == antes
+    assert not (ws / "logs" / "importacoes").exists()
 
 
 def test_dados_sujos_bloqueiam_importacao(tmp_path):
@@ -121,16 +128,17 @@ def test_conferir_compara_sem_gravar(tmp_path):
     ws = copia_exemplo(tmp_path)
     antes = _dados(ws)
     res = _res(posicoes=[
-        {"ticker": "PETR4", "classe": "acoes-br", "conta": "corretora-br", "qty": 100.0, "pm": 30.0, "moeda": "BRL", "_data": "2026-09-01"},
-        {"ticker": "VALE3", "classe": "acoes-br", "conta": "corretora-br", "qty": 10.0, "pm": 60.0, "moeda": "BRL", "_data": "2026-09-01"},
+        {"ticker": "PETR4", "classe": "acoes-br", "conta": "corretora-br", "qty": 100.0, "pm": 30.0, "moeda": "BRL", "_data": "2026-09-08"},
+        {"ticker": "VALE3", "classe": "acoes-br", "conta": "corretora-br", "qty": 10.0, "pm": 60.0, "moeda": "BRL", "_data": "2026-09-08"},
     ], proventos=[_prov("2026-09-05", "HGLG11", 55.00)])
     linhas, divergiu, _novos = conferir(ws, res)
     texto = "\n".join(linhas)
     assert divergiu is True   # HGLG11 está em dados/ e não no documento
     assert "PETR4 (corretora-br): OK" in texto and "VALE3 (corretora-br): NOVA" in texto
-    assert "HGLG11 (corretora-br): só em dados/" in texto
+    assert "HGLG11 (corretora-br): 50 @ 155,00 no livro e ausente do documento" in texto
+    assert "registre a venda" in texto
     assert "proventos: 0 nova(s), 1 já presente(s)" in texto
-    assert _novos == 1                       # a abertura de VALE3 que a gravação faria
+    assert _novos == 2                       # a abertura de VALE3 E a linha dela em ativos.csv
     assert _dados(ws) == antes
 
 
@@ -376,7 +384,7 @@ def test_conferir_escreve_quantidade_e_pm_em_pt_br(tmp_path):
     texto = "\n".join(linhas)
     assert "BTC (corretora-br): OK — 0,00012345 @ 350.000,00" in texto, texto
     assert "VALE3 (corretora-br): NOVA no documento — 1.500 @ 60,50" in texto, texto
-    assert "HGLG11 (corretora-br): DIVERGE — dados/ 50 @ 155,00 vs documento 50,5 @ 155,00" in texto, texto
+    assert "HGLG11 (corretora-br): o ledger tem 50 @ R$ 155,00 em 2026-09-08; o documento diz 50,5 @ R$ 155,00." in texto, texto
 
 
 # --- G1: posicoes.csv deixa de existir; o documento de posição grava abertura + ativo -------
@@ -432,7 +440,10 @@ def test_conferir_nao_engole_um_satoshi(tmp_path):
     _anexa(ws, "dados/ativos.csv", "BTC,cripto")
     _anexa(ws, "dados/fills.csv", "2026-08-01,BTC,saldo-inicial,0.00012345,350000.00,0,corretora-br,BRL")
     linhas, divergiu, _ = conferir(ws, _res(posicoes=[_pos("BTC", 0.00012346, 350000.0, classe="cripto")]))
-    assert divergiu and "BTC (corretora-br): DIVERGE — dados/ 0,00012345 @ 350.000,00 vs documento 0,00012346 @ 350.000,00" in "\n".join(linhas), linhas
+    texto = "\n".join(linhas)
+    assert divergiu, texto
+    assert "BTC (corretora-br): o ledger tem 0,00012345 @ R$ 350.000,00 em 2026-09-08; o documento diz 0,00012346 @ R$ 350.000,00." in texto, texto
+    assert "e-0" not in texto
 
 
 def test_abertura_consolidada_nasce_na_data_do_primeiro_lote(tmp_path):
@@ -446,3 +457,65 @@ def test_abertura_consolidada_nasce_na_data_do_primeiro_lote(tmp_path):
     fills, _ = ler_csv("fills", ws / "dados" / "fills.csv")
     assert [(f["data"], f["qty"], f["preco"]) for f in fills if f["ticker"] == "VALE3"] == \
         [("2026-07-01", 100.0, 59.2)]
+
+
+# --- F2a.3: a divergência contra a corretora vira conversa, não recusa --------------------
+
+def test_conferir_diverge_contra_o_ledger_e_nao_contra_tabela(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    linhas, divergiu, _ = conferir(ws, _res(posicoes=[_pos("PETR4", 150, 32.0)]))
+    texto = "\n".join(linhas)
+    assert divergiu
+    assert "preço implícito R$ 36,00" in texto and "registrar.py" in texto
+    assert "Resolva antes de importar" not in texto
+
+
+def test_gravar_recusa_foto_divergente_com_o_mesmo_texto_da_conferencia(tmp_path):
+    """Prévia e gravação não podem dizer coisas diferentes: é o contrato do módulo."""
+    ws = copia_exemplo(tmp_path)
+    antes = _dados(ws)
+    with pytest.raises(ValueError) as exc:
+        _grava_pos(ws, _pos("PETR4", 150, 32.0))
+    assert "preço implícito R$ 36,00" in str(exc.value)
+    assert "--conferir" not in str(exc.value)
+    assert _dados(ws) == antes
+
+
+def _grava_pos(ws, *posicoes):
+    return gravar(ws, _res(posicoes=list(posicoes)), **KW)
+
+
+def test_conferir_corta_o_ledger_na_data_do_documento(tmp_path):
+    """Uma foto de 31/08 é conferida contra o livro COMO ELE ERA em 31/08 (PETR4 60 @ 29,50), não
+    contra o de hoje (100 @ 30,00 depois da compra de 05/09). É o corte por data que a F1
+    entregou e que esta task existe para usar: sem ele, toda foto antiga divergiria."""
+    ws = copia_exemplo(tmp_path)
+    foto = [_pos("PETR4", 60, 29.5, data="2026-08-31"), _pos("HGLG11", 50, 155.0, data="2026-08-31", classe="fiis")]
+    linhas, divergiu, _ = conferir(ws, _res(posicoes=list(foto)))
+    assert not divergiu, linhas
+    assert "PETR4 (corretora-br): OK — 60 @ 29,50" in "\n".join(linhas)
+    r = _grava_pos(ws, *foto)
+    assert r["gravadas"]["fills"] == 0 and r["aberturas"] == 0
+
+
+def test_ajuste_de_custo_e_nota_e_nao_barra_a_importacao(tmp_path):
+    """Quantidade bate e o PM da corretora difere por centavos (taxa que ela soma ao custo, ou
+    arredondamento): "nada a fazer" é o próximo passo, e a foto tem que continuar passando todo
+    mês. Se isso barrasse, a pessoa nunca mais importaria essa foto: o beco de novo."""
+    ws = copia_exemplo(tmp_path)
+    foto = [_pos("PETR4", 100, 30.02), _pos("HGLG11", 50, 155.0, classe="fiis")]
+    linhas, divergiu, _ = conferir(ws, _res(posicoes=list(foto)))
+    texto = "\n".join(linhas)
+    assert not divergiu, texto
+    assert "nada a fazer" in texto.lower() and "R$ 2,00" in texto
+    r = _grava_pos(ws, *foto)
+    assert r["gravadas"]["fills"] == 0
+
+
+def test_ticker_suspeito_no_ledger_nao_ganha_segunda_divergencia(tmp_path):
+    """Livro com erro nomeado (venda acima do saldo) já tem a frase do validador; empilhar uma
+    divergência derivada em cima esconderia a causa. A conferência recusa com a frase do ledger."""
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/fills.csv", "2026-09-06,PETR4,venda,500,40.00,0,corretora-br,BRL")
+    with pytest.raises(ValueError, match="excede o saldo"):
+        conferir(ws, _res(posicoes=[_pos("PETR4", 150, 32.0)]))

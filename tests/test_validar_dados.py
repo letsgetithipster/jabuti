@@ -124,7 +124,6 @@ def test_leitura_suja_pula_cross_check(tmp_path):
         encoding="utf-8")
     erros, _ = checar_dados(ws)
     assert any("formato canônico" in e for e in erros)
-    assert not any("difere do saldo" in e for e in erros)
 
 
 def test_csv_ausente(tmp_path):
@@ -265,7 +264,6 @@ def test_erro_no_ledger_suspende_comparacao_de_qty(tmp_path):
     _anexa(ws, "dados/fills.csv", "2026-09-06,PETR4,venda,500,40.00,0,corretora-br,BRL")
     erros, _ = checar_dados(ws)
     assert any("excede o saldo" in e for e in erros)
-    assert not any("difere do saldo dos fills" in e for e in erros)
 
 
 def test_cotacao_em_moeda_diferente_da_posicao_e_erro(tmp_path):
