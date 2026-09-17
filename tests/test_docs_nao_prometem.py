@@ -576,15 +576,16 @@ def _pastas_de_topo_para_caminho():
 
 
 def _caminho_re():
-    """Caminho de arquivo citado em prosa, com `/` ou `\` (o README mostra comando PowerShell).
+    """Caminho de arquivo citado em prosa, com `/` ou `\\` (o README mostra comando PowerShell).
 
-    Ancorado nas pastas de topo de propósito: sem essa âncora, `C:\caminho\meu-vault\inbox\
+    Ancorado nas pastas de topo de propósito: sem essa âncora, `C:\\caminho\\meu-vault\\inbox\\
     extrato.xlsx` — exemplo legítimo, que descreve a MÁQUINA do leitor e não este repo — viraria
     falso positivo, e a guarda passaria a barrar texto correto. Medido contra os documentos de
-    raiz de hoje: 18 caminhos e links citados (README 7, GUARDRAILS 3, PRIVACIDADE 4, CONTRIBUTING 4), 18 existentes, zero falso positivo.
+    raiz de hoje: 24 caminhos e links citados (README 13, GUARDRAILS 3, PRIVACIDADE 4, CONTRIBUTING 4), 24 existentes,
+    zero falso positivo.
     """
     grupo = "|".join(_pastas_de_topo_para_caminho())
-    return re.compile(r"(?<![\w./\-])((?:" + grupo + r")[/\][\w./\-]+\.(?:py|yaml|yml|md|txt|csv|json))")
+    return re.compile(r"(?<![\w./\\-])((?:" + grupo + r")[/\\][\w./\\-]+\.(?:py|yaml|yml|md|txt|csv|json))")
 
 
 def _citados(texto):
@@ -612,7 +613,7 @@ def test_documento_de_raiz_nao_cita_link_nem_caminho_inexistente():
     a forma mais banal de promessa falsa num repo público: o link quebrado e o caminho que mudou
     de lugar. Quem clica e cai em 404 no primeiro minuto não volta.
 
-    Cobre link markdown relativo e caminho de arquivo citado em prosa, com `/` ou `\`.
+    Cobre link markdown relativo e caminho de arquivo citado em prosa, com `/` ou `\\`.
     """
     quebrados = []
     for nome in SOB_GUARDA_DE_CAMINHO:
