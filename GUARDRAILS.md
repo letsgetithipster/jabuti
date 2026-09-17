@@ -26,8 +26,7 @@ Este documento é o contrato de TODAS as fases do produto; o que já está const
 
 - Cada skill declara onde escreve e o que NÃO faz. Editar fora da própria
   zona exige o seu "de acordo" explícito.
-- `estado/ESTADO.md` e o painel de gatilhos têm escritor único (skill),
-  nunca edição à mão.
+- `estado/ESTADO.md` tem escritor único (script), nunca edição à mão.
 - Seus dados nunca saem do workspace: o repo do método (este) é público;
   o SEU workspace é privado por estrutura, com extratos em `inbox/`
   fora do versionamento.

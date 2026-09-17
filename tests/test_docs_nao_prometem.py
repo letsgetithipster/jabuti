@@ -300,6 +300,54 @@ def test_ledger_so_promete_ser_a_fonte_unica_quando_carteira_parar_de_ler_posico
         f"quando ela sair, a frase volta ao presente e este teste é o lembrete.")
 
 
+PROMESSAS_APAGADAS = {
+    "painel de gatilhos": "artefato que o motor nunca construiu e nenhuma fase agenda",
+    "analistas de classe": "rules/ tem um arquivo: 00-voz.md. Nenhuma persona por classe",
+    "analistas da casa": "idem: não há analista para o coordenador coordenar",
+    "persona da classe": "idem",
+    "personas de classe": "idem",
+    "tabela compacta": "nenhum script do motor gera tabela compacta de teses",
+    "nota ≥7": "nada no motor calcula nota de ativo",
+}
+
+
+def test_literal_de_promessa_apagada_nao_volta():
+    """Pino de regressão sobre literais REMOVIDOS, não detector de conceito.
+
+    O bloco C removeu cinco promessas em tempo presente. Duas eram caminho, e a guarda de texto
+    embarcado acima as cobra sozinha. As outras são conceito, e a decisão de não construir
+    detector de intenção está certa: nenhuma regra mecânica honesta separa promessa de ponteiro
+    legítimo em prosa que ainda não foi escrita.
+
+    Esta guarda não faz isso. Ela pina sete literais que já saíram, que é a única parte do
+    defeito que uma regra mecânica alcança sem mentir — e é exatamente a varredura que a ordem
+    de serviço mandava rodar à mão depois de cada item.
+
+    Limite declarado: é literal, não sentido. "nota >= 7" ou "nota ≥ 7" com espaço passam. Não
+    é para valer contra quem quer burlar; é para valer contra o copiar-e-colar do vault pessoal
+    do autor, que é como os quatro entraram.
+
+    Guarda de DUAS VIAS, no molde do PLANEJADAS de test_skills_catalogo: no dia em que as
+    personas por classe existirem em rules/, ou em que algum script gerar a tabela compacta, a
+    entrada correspondente SAI daqui, no mesmo commit do código que a torna verdadeira. Manter a
+    proibição depois do fato é a mesma dívida ao contrário."""
+    achados = []
+    for rel in _versionados_de_texto():
+        caminho = RAIZ / rel
+        if caminho.resolve() == ESTE_ARQUIVO:
+            continue
+        try:
+            texto = caminho.read_text(encoding="utf-8").lower()
+        except (UnicodeDecodeError, OSError):
+            continue
+        for literal, motivo in PROMESSAS_APAGADAS.items():
+            if literal.lower() in texto:
+                achados.append(f"{rel}: {literal!r} presente — {motivo}")
+    assert achados == [], (
+        "o texto afirma o que o motor não cumpre (literal que o bloco C remove):\n  "
+        + "\n  ".join(sorted(achados)))
+
+
 def _bloco_de_demo():
     """As linhas entre os sentinelas `demo:start` e `demo:end` do README.
 

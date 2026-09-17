@@ -1,1 +1,1 @@
-# watchlist/ — um arquivo por classe. Entrada na carteira exige os 5 gates (análise completa, nota ≥7, status, espaço na alocação, valuation).
+# watchlist/ — um arquivo por classe: o que você estuda e ainda não comprou. Os 5 gates de entrada (análise completa, nota, status, espaço na alocação, valuation) são método que você confere; o motor não calcula nota nem barra aporte por ela.
