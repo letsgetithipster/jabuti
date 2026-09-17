@@ -1,6 +1,6 @@
 ---
 name: jabuti-cotacoes
-description: "Use quando o usuário pedir 'atualizar cotações', 'atualiza os preços', 'refresh de cotações', '/jabuti-cotacoes' ou variação que indique buscar preço de mercado para as posições do workspace. Roda scripts/atualizar_cotacoes.py do motor: posicoes.csv → provider da config (yahoo, brapi; câmbio via bcb-sgs) → append em dados/cotacoes.csv com fonte, data e hora. Puramente mecânica: NÃO decide aporte, NÃO registra compra, NÃO altera posição, nota ou tese. Sem internet na sessão: PARA e declara — nunca preço de memória. Variação acima de 30% vira proposta em dados/eventos.csv para o usuário confirmar."
+description: "Use quando o usuário pedir 'atualizar cotações', 'atualiza os preços', 'refresh de cotações', '/jabuti-cotacoes' ou variação que indique buscar preço de mercado para as posições do workspace. Roda scripts/atualizar_cotacoes.py do motor: carteira derivada do ledger (fills + ativos.csv) → provider da config (yahoo, brapi; câmbio via bcb-sgs) → append em dados/cotacoes.csv com fonte, data e hora. Puramente mecânica: NÃO decide aporte, NÃO registra compra, NÃO altera posição, nota ou tese. Sem internet na sessão: PARA e declara — nunca preço de memória. Variação acima de 30% vira proposta em dados/eventos.csv para o usuário confirmar."
 ---
 
 # Atualizar cotações
@@ -22,7 +22,7 @@ Frases típicas: "atualiza as cotações", "refresh de preços", "/jabuti-cotaco
 ## Contexto canônico a ler antes
 
 - `vault.config.yaml`: `cotacoes.provider` (yahoo | brapi | manual) e `cotacoes.cambio` (bcb-sgs | yahoo | manual). `brapi` exige a variável de ambiente `BRAPI_TOKEN` e cobre **só a B3 em BRL**: com ativo internacional na carteira, o provider é `yahoo`.
-- `dados/posicoes.csv`: é de lá que saem os tickers. Posição fora do BRL puxa o par de câmbio automaticamente.
+- `dados/fills.csv` + `dados/ativos.csv`: os tickers a cotar são os da carteira derivada do ledger (a mesma que `gerar_estado.py` valora), então ticker que entrou por fill é cotável. Posição fora do BRL puxa o par de câmbio automaticamente.
 
 ## Fluxo
 

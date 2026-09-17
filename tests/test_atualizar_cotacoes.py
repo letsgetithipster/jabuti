@@ -11,11 +11,13 @@ import pytest
 import atualizar_cotacoes as cli_mod
 from po.cotacoes.atualizar import Relatorio, atualizar
 from po.cotacoes.tipos import Cotacao, SemRede
-from po.csvs import ler_csv
-from test_validar_dados import copia_exemplo
+from po.carteira import valorar
+from po.csvs import anexar_csv, ler_csv
+from test_validar_dados import _anexa, copia_exemplo
 
 RAIZ = Path(__file__).resolve().parent.parent
 CLI = RAIZ / "scripts" / "atualizar_cotacoes.py"
+GERADOR = RAIZ / "scripts" / "gerar_estado.py"
 
 CONFIG_DUAS_CONTAS = """versao: 1
 idioma: pt-BR
@@ -72,8 +74,11 @@ def test_anexa_cotacoes_com_fonte_data_hora(tmp_path):
     assert rel.gravadas == 2 and rel.falhas == [] and rel.propostas == []
     linhas, erros = ler_csv("cotacoes", ws / "dados" / "cotacoes.csv")
     assert erros == []
-    ultima = linhas[-1]
-    assert (ultima["ticker"], ultima["preco"], ultima["fonte"], ultima["data"], ultima["hora"]) == ("HGLG11", 161.0, "yahoo", "2026-09-09", "18:00")
+    # A ordem dos pedidos é a do ledger (sorted por ticker/conta), não a de um arquivo: prender o
+    # conjunto das linhas novas, não a última.
+    novas = [l for l in linhas if l["fonte"] == "yahoo"]
+    assert {(l["ticker"], l["preco"], l["data"], l["hora"]) for l in novas} == \
+        {("PETR4", 41.0, "2026-09-09", "18:00"), ("HGLG11", 161.0, "2026-09-09", "18:00")}
     assert rel.variacoes["PETR4"] == pytest.approx(0.025)
 
 
@@ -354,9 +359,10 @@ def test_cli_sem_cotacao_obtida_exit_1(tmp_path):
 
 
 @pytest.mark.slow
-def test_cli_posicoes_vazio_mensagem_clara(tmp_path):
+def test_cli_ledger_vazio_mensagem_clara(tmp_path):
+    """Workspace sem nenhum fill: nada a cotar, exit 0, e a frase diz de onde a carteira sai."""
     ws = copia_exemplo(tmp_path)
-    (ws / "dados" / "posicoes.csv").write_text("ticker,classe,conta,qty,pm,moeda\n", encoding="utf-8")
+    (ws / "dados" / "fills.csv").write_text("data,ticker,tipo,qty,preco,taxa,conta,moeda\n", encoding="utf-8")
     r = subprocess.run([sys.executable, str(CLI), str(ws)], capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     assert r.returncode == 0
@@ -529,3 +535,66 @@ def test_cli_sem_rede_exit_2(tmp_path):
     assert "Sem acesso à rede" in r.stdout and "Nada gravado" in r.stdout
     assert "Traceback" not in r.stderr
     assert (ws / "dados" / "cotacoes.csv").read_text(encoding="utf-8") == antes
+# --- Emenda A1: o universo a cotar é a carteira derivada do ledger, não posicoes.csv ---
+
+def test_manual_cota_ticker_que_so_existe_em_fills(tmp_path):
+    """O beco do fechamento da Fase 1: gerar_estado mandava rodar `--manual ITSA4=PRECO` e o
+    cotador respondia 'ticker sem posição', porque o universo saía de posicoes.csv. Agora o ticker
+    que entrou por fill é cotável, e o ciclo fill -> cotar -> valorar fecha."""
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/ativos.csv", "ITSA4,acoes-br")
+    _anexa(ws, "dados/fills.csv", "2026-09-07,ITSA4,compra,10,10.00,0,corretora-br,BRL")
+    rel = atualizar(ws, manual={"ITSA4": 10.5, "PETR4": 40.0, "HGLG11": 160.0})
+    assert rel.falhas == [] and rel.pedidos == 3 and rel.gravadas == 3
+    assert any(c.ticker == "ITSA4" and c.preco == 10.5 and c.fonte == "manual" for c in rel.obtidas)
+    c = valorar(ws, hoje=datetime.date(2026, 9, 8))
+    assert round(c.total_brl, 2) == 12105.00      # 12.000 + 10 × 10,50
+
+
+def test_manual_com_ledger_vazio_e_falha_nomeada_nao_descarte_silencioso(tmp_path):
+    """Medido em 17382c1: workspace só com fills importados e `--manual AAPL=... USDBRL=...` saía
+    com exit 0 e o valor descartado em silêncio (o retorno antecipado vinha antes do bloco manual).
+    Ticker sem fill não é cotável, e isso tem que ser dito."""
+    ws = copia_exemplo(tmp_path)
+    (ws / "dados" / "fills.csv").write_text("data,ticker,tipo,qty,preco,taxa,conta,moeda\n", encoding="utf-8")
+    rel = atualizar(ws, manual={"AAPL": 230.0})
+    assert rel.pedidos == 0 and rel.obtidas == [] and rel.gravadas == 0
+    assert any("AAPL" in f and "sem posição" in f and "fills.csv" in f for f in rel.falhas), rel.falhas
+
+
+def test_fill_sem_classe_declarada_barra_a_rodada_com_frase(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/fills.csv", "2026-09-07,ITSA4,compra,10,10.00,0,corretora-br,BRL")
+    with pytest.raises(ValueError, match=r"ativos\.csv.*ITSA4"):
+        atualizar(ws, manual={"ITSA4": 10.5})
+
+
+def test_cotador_nao_le_posicoes_csv_e_a_skill_nao_a_cita():
+    """Texto no presente só fica se o código o cumpre: a SKILL dizia que os tickers saem de
+    posicoes.csv. Duas pontas presas de uma vez: o orquestrador não lê a tabela, a skill não a cita."""
+    import inspect
+
+    import po.cotacoes.atualizar as mod
+    assert '_ler_limpo("posicoes"' not in inspect.getsource(mod)
+    skill = (RAIZ / "skills" / "jabuti-cotacoes" / "SKILL.md").read_text(encoding="utf-8")
+    assert "posicoes.csv" not in skill
+
+
+@pytest.mark.slow
+def test_cli_ciclo_fill_cotar_gerar_estado_fecha_sem_beco(tmp_path):
+    """Ponta a ponta, pelos três CLIs: o erro do gerador aponta para o cotador, o cotador resolve
+    com --manual, o gerador publica o total com o ticker novo."""
+    ws = copia_exemplo(tmp_path)
+    _anexa(ws, "dados/ativos.csv", "ITSA4,acoes-br")
+    anexar_csv("fills", ws / "dados" / "fills.csv", [
+        {"data": "2026-09-07", "ticker": "ITSA4", "tipo": "compra", "qty": 10.0, "preco": 10.0,
+         "taxa": 0.0, "conta": "corretora-br", "moeda": "BRL"}])
+    r = subprocess.run([sys.executable, str(GERADOR), str(ws), "--data", "2026-09-08"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode == 1 and "ITSA4 sem cotação" in r.stdout and "--manual ITSA4=PRECO" in r.stdout, r.stdout
+    r = subprocess.run([sys.executable, str(CLI), str(ws), "--manual", "ITSA4=10,50", "PETR4=40,00", "HGLG11=160,00"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode == 0 and "+3" in r.stdout and "sem posição" not in r.stdout, r.stdout + r.stderr
+    r = subprocess.run([sys.executable, str(GERADOR), str(ws), "--data", "2026-09-08"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode == 0 and "R$ 12.105,00" in r.stdout, r.stdout + r.stderr

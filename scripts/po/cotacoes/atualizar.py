@@ -1,4 +1,5 @@
-"""Orquestração do /jabuti-cotacoes: posições → pedidos → providers → append em cotacoes.csv.
+"""Orquestração do /jabuti-cotacoes: carteira derivada do ledger → pedidos → providers → append
+em cotacoes.csv.
 
 Regras: sem rede, SemRede sobe e nada é gravado; cada cotação carrega fonte, data e hora;
 variação > 30% contra a última cotação vencedora grava a cotação (é o preço real) E propõe
@@ -17,11 +18,13 @@ import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from po.ativos import ler_ativos
 from po.config import carregar_config, provider_cambio
 from po.cotacoes.providers import criar_provider
 from po.cotacoes.providers.manual import ManualProvider
-from po.cotacoes.tipos import Cotacao, pedidos_de_posicoes, sem_cotacao_de_mercado
+from po.cotacoes.tipos import Cotacao, pedidos_de_ativos, sem_cotacao_de_mercado
 from po.csvs import anexar_csv, ler_csv, ultimas_cotacoes
+from po.ledger import posicoes_de_fills
 from po.numeros import formatar_brl, formatar_canonico
 
 LIMIAR_ANOMALIA = 0.30
@@ -60,7 +63,7 @@ def _checar_moeda_unica(posicoes: list[dict]) -> None:
         moedas_do_ticker.setdefault(p["ticker"], set()).add(p["moeda"])
     ambiguos = sorted(t for t, m in moedas_do_ticker.items() if len(m) > 1)
     if ambiguos:
-        raise ValueError(f"posicoes.csv: {', '.join(ambiguos)} em mais de uma moeda — cotacoes.csv guarda "
+        raise ValueError(f"fills.csv: {', '.join(ambiguos)} em mais de uma moeda — cotacoes.csv guarda "
                          "uma cotação vencedora por ticker; corrija antes (rode o validador)")
 
 
@@ -71,16 +74,24 @@ def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_r
     agora = agora or datetime.datetime.now()
     hoje, hora_agora = agora.strftime("%Y-%m-%d"), agora.strftime("%H:%M")
     cfg = carregar_config(raiz)
-    posicoes = _ler_limpo("posicoes", raiz)
+    eventos = _ler_limpo("eventos", raiz)
+    # O universo a cotar é a carteira DERIVADA (fills + eventos + classe de ativos.csv), a mesma
+    # que carteira.valorar lê. Ticker que entrou só por fill é cotável pelo comando que o próprio
+    # gerar_estado manda rodar; antes a fonte era posicoes.csv e o laço fechava em beco.
+    classes, erros_ativos, _ = ler_ativos(raiz)
+    if erros_ativos:
+        raise ValueError(f"a declaração de classes tem erro — corrija antes (rode o validador): "
+                         f"{erros_ativos[0]}")
+    posicoes, erros_pos = posicoes_de_fills(_ler_limpo("fills", raiz), eventos, classes)
+    if erros_pos:
+        raise ValueError(erros_pos[0])
     _checar_moeda_unica(posicoes)
     cotacoes_atuais = _ler_limpo("cotacoes", raiz)
-    eventos = _ler_limpo("eventos", raiz)
     rel = Relatorio(dry_run=dry_run, hoje=hoje)
-    pedidos = pedidos_de_posicoes(posicoes)
+    pedidos = pedidos_de_ativos(posicoes)
     rel.pedidos = len(pedidos)
-    if not pedidos:
-        return rel
-
+    # Sem retorno antecipado quando não há pedido: --manual para ticker sem fill tem que virar
+    # FALHA nomeada, não descarte silencioso com exit 0.
     ultimas = ultimas_cotacoes(cotacoes_atuais)
 
     manual = manual or {}
@@ -90,7 +101,8 @@ def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_r
         rel.obtidas.extend(obtidas)
         sobras = sorted(set(manual) - {p.ticker for p in pedidos})
         if sobras:
-            rel.falhas.append(f"--manual para ticker sem posição: {', '.join(sobras)} (ignorado)")
+            rel.falhas.append(f"--manual para ticker sem posição no ledger (nenhum fill em fills.csv): "
+                              f"{', '.join(sobras)} (ignorado)")
     restantes = [p for p in pedidos if p.ticker not in manual]
 
     # Saldo em conta: 1,00 na própria moeda por definição da unidade (não é cotação de mercado).
@@ -105,7 +117,7 @@ def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_r
             continue   # append-only: não empilha uma linha idêntica por rodada
         rel.obtidas.append(Cotacao(hoje, "00:00", p.ticker, 1.0, p.moeda, "definicao"))
         rel.sinteticas.append(p.ticker)
-    # Seguro comparar Pedido por igualdade aqui: pedidos_de_posicoes dedupa por (ticker, moeda),
+    # Seguro comparar Pedido por igualdade aqui: pedidos_de_ativos dedupa por (ticker, moeda),
     # então dois Pedidos nunca são iguais por valor a menos que sejam o mesmo pedido.
     restantes = [p for p in restantes if p not in saldos]
 

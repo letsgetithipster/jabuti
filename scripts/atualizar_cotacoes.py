@@ -1,4 +1,5 @@
-"""Atualiza cotações do workspace: posicoes.csv → provider → append em dados/cotacoes.csv.
+"""Atualiza cotações do workspace: carteira derivada do ledger (fills + eventos + ativos.csv) →
+provider → append em dados/cotacoes.csv.
 
 Uso: python scripts/atualizar_cotacoes.py <raiz> [--dry-run] [--manual TICKER=PRECO ...]
 
@@ -152,7 +153,8 @@ def main():
         print(f"\nGravado: dados/cotacoes.csv +{rel.gravadas}{extra}")
     elif not rel.obtidas and not rel.falhas:
         if rel.pedidos == 0:
-            print("\nNada gravado: dados/posicoes.csv não tem posições ainda.")
+            print("\nNada gravado: o ledger não tem posições ainda (dados/fills.csv sem fill — "
+                  "importe um extrato ou registre um saldo-inicial).")
         else:
             print("\nNada gravado: nada novo a buscar.")
     else:

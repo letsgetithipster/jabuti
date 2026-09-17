@@ -1,4 +1,4 @@
-"""Tipos canônicos de cotação e a derivação dos pedidos a partir de posicoes.csv."""
+"""Tipos canônicos de cotação e a derivação dos pedidos a partir da carteira derivada do ledger."""
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -6,7 +6,7 @@ from typing import Protocol
 @dataclass(frozen=True)
 class Pedido:
     ticker: str
-    classe: str   # classe de posicoes.csv, ou "cambio" para pares como USDBRL
+    classe: str   # classe declarada em ativos.csv, ou "cambio" para pares como USDBRL
     moeda: str    # moeda ESPERADA da cotação (a da posição; BRL para câmbio)
 
 
@@ -79,8 +79,9 @@ class ProviderCotacoes(Protocol):
         ...
 
 
-def pedidos_de_posicoes(posicoes: list[dict]) -> list[Pedido]:
-    """Um pedido por (ticker, moeda) das posições + um par de câmbio por moeda ≠ BRL.
+def pedidos_de_ativos(posicoes: list[dict]) -> list[Pedido]:
+    """Um pedido por (ticker, moeda) da carteira derivada (ledger.posicoes_de_fills, no formato
+    ticker/classe/conta/qty/pm/moeda) + um par de câmbio por moeda ≠ BRL.
     A chave de dedup é (ticker, moeda): o mesmo ticker classificado de formas diferentes
     em duas contas mantém a primeira classe, e um ticker literalmente chamado USDBRL
     colidiria com o par sintetizado."""

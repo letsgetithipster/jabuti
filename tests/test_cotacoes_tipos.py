@@ -1,4 +1,4 @@
-from po.cotacoes.tipos import Cotacao, Pedido, pedidos_de_posicoes
+from po.cotacoes.tipos import Cotacao, Pedido, pedidos_de_ativos
 from po.csvs import SCHEMAS, validar_linha
 
 
@@ -8,17 +8,17 @@ def test_cotacao_vira_linha_do_schema():
     assert validar_linha("cotacoes", dict(c.como_linha()), "teste") == []   # é sempre linha anexável
 
 
-def test_pedidos_de_posicoes_deduplica_e_adiciona_cambio():
+def test_pedidos_de_ativos_deduplica_e_adiciona_cambio():
     pos = [
         {"ticker": "PETR4", "classe": "acoes-br", "conta": "br", "qty": 1.0, "pm": 1.0, "moeda": "BRL"},
         {"ticker": "PETR4", "classe": "acoes-br", "conta": "br2", "qty": 1.0, "pm": 1.0, "moeda": "BRL"},
         {"ticker": "AAPL", "classe": "rv-int", "conta": "us", "qty": 1.0, "pm": 1.0, "moeda": "USD"},
     ]
-    pedidos = pedidos_de_posicoes(pos)
+    pedidos = pedidos_de_ativos(pos)
     assert pedidos == [Pedido("PETR4", "acoes-br", "BRL"), Pedido("AAPL", "rv-int", "USD"),
                        Pedido("USDBRL", "cambio", "BRL")]
 
 
 def test_sem_posicao_fora_do_brl_nao_pede_cambio():
     pos = [{"ticker": "PETR4", "classe": "acoes-br", "conta": "br", "qty": 1.0, "pm": 1.0, "moeda": "BRL"}]
-    assert [p.ticker for p in pedidos_de_posicoes(pos)] == ["PETR4"]
+    assert [p.ticker for p in pedidos_de_ativos(pos)] == ["PETR4"]
