@@ -59,6 +59,12 @@ def validar_config(cfg: object) -> list[str]:
                              "(pode ser vazia; ausente = qualquer bloco)")
         if len(ids) != len(set(ids)):
             erros.append("ids de conta duplicados")
+    priv = cfg.get("privacidade")
+    if priv is not None:
+        remoto = priv.get("remoto-declarado") if isinstance(priv, dict) else object()
+        if not isinstance(priv, dict) or not (remoto is None or isinstance(remoto, str)):
+            erros.append("privacidade deve ser um mapeamento com remoto-declarado: a URL do SEU "
+                         "remoto git (string), ou null se o workspace não tem remoto")
     caminhos = cfg.get("caminhos")
     motor = caminhos.get("motor") if isinstance(caminhos, dict) else None
     if not motor:

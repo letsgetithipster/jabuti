@@ -20,3 +20,5 @@ contas:
 caminhos:
   motor: __MOTOR__            # preenchido pelo criar_workspace.py; NÃO editar à mão
   planilhas: planilhas        # onde o cockpit xlsx é gerado (relativo à raiz, ou absoluto, ex. OneDrive)
+privacidade:
+  remoto-declarado: null      # URL do SEU remoto git, se você versionar este workspace num repositório PRIVADO. Leia PRIVACIDADE.md antes de criar um.

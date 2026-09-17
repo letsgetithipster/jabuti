@@ -33,9 +33,14 @@ Este documento é o contrato de TODAS as fases do produto; o que já está const
 - Cada skill declara onde escreve e o que NÃO faz. Editar fora da própria
   zona exige o seu "de acordo" explícito.
 - `estado/ESTADO.md` tem escritor único (script), nunca edição à mão.
-- Seus dados nunca saem do workspace: o repo do método (este) é público;
-  o SEU workspace é privado por estrutura, com extratos em `inbox/`
-  fora do versionamento.
+- Seus dados ficam no workspace, e o que sai está enumerado e conferível em
+  [PRIVACIDADE.md](PRIVACIDADE.md): o repo do método (este) é público; o SEU
+  workspace é privado por estrutura, com extratos em `inbox/` fora do
+  versionamento.
+- Publicar o workspace é ato declarado, nunca default: se ele tem remoto git e
+  `vault.config.yaml` não declara `privacidade.remoto-declarado` igual à URL
+  configurada, o validador FALHA. O erro mais caro deste produto é um `git push`
+  para repositório público, e ele não se desfaz.
 
 ## Camada 3 — Epistemológica (rotulagem)
 
