@@ -123,6 +123,23 @@ def test_multi_conta_importada_e_permitida(tmp_path):
     assert erros == []  # posição em outra conta, mesma moeda, com o saldo-inicial dela: permitida
 
 
+def test_posicao_declarada_em_conta_sem_fill_dessa_conta_e_erro(tmp_path):
+    """Sonda da revisão do F1.6 (RB2b): a chave do check do zero silencioso caía para só o ticker
+    com a suíte verde. PETR4 tem fill em corretora-br; a linha de corretora-br-2 sem fill próprio
+    é zero no ledger dessa conta e sumiria do ESTADO em silêncio se a chave não carregasse a
+    conta."""
+    ws = copia_exemplo(tmp_path)
+    cfg = ws / "vault.config.yaml"
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace(
+        "contas:", 'contas:\n  - id: corretora-br-2\n    nome: "Segunda corretora"\n    moeda: BRL'),
+        encoding="utf-8")
+    _anexa(ws, "dados/posicoes.csv", "PETR4,acoes-br,corretora-br-2,50,28.00,BRL")
+    erros, _ = checar_dados(ws)
+    assert any("PETR4 (corretora-br-2) sem nenhum fill" in e and
+               "AAAA-MM-DD,PETR4,saldo-inicial,50,28,0,corretora-br-2,BRL" in e for e in erros), erros
+    assert not any("PETR4 (corretora-br) sem nenhum fill" in e for e in erros), erros
+
+
 def test_leitura_suja_pula_cross_check(tmp_path):
     ws = copia_exemplo(tmp_path)
     (ws / "dados" / "fills.csv").write_text(
@@ -446,3 +463,7 @@ def test_divergencia_de_quantidade_fracionaria_escreve_numero_em_pt_br(tmp_path)
     erros, _ = checar_dados(ws)
     achado = next(e for e in erros if "BTC" in e and "difere do saldo" in e)
     assert "qty 1.000.000,5 difere do saldo dos fills (1.000.000)" in achado, achado
+    _troca(ws, "dados/posicoes.csv", "1000000.5,350000.00", "1000000,400000.5")
+    erros, _ = checar_dados(ws)
+    achado = next(e for e in erros if "BTC" in e and "difere do recalculado" in e)
+    assert "pm 400.000,5 difere do recalculado 350.000 (ledger de fills)" in achado, achado

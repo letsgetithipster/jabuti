@@ -173,6 +173,16 @@ def test_valorar_recusa_fill_sem_classe_declarada(tmp_path):
          "taxa": 0.0, "conta": "corretora-br", "moeda": "BRL"}])
     with pytest.raises(ValueError, match=r"ativos\.csv.*ITSA4"):
         valorar(ws, hoje=datetime.date(2026, 9, 8))
+def test_valorar_recusa_ativos_csv_com_erro(tmp_path):
+    """Mesma guarda do cotador, no valorador (sonda da revisão do F1.6): ativos.csv com classe fora
+    do vocabulário para a valoração com a frase do validador, nunca valora com a declaração pela
+    metade."""
+    ws = copia_exemplo(tmp_path)
+    _troca(ws, "dados/ativos.csv", "HGLG11,fiis", "HGLG11,fii")
+    with pytest.raises(ValueError, match=r"declaração de classes tem erro.*ativos\.csv"):
+        valorar(ws, hoje=HOJE)
+
+
 def test_nenhuma_valoracao_da_suite_depende_do_relogio():
     """B1: `valorar(EXEMPLO)` sem `hoje` afirmava `avisos == []` e ficaria vermelho em 2026-09-16
     pelo calendário (cotações do exemplo de 2026-09-08, DIAS_COTACAO_VELHA = 7), sem dado nenhum

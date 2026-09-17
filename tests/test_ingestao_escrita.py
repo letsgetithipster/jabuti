@@ -221,6 +221,8 @@ def test_posicao_repetida_divergente_e_depois_igual_nao_grava_nada(tmp_path):
         _grava_pos(ws, _pos("PETR4", 120, 30.0), _pos("PETR4", 100, 30.0))
     texto = str(exc.value)
     assert "já existe em posicoes.csv" in texto and "duas vezes" in texto
+    # C8 também no conflito de `separar`: qty/pm em pt-BR (sonda da revisão do F1.6, RC8b3)
+    assert "com qty 100 @ 30,00; o documento diz 120 @ 30,00" in texto, texto
     assert _dados(ws) == antes
 
 
@@ -410,7 +412,9 @@ def test_conferir_escreve_quantidade_e_pm_em_pt_br(tmp_path):
     ws = copia_exemplo(tmp_path)
     _anexa(ws, "dados/posicoes.csv", "BTC,cripto,corretora-br,0.00000003,350000.00,BRL")
     linhas, _, _ = conferir(ws, _res(posicoes=[_pos("BTC", 0.00000003, 350000.0, classe="cripto"),
-                                              _pos("VALE3", 1500, 60.5)]))
+                                              _pos("VALE3", 1500, 60.5),
+                                              _pos("HGLG11", 50.5, 155.0, classe="fiis")]))
     texto = "\n".join(linhas)
     assert "BTC (corretora-br): OK — 0,00000003 @ 350.000,00" in texto, texto
     assert "VALE3 (corretora-br): NOVA no documento — 1.500 @ 60,50" in texto, texto
+    assert "HGLG11 (corretora-br): DIVERGE — dados/ 50 @ 155,00 vs documento 50,5 @ 155,00" in texto, texto

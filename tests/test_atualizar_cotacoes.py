@@ -13,7 +13,7 @@ from po.cotacoes.atualizar import Relatorio, atualizar
 from po.cotacoes.tipos import Cotacao, SemRede
 from po.carteira import valorar
 from po.csvs import anexar_csv, ler_csv
-from test_validar_dados import _anexa, copia_exemplo
+from test_validar_dados import _anexa, _troca, copia_exemplo
 
 RAIZ = Path(__file__).resolve().parent.parent
 CLI = RAIZ / "scripts" / "atualizar_cotacoes.py"
@@ -567,6 +567,16 @@ def test_fill_sem_classe_declarada_barra_a_rodada_com_frase(tmp_path):
     _anexa(ws, "dados/fills.csv", "2026-09-07,ITSA4,compra,10,10.00,0,corretora-br,BRL")
     with pytest.raises(ValueError, match=r"ativos\.csv.*ITSA4"):
         atualizar(ws, manual={"ITSA4": 10.5})
+
+
+def test_ativos_csv_com_erro_barra_a_rodada_com_frase(tmp_path):
+    """Sonda da revisão do F1.6 (RA9): apagar a guarda de `erros_ativos` do cotador passava com a
+    suíte verde. Classe fora do vocabulário em ativos.csv para a rodada com a frase do validador,
+    em vez de cotar com a declaração pela metade."""
+    ws = copia_exemplo(tmp_path)
+    _troca(ws, "dados/ativos.csv", "HGLG11,fiis", "HGLG11,fii")
+    with pytest.raises(ValueError, match=r"declaração de classes tem erro.*ativos\.csv"):
+        atualizar(ws, manual={"PETR4": 40.0, "HGLG11": 160.0})
 
 
 def test_cotador_nao_le_posicoes_csv_e_a_skill_nao_a_cita():
