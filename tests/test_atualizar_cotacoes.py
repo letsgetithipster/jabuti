@@ -610,3 +610,63 @@ def test_cli_manual_repetido_nao_engole_o_primeiro(tmp_path):
                        capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert r.returncode == 0, r.stdout + r.stderr
     assert "41,50" in r.stdout and "HGLG11" in r.stdout and "FALHA" not in r.stdout, r.stdout
+
+
+# --- evento confirmado cobre a variação: recotar depois de um split não propõe um segundo split ---
+
+def _com_evento(tmp_path, linha):
+    ws = _ws_yahoo(tmp_path)
+    _anexa(ws, "dados/eventos.csv", linha)
+    return ws
+
+
+def test_evento_confirmado_na_janela_cobre_a_variacao_e_nao_propoe_de_novo(tmp_path):
+    """Pendência herdada do grupo F: depois de `registrar.py evento PETR4 split --razao 2:1
+    --confirmar`, recotar PETR4 propunha um SEGUNDO split (variacao-anomala), porque o detector
+    comparava contra a última cotação sem olhar o evento vigente entre ela e a nova."""
+    ws = _com_evento(tmp_path, "2026-09-09,PETR4,split,2:1,sim")
+    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 20.0, "HGLG11": 160.0}))   # 40 -> 20 É o split
+    assert rel.anomalias == [] and rel.propostas == [], rel.anomalias
+    assert abs(rel.variacoes["PETR4"]) < 1e-9
+    eventos, _ = ler_csv("eventos", ws / "dados" / "eventos.csv")
+    assert len(eventos) == 1 and rel.gravadas == 2
+
+
+@pytest.mark.parametrize("linha", [
+    "2026-09-01,PETR4,split,2:1,sim",     # antes da última cotação: o 40,00 de 08/09 já era pós-split
+    "2026-09-09,PETR4,split,2:1,nao",     # proposta não confirmada não cobre nada
+    "2026-09-09,HGLG11,split,2:1,sim",    # evento de outro ticker (e HGLG11 parado a 160 vira anomalia dele)
+])
+def test_evento_fora_da_janela_nao_confirmado_ou_de_outro_ticker_nao_cobre(tmp_path, linha):
+    ws = _com_evento(tmp_path, linha)
+    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 20.0, "HGLG11": 160.0}))
+    assert any("PETR4" in a for a in rel.anomalias)
+    assert "PETR4" in [p["ticker"] for p in rel.propostas]
+
+
+def test_grupamento_confirmado_cobre_a_alta(tmp_path):
+    ws = _com_evento(tmp_path, "2026-09-09,PETR4,grupamento,1:10,sim")
+    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 400.0, "HGLG11": 160.0}))
+    assert rel.propostas == [] and abs(rel.variacoes["PETR4"]) < 1e-9
+
+
+def test_evento_coberto_com_variacao_residual_acima_do_limiar_ainda_e_anomalia(tmp_path):
+    """O evento ajusta a base da comparação; não desliga o detector."""
+    ws = _com_evento(tmp_path, "2026-09-09,PETR4,split,2:1,sim")
+    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 10.0, "HGLG11": 160.0}))   # esperado 20; 10 é -50%
+    assert len(rel.propostas) == 1 and "-50,00%" in rel.propostas[0]["razao"]
+    assert any("ajustad" in a for a in rel.anomalias), rel.anomalias
+
+
+@pytest.mark.slow
+def test_ciclo_registrar_split_confirmado_e_recotar_nao_propoe_segundo_split(tmp_path):
+    ws = copia_exemplo(tmp_path)
+    r = subprocess.run([sys.executable, str(RAIZ / "scripts" / "registrar.py"), str(ws), "evento",
+                        "PETR4", "split", "--razao", "2:1", "--data", "2026-09-09", "--confirmar", "--sim"],
+                       input="", capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+    rel = atualizar(ws, manual={"PETR4": 20.0, "HGLG11": 160.0},
+                    agora=datetime.datetime(2026, 9, 10, 18, 0))
+    assert rel.propostas == [] and rel.anomalias == [], rel.anomalias
+    eventos, _ = ler_csv("eventos", ws / "dados" / "eventos.csv")
+    assert [e["tipo"] for e in eventos] == ["split"]

@@ -78,6 +78,23 @@ def eventos_vigentes(eventos: list[dict]) -> list[dict]:
     return [e for _, (_, e) in sorted(melhor.items(), key=lambda kv: (kv[0][0], kv[1][0]))]
 
 
+def fator_de_eventos(eventos: list[dict], ticker: str, depois_de: str, ate: str) -> float:
+    """Multiplicador de quantidade dos eventos CONFIRMADOS e aplicáveis de `ticker` com data em
+    (depois_de, ate]. É o que o cotador usa para ajustar a base da comparação: um split 2:1
+    confirmado divide o preço por 2, e sem isso recotar depois de confirmar propunha um SEGUNDO
+    split. Razão ilegível vale 1,0 aqui: quem a acusa é o replay do ledger, na leitura."""
+    fator = 1.0
+    for e in eventos_vigentes(list(eventos)):
+        if e["ticker"] != ticker or e["confirmado"] != "sim" or e["tipo"] not in EVENTOS_APLICAVEIS:
+            continue
+        if not (depois_de < e["data"] <= ate):
+            continue
+        f = _fator(e.get("razao"))
+        if f is not None:
+            fator *= (1.0 + f) if e["tipo"] == "bonificacao" else f
+    return fator
+
+
 def _fator(razao: str | None) -> float | None:
     m = RAZAO_RE.match(razao or "")
     if not m:

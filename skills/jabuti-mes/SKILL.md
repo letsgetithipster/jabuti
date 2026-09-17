@@ -61,7 +61,7 @@ Ramificar pelo **código de saída**, nunca pelo texto:
 - **Sem rede: parar e declarar.** Não repetir preço de memória, não estimar, não usar "o último conhecido" como se fosse novo.
 - **`--manual TICKER=PRECO` só com valor que a pessoa colou nesta conversa.** A fonte fica gravada como `manual`.
 - **Classe sem mercado** (`rf-br`): falha esperada; pedir o valor atual e rodar com `--manual`. Saldo em conta (`caixa`) não é falha: vale 1,00 na própria moeda, com fonte `definicao`.
-- **Variação acima de 30%**: o script grava a cotação e propõe um evento em `dados/eventos.csv`. Split, grupamento ou ticker trocado são as causas comuns; quem confirma é a pessoa, pelo `registrar.py evento`.
+- **Variação acima de 30%**: o script grava a cotação e propõe um evento em `dados/eventos.csv`. Split, grupamento ou ticker trocado são as causas comuns; quem confirma é a pessoa, pelo `registrar.py evento`. Evento já confirmado entre a última cotação e a nova ajusta a base da comparação: recotar depois de confirmar não propõe o mesmo evento de novo.
 
 ## Casos especiais
 

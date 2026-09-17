@@ -24,7 +24,7 @@ from po.cotacoes.providers import criar_provider
 from po.cotacoes.providers.manual import ManualProvider
 from po.cotacoes.tipos import Cotacao, pedidos_de_ativos, sem_cotacao_de_mercado
 from po.csvs import anexar_csv, ler_csv, ultimas_cotacoes
-from po.ledger import posicoes_de_fills
+from po.ledger import fator_de_eventos, posicoes_de_fills
 from po.numeros import formatar_brl, formatar_canonico
 
 LIMIAR_ANOMALIA = 0.30
@@ -152,14 +152,20 @@ def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_r
         if not ant or ant["preco"] == 0:
             rel.variacoes[c.ticker] = None
             continue
-        pct = c.preco / ant["preco"] - 1
+        # Evento confirmado entre a última cotação e esta ajusta a base: split 2:1 divide o preço
+        # por 2, e a variação que sobra é a de mercado. Sem isto, recotar depois de confirmar o
+        # split propunha um SEGUNDO split.
+        fator = fator_de_eventos(eventos, c.ticker, ant["data"], c.data)
+        base = ant["preco"] / fator
+        pct = c.preco / base - 1
         rel.variacoes[c.ticker] = pct
         if abs(pct) > LIMIAR_ANOMALIA:
             pct_txt = f"{formatar_brl(pct * 100)}%"
-            ant_txt, novo_txt = formatar_canonico(ant["preco"]), formatar_canonico(c.preco)
+            ant_txt, novo_txt = formatar_canonico(base), formatar_canonico(c.preco)
             ja_aberta = c.ticker in abertas
             sufixo = " (já existe proposta aberta em eventos.csv)" if ja_aberta else ""
-            rel.anomalias.append(f"{c.ticker}: {ant_txt} ({ant['data']}) -> {novo_txt} ({pct_txt}) "
+            ajuste = " (base ajustada pelo evento confirmado)" if fator != 1.0 else ""
+            rel.anomalias.append(f"{c.ticker}: {ant_txt} ({ant['data']}){ajuste} -> {novo_txt} ({pct_txt}) "
                                  f"— split, grupamento ou ticker trocado? confirme em eventos.csv{sufixo}")
             if not ja_aberta:
                 rel.propostas.append({"data": c.data, "ticker": c.ticker, "tipo": "variacao-anomala",
