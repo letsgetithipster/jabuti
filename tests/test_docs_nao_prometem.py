@@ -348,6 +348,66 @@ def test_literal_de_promessa_apagada_nao_volta():
         + "\n  ".join(sorted(achados)))
 
 
+TABELA_CITADA_RE = re.compile(r"([a-z_]+)\.csv")
+
+
+def _documentacao():
+    """A documentação que o usuário lê: README, GUARDRAILS, catálogo de skills, rules/, as
+    SKILL.md, o template do workspace e o exemplo publicado.
+
+    Fora, e cada exclusão tem motivo: `docs/` é registro datado de decisão, que fala de propósito
+    de tabela que já saiu; `tests/` e `scripts/` são código, e código que nomeia a tabela errada
+    quebra sozinho; e `.claude/skills/` do exemplo não é versionado, então incluí-lo faria o
+    resultado depender da máquina."""
+    escopo = [RAIZ / "README.md", RAIZ / "GUARDRAILS.md", RAIZ / "skills" / "README.md"]
+    escopo += sorted(RAIZ.glob("rules/*.md"))
+    escopo += sorted(RAIZ.glob("skills/*/SKILL.md"))
+    escopo += sorted((RAIZ / "templates").rglob("*.md"))
+    escopo += sorted((RAIZ / "exemplos").rglob("*.md"))
+    return [p for p in escopo if p.is_file() and ".claude" not in p.parts]
+
+
+def _tabelas_citadas():
+    """(tabela, arquivo, linha) de cada citação de tabela canônica na documentação.
+
+    Ocorrência precedida de separador de caminho só conta se o segmento anterior for `dados`:
+    `inbox/posicoes.csv` é o export que a pessoa baixou da corretora, não a tabela do motor, e
+    os dois se chamam igual no caminho feliz do produto. Confundi-los mandaria quem conserta
+    editar o comando do usuário em vez do nome da tabela, que é a direção de erro mais cara:
+    falso negativo deixa a suíte calada, falso positivo aponta a correção para o lado errado."""
+    achados = []
+    for p in _documentacao():
+        rel = p.relative_to(RAIZ).as_posix()
+        for n, linha in enumerate(p.read_text(encoding="utf-8").splitlines(), start=1):
+            for m in TABELA_CITADA_RE.finditer(linha):
+                antes = linha[: m.start()]
+                if (antes.endswith("/") or antes.endswith("\\")) and not re.search(r"dados[/\\]$", antes):
+                    continue
+                achados.append((m.group(1), rel, n))
+    return achados
+
+
+def test_toda_tabela_citada_na_documentacao_esta_em_schemas():
+    """Nome de tabela é um fato afirmado pelo texto e sustentado pelo código. `po.csvs.SCHEMAS`
+    é a lista do que existe; documentação que nomeia outra coisa promete um arquivo que o motor
+    não escreve nem lê.
+
+    Guarda de valor PROSPECTIVO declarado: hoje as 14 citações batem e o teste nasce verde. Ela
+    existe para o dia em que uma tabela SAIR do SCHEMAS — o desenho do laço recorrente tira três
+    — e a documentação continuar descrevendo o que já não existe. Medido: com `posicoes` fora do
+    SCHEMAS, a citação em skills/jabuti-importar/SKILL.md fica vermelha na hora, numa SKILL.md
+    que o usuário recebe copiada dentro do workspace dele.
+
+    Ela também pega o caso inverso, que é o mais provável no dia a dia: SKILL nova citando
+    `dados/registrar.csv` antes de a tabela existir."""
+    from po.csvs import SCHEMAS
+
+    fora = [f"{rel}:{n}: dados/{tab}.csv citado, e {tab!r} não está em po.csvs.SCHEMAS "
+            f"({sorted(SCHEMAS)})"
+            for tab, rel, n in _tabelas_citadas() if tab not in SCHEMAS]
+    assert fora == [], "documentação nomeia tabela que o motor não tem:\n  " + "\n  ".join(fora)
+
+
 def _bloco_de_demo():
     """As linhas entre os sentinelas `demo:start` e `demo:end` do README.
 

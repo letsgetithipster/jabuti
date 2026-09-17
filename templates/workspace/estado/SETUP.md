@@ -17,4 +17,4 @@ Próximo: `/jabuti-init`
 - [ ] `/jabuti-estrategia` — qual é sua política: bandas e caps em `politica/01-alocacao-alvo.md` (acrescenta abaixo uma linha de `/jabuti-micro <bloco>` por bloco com alvo)
 - [ ] `/jabuti-importar` — o que você já tem: carteira em `dados/`, lida dentro da política em `estado/ESTADO.md`
 
-**Regra do onboarding:** aporte só flui para ativo com tese validada ou ETF.
+**Regra do onboarding:** aporte só flui para ETF ou para ativo que você estudou.

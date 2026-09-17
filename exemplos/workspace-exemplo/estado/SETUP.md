@@ -21,4 +21,4 @@ Próximo: `/jabuti-micro fiis`
 - [x] `/jabuti-importar` — o que você já tem: carteira em `dados/`, lida dentro da política em `estado/ESTADO.md`
 - [ ] `/jabuti-tese PETR4`
 
-**Regra do onboarding:** aporte só flui para ativo com tese validada ou ETF.
+**Regra do onboarding:** aporte só flui para ETF ou para ativo que você estudou.
