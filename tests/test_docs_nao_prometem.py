@@ -23,7 +23,7 @@ IGNORADAS = {".git", ".github", ".githooks", "__pycache__", ".pytest_cache", ".v
 EXTENSOES_DE_TEXTO = {".py", ".md", ".yaml", ".template"}
 
 FASE_DO_COMANDO = {
-    "jabuti-cotacoes": 2, "jabuti-importar": 2,
+    "jabuti-importar": 2,
     "jabuti-init": 4, "jabuti-estrategia": 4, "jabuti-micro": 4, "jabuti-tese": 4,
     "jabuti-mes": 5,
     "preparar-ir": 6,

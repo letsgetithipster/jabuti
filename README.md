@@ -51,7 +51,7 @@ corretora (mapeamento YAML + conciliação declarada, com `clear-extrato`,
 cotações por provider plugável (Yahoo, brapi, BCB/SGS, manual) com detecção
 de variação anômala; validador v2 (vocabulários, moeda por conta, ledger
 cronológico com PM, bandas somando 100); gerador de `ESTADO.md`; cockpit
-xlsx; skills `/jabuti-cotacoes` e `/jabuti-importar`.
+xlsx; skill `/jabuti-importar` (cotar virou passo das skills que precisam dele, não skill própria).
 
 **Fase 3 (gastos e open finance por provider) — parcial:** o que está em
 código, commitado e testado é a fundação de ingestão por provider MCP, não

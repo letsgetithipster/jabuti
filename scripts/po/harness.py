@@ -35,7 +35,7 @@ e o método em `.claude/rules/00-voz.md`. O contrato que torna tudo isto confiá
 
 ## Regras operacionais
 
-- **Número de mercado entra por script**, nunca digitado: cotação via `/jabuti-cotacoes`;
+- **Número de mercado entra por script**, nunca digitado: cotação via `/jabuti-mes`;
   posição, fill e provento via `/jabuti-importar`. Sem rede, parar e declarar.
 - **Gerado nunca se edita à mão**: `estado/ESTADO.md` (gerar_estado.py), este CLAUDE.md e
   `.claude/rules/` (gerar_harness.py), o cockpit xlsx (gerar_cockpit.py).

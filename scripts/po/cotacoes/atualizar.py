@@ -1,4 +1,4 @@
-"""Orquestração do /jabuti-cotacoes: carteira derivada do ledger → pedidos → providers → append
+"""Orquestração do cotar: carteira derivada do ledger → pedidos → providers → append
 em cotacoes.csv.
 
 Regras: sem rede, SemRede sobe e nada é gravado; cada cotação carrega fonte, data e hora;

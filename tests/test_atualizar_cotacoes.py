@@ -567,14 +567,17 @@ def test_ativos_csv_com_erro_barra_a_rodada_com_frase(tmp_path):
 
 
 def test_cotador_nao_le_posicoes_csv_e_a_skill_nao_a_cita():
-    """Texto no presente só fica se o código o cumpre: a SKILL dizia que os tickers saem de
-    posicoes.csv. Duas pontas presas de uma vez: o orquestrador não lê a tabela, a skill não a cita."""
+    """Texto no presente só fica se o código o cumpre: a SKILL de cotações dizia que os tickers
+    saem de posicoes.csv. Ela morreu (cotar é passo, não fim), e a tradução do cotar mora nas
+    duas skills que mandam rodá-lo. Duas pontas presas de uma vez: o orquestrador não lê a
+    tabela, e nenhuma das skills que o chamam a cita."""
     import inspect
 
     import po.cotacoes.atualizar as mod
     assert '_ler_limpo("posicoes"' not in inspect.getsource(mod)
-    skill = (RAIZ / "skills" / "jabuti-cotacoes" / "SKILL.md").read_text(encoding="utf-8")
-    assert "posicoes.csv" not in skill
+    for nome in ("jabuti-mes", "jabuti-importar"):
+        skill = (RAIZ / "skills" / nome / "SKILL.md").read_text(encoding="utf-8")
+        assert "posicoes.csv" not in skill, nome
 
 
 @pytest.mark.slow

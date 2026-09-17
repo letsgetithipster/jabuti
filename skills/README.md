@@ -16,7 +16,6 @@ O `criar_workspace.py` copia estas pastas para `.claude/skills/` do workspace (`
 
 | Skill | Quando | Escreve | Nunca |
 |---|---|---|---|
-| `/jabuti-cotacoes` | antes de olhar alocação; carteira com preço do dia | `dados/cotacoes.csv` (append) via script | digita preço, decide aporte, estima sem rede |
 | `/jabuti-mes` | todo mês, com ou sem aporte; e sempre que você comprar, vender ou receber provento | `dados/` e `estado/` via script, `logs/aportes/`, `logs/vendas/`, `logs/decisoes/` | digita preço, divide o aporte de cabeça, escolhe ticker |
 | `/jabuti-importar` (modo rotina) | extrato, provento ou fill novo | `dados/` via script, `logs/importacoes/` | digita número, corrige o documento para bater |
 

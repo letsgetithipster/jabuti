@@ -89,7 +89,10 @@ def test_instala_skills_no_workspace(tmp_path):
     criar(destino, com_git=False, data="2026-09-08")
     instaladas = sorted(p.parent.name for p in (destino / ".claude" / "skills").glob("*/SKILL.md"))
     esperadas = sorted(p.parent.name for p in (MOTOR / "skills").glob("*/SKILL.md"))
-    assert instaladas == esperadas and "jabuti-cotacoes" in instaladas and "jabuti-importar" in instaladas
+    assert instaladas == esperadas and "jabuti-mes" in instaladas and "jabuti-importar" in instaladas
+    assert "jabuti-cotacoes" not in instaladas, (
+        "cotar é passo, não fim: a tradução dos códigos de saída mora nas skills que chamam "
+        "o script, e não numa skill própria com um nome a mais para a pessoa memorizar")
     texto = (destino / ".claude" / "skills" / "jabuti-importar" / "SKILL.md").read_text(encoding="utf-8")
     assert texto == (MOTOR / "skills" / "jabuti-importar" / "SKILL.md").read_text(encoding="utf-8")
 

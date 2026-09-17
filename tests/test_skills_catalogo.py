@@ -127,3 +127,22 @@ def test_o_onboarding_do_exemplo_fecha_na_rotina():
     assert PROXIMO.findall(SETUP_EXEMPLO) == ["jabuti-mes"]
     assert not re.search(r"^\s*- \[ \]", SETUP_EXEMPLO, re.MULTILINE), (
         "o exemplo ainda tem etapa de onboarding aberta")
+
+
+CODIGOS_DO_COTAR = ("| 0 |", "| 1 |", "| 2 |", "| 3 |")
+
+
+def test_quem_manda_cotar_traduz_os_quatro_codigos_de_saida():
+    """Spec §4: a tradução de erro pertence ao lado do erro. Apagar /jabuti-cotacoes só é honesto
+    se as seis linhas que valiam migrarem para as duas skills que mandam rodar o script. Sem isto,
+    a LLM ramifica pelo texto do relatório, e o código 1 (rodada abortada, nada gravado) vira
+    'quase deu certo' — a carteira lida com preço velho, sem ninguém avisar."""
+    for nome in ("jabuti-mes", "jabuti-importar"):
+        texto = (SKILLS / nome / "SKILL.md").read_text(encoding="utf-8")
+        assert "## Cotações" in texto, f"{nome}: sem seção Cotações"
+        # só a seção: jabuti-importar tem a própria tabela de códigos (do importar_extrato.py),
+        # e medir o arquivo inteiro deixava a tabela do cotar sumir sem ninguém ver
+        secao = texto.split("## Cotações", 1)[1].split("\n## ", 1)[0]
+        faltando = [c for c in CODIGOS_DO_COTAR if c not in secao]
+        assert faltando == [], f"{nome}: códigos de saída do cotar não traduzidos: {faltando}"
+        assert "nunca preço de memória" in texto, f"{nome}: sem a regra de sem-rede"

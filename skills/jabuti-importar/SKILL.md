@@ -34,9 +34,9 @@ Etapa 3 de 5. Uma pergunta por vez:
 1. **Quais corretoras você usa hoje?** Para cada uma: um `id` (minúsculas, sem espaço), a moeda, e o **propósito** — quais blocos aquela conta serve, do vocabulário `acoes-br, fiis, rv-int, reits-us, rf-br, cripto, caixa, commodities`. Propor o bloco `contas:` do `vault.config.yaml` inteiro, mostrar, e escrever depois do "de acordo" (`blocos: []` significa qualquer bloco). O validador cobra o vocabulário.
 2. **Para cada conta, o caminho de export**, com honestidade sobre o que está verificado — a lista é a tabela "Prontos" de `mapeamentos/README.md` do motor, que diz mapeamento por mapeamento se foi conferido contra export real. Apontar para ela, não copiar. Corretora fora da lista cai no fluxo normal: a LLM escreve o mapeamento e mostra antes de rodar.
 3. **Arquivo em `inbox/`**, e daí o fluxo abaixo, documento por documento.
-4. **Estou do zero** (nenhuma corretora, nenhuma posição): pular tudo, marcar no `SETUP.md` `- [x] `/jabuti-importar` — n/a, começando do zero`, trocar `Próximo:` para o primeiro `/jabuti-micro` aberto e emitir o handoff.
+4. **Estou do zero** (nenhuma corretora, nenhuma posição): pular tudo, marcar no `SETUP.md` `- [x] `/jabuti-importar` — n/a, começando do zero`, trocar `Próximo:` para `/jabuti-mes`, dizer em uma linha "Nenhuma posição em `dados/` ainda. Quando você comprar, cole `/jabuti-mes`." e emitir o handoff. **Não gerar um ESTADO zerado** com pendências corretas e inúteis.
 
-Ao fim do último documento: rodar `python <motor>/scripts/gerar_estado.py .` e ler as **Pendências** com a pessoa. É a primeira vez que ela vê a carteira dela dentro da política dela — bloco acima ou abaixo da banda que acabou de declarar. Marcar `- [x]` na linha do `/jabuti-importar`, trocar `Próximo:` para o primeiro `/jabuti-micro` aberto e emitir o handoff.
+Ao fim do último documento: rodar `python <motor>/scripts/gerar_estado.py .` e ler as **Pendências** com a pessoa. É a primeira vez que ela vê a carteira dela dentro da política dela — bloco acima ou abaixo da banda que acabou de declarar. Marcar `- [x]` na linha do `/jabuti-importar`, trocar `Próximo:` para `/jabuti-mes` e emitir o handoff.
 
 Conta já declarada no config não é perguntada de novo; documento já importado é duplicata, pulada e contada.
 
@@ -55,8 +55,8 @@ Conta já declarada no config não é perguntada de novo; documento já importad
    - ERRO de conciliação → não "ajustar" nada para bater: mostrar a linha apontada ao usuário; documento e mapeamento é que se corrigem.
    - ERRO "nenhuma linha de dados abaixo do cabeçalho" → aba errada, cabeçalho que o mapeamento não achou, ou export em branco: voltar ao `inspecionar_extrato.py`.
 5. Rodar sem `--dry-run`. Relatar o que entrou (`fills +N (N aberturas, tipo=saldo-inicial) · ativos +N`, `proventos +N`...), duplicadas puladas e o caminho do log em `logs/importacoes/`.
-6. Ticker que entra **sem nenhum fill** ganha um fill `saldo-inicial` (qty e preço = PM, na data do documento ou de `--data`): dizer isso ao usuário; é o que fecha o ledger. A condição é "sem fill", não "posição nova" — ticker que já tem fill de verdade nunca ganha abertura sintética, e uma rodada de recuperação completa a abertura que faltou sem duplicar nada.
-7. Rodar `validar_workspace.py`. Posição importada sem cotação é ERRO esperado: seguir com `/jabuti-cotacoes` e depois `python <motor>/scripts/gerar_estado.py <raiz>` (e `gerar_cockpit.py`, se o usuário usa o cockpit).
+6. Cada ticker sem nenhum fill ganha um fill `saldo-inicial`, a **abertura de livro**: "nesta data eu tinha isto, a este custo declarado". Dizer isso à pessoa com o caveat que o CLI imprime: a abertura é honesta sobre o custo e **muda sobre a data de aquisição**, então apuração de ganho de capital sobre lote coberto por abertura vai exigir a data real ou as notas do período. A condição é "sem fill", não "posição nova": ticker que já tem fill de verdade nunca ganha abertura sintética, e uma rodada de recuperação completa a que faltou sem duplicar nada. O log de importação registra quantas aberturas entraram.
+7. Rodar `validar_workspace.py`. Posição importada sem cotação é ERRO esperado: seguir com `atualizar_cotacoes.py` (seção Cotações abaixo) e depois `python <motor>/scripts/gerar_estado.py <raiz>` (e `gerar_cockpit.py`, se o usuário usa o cockpit).
 
 ## Códigos de saída (é por eles que a LLM ramifica, não pelo texto)
 
@@ -65,7 +65,7 @@ Conta já declarada no config não é perguntada de novo; documento já importad
 | 0 | importou, ou `--dry-run`/`--conferir` sem divergência | seguir o fluxo |
 | 1 | erro que impediu a rodada: config, mapeamento, leitura, conciliação ou gravação | corrigir a causa apontada e rodar de novo |
 | 2 | uso inválido da linha de comando (argparse) | conferir os argumentos |
-| 3 | `--conferir` achou divergência entre o documento e `dados/` | nada gravado; resolver a divergência antes de importar |
+| 3 | o documento contradiz o livro, com ou sem `--conferir` | nada gravado; ler a aritmética e o comando de cada saída (seção Conferência) |
 
 `--conferir` é a rodada de diagnóstico: **3 = divergiu, 0 = não divergiu**. Não é erro de execução, é resultado — ramificar pelo código, não pelo texto do relatório.
 
@@ -77,28 +77,57 @@ Conta já declarada no config não é perguntada de novo; documento já importad
 - JCP em extrato brasileiro vem líquido: `valor_bruto` é gravado igual ao líquido e o mapeamento declara isso em `observacoes`.
 - Schwab: `NRA Tax Adj` é ajuste do líquido do dividendo do mesmo dia/ticker; `Stock Split` e `Stock Merger` viram propostas em `eventos.csv` (confirmado `nao`) para o usuário completar a razão.
 - `.xlsx` sem openpyxl instalado: o script diz `pip install -r requirements-xlsx.txt`; alternativa é o usuário exportar como CSV.
-- Posição já existente com qty/PM diferente: conflito declarado, nada gravado. Oferecer `--conferir` e deixar o usuário decidir o que corrigir em `dados/`.
+- **A foto da corretora diverge do livro**: não é conflito, é conferência, e ela tem próximo comando (seção Conferência abaixo). Nunca editar `dados/` para "bater".
+
+## Conferência
+
+Foto de posições que diverge do livro sai com **3 e nada gravado**, com ou sem `--conferir`. O script compara cada ticker/conta do documento contra a posição derivada dos fills **na data do documento**, faz a aritmética e imprime as leituras possíveis, cada uma com o comando pronto. Ler e traduzir; **não recalcular a diferença em prosa** — o número é do script. A corretora nunca sobrescreve o seu histórico: é o histórico que sustenta o IR.
+
+O que a saída traz, ticker a ticker:
+
+- `OK — qty @ PM`: livro e documento concordam.
+- **Quantidade maior no documento**: a diferença em unidades e em custo, e o **preço implícito**. Três saídas, e a pessoa escolhe: compra ainda não registrada (`registrar.py . compra <TICKER> <QTY> <PRECO-IMPLICITO> --data <data-da-compra>`), evento societário (`registrar.py . evento <TICKER> split --razao <novas:antigas> --data <data> --confirmar`; aí o preço implícito não significa nada), ou `--aceitar-como compra`, que grava a diferença como fill datado **na foto**, não na operação (o CLI diz o custo disso para o IR na hora e no log).
+- **Quantidade menor no documento**: a foto traz preço médio, não preço de venda, então não há preço implícito e o motor não o inventa. Saída: `registrar.py . venda <TICKER> <QTY> <preco-de-venda> --data <data-da-venda>`, com o preço que a pessoa informa.
+- **Ticker no livro e ausente do documento**: se a posição foi zerada, registrar a venda; se o documento é de outra conta ou período, corrigir o arquivo.
+
+Depois de registrar, rodar a importação de novo: ela passa quando livro e documento concordarem.
+
+## Cotações
+
+Posição importada sem cotação é ERRO esperado no validador. Rode `python <motor>/scripts/atualizar_cotacoes.py .` e ramifique pelo **código de saída**, nunca pelo texto:
+
+| Código | Significa | O que fazer |
+|---|---|---|
+| 0 | tudo obtido e gravado | seguir para `gerar_estado.py` |
+| 1 | rodada abortada — **nada gravado** | ler a frase, corrigir a causa, rodar de novo |
+| 2 | sem rede — nada gravado | parar e declarar; nunca preço de memória |
+| 3 | parcial: parte obtida, parte falhou | seguir, declarando o que faltou |
+
+**Código 1 não é "quase deu certo"**: é o oposto de 3. Tratar 1 como sucesso parcial faz a carteira ser lida com preço velho sem ninguém avisar.
+
+- **`--manual TICKER=PRECO` só com valor que a pessoa colou nesta conversa.** A fonte fica gravada como `manual`.
+- **Classe sem mercado** (`rf-br`): falha esperada; pedir o valor atual e rodar com `--manual`. Saldo em conta (`caixa`) não é falha: vale 1,00 na própria moeda, com fonte `definicao`.
+- **Variação acima de 30%**: o script grava a cotação e propõe um evento em `dados/eventos.csv`; quem confirma é a pessoa, pelo `registrar.py evento` do `/jabuti-mes`.
 
 ## O que esta skill NÃO faz
 
 - **Não digita número**: nem posição, nem provento, nem fill, nem total declarado
 - **Não escreve parser Python por corretora** — só mapeamento YAML
 - **Não grava com conciliação falhando** e não "corrige" o documento para bater
-- **Não aplica evento corporativo em qty/PM** (só registra a proposta; Fase 5)
-- **Não busca cotação** (→ `/jabuti-cotacoes`) nem regenera ESTADO/cockpit sozinha (→ `gerar_estado.py`, `gerar_cockpit.py`)
+- **Não aplica evento corporativo em qty/PM**: só registra a proposta; confirmar é `registrar.py evento --confirmar`, pelo `/jabuti-mes`
+- **Não decide aporte nem registra operação sua** (→ `/jabuti-mes`)
+- **Não regenera ESTADO/cockpit sozinha** (→ `gerar_estado.py`, `gerar_cockpit.py`)
 - **Não commita**
 
 ## Próximo passo
 
-Só no modo onboarding (linha aberta no `SETUP.md`), e só com o validador em zero erros e o `ESTADO.md` regenerado. Fechada a linha, a skill termina em "feito", sem este bloco. Formato fixo:
+Só no modo onboarding (linha aberta no `SETUP.md`), e só com o validador em zero erros e o `ESTADO.md` regenerado (do zero: sem posição, não há o que gerar). Fechada a linha, a skill termina em "feito", sem este bloco. Formato fixo:
 
 ```
 ✔ jabuti-importar concluído — carteira em dados/, lida dentro da política em estado/ESTADO.md.
 
 Próximo: abra uma thread nova e cole
-    /jabuti-micro <primeiro bloco aberto no SETUP.md>
+    /jabuti-mes
 
-Tenha à mão: nada. A skill lê a política e propõe uma cesta semente para o bloco.
-O /jabuti-micro ainda não está instalado (Fase 4b): por ora o onboarding termina
-aqui, com a carteira lida dentro da política.
+Tenha à mão: nada. É a rotina do mês, e ela começa perguntando o que você quer fazer.
 ```
