@@ -36,9 +36,9 @@ def _leiame(wb):
     return [c[0].value or "" for c in wb["LEIAME"].iter_rows(min_col=1, max_col=1)]
 
 
-def test_gera_as_quatro_abas_e_congela_cabecalho(tmp_path):
+def test_gera_as_tres_abas_e_congela_cabecalho(tmp_path):
     _, wb = _abre(copia_exemplo(tmp_path))
-    assert wb.sheetnames == ["LEIAME", "Posições", "Blocos", "Aporte"]
+    assert wb.sheetnames == ["LEIAME", "Posições", "Blocos"]
     assert wb["Posições"].freeze_panes == "A2" and wb["Blocos"].freeze_panes == "A2"
 
 
@@ -77,7 +77,6 @@ def test_workspace_vazio_gera_planilha_valida_sem_faixa_invertida(tmp_path):
                 if isinstance(c.value, str) and c.value.startswith("=")]
     assert not any(":" in f and _faixa_invertida(f) for f in formulas), formulas
     assert wb["Posições"]["K2"].value == 0        # total literal, não SUM de faixa vazia
-    assert "Sem bandas declaradas" in str(wb["Aporte"]["A5"].value)
 
 
 def _faixa_invertida(formula: str) -> bool:
@@ -106,21 +105,19 @@ def test_classe_sem_banda_ganha_linha_e_o_denominador_fica_completo(tmp_path):
     assert blocos.cell(row=len(nomes) + 1, column=2).value == f"=SUM(B2:B{len(nomes)})"
 
 
-def test_aviso_de_cotacao_velha_chega_ao_leiame_e_a_aba_de_aporte(tmp_path):
-    """Tela de aporte construída sobre preço velho é o número plausível e errado que esta fase
-    existe para caçar: o aviso da valoração não pode morrer no caminho."""
+def test_aviso_de_cotacao_velha_chega_ao_leiame(tmp_path):
+    """Número construído sobre preço velho é o número plausível e errado que esta fase existe
+    para caçar: o aviso da valoração não pode morrer no caminho."""
     ws_raiz = copia_exemplo(tmp_path)
     _, wb = _abre(ws_raiz, agora=datetime.datetime(2026, 10, 8, 18, 0))
     texto = _leiame(wb)
     assert any(l.startswith("AVISOS (") for l in texto)
     assert any("mais de 7 dias" in l and "PETR4" in l for l in texto)
-    assert "ATENÇÃO" in str(wb["Aporte"]["A1"].value)
 
 
-def test_sem_aviso_a_aba_de_aporte_nao_grita(tmp_path):
+def test_sem_aviso_o_leiame_nao_grita(tmp_path):
     """Contraprova: aviso que aparece sempre treina o usuário a ignorá-lo."""
     _, wb = _abre(copia_exemplo(tmp_path))
-    assert wb["Aporte"]["A1"].value is None
     assert not any(l.startswith("AVISOS (") for l in _leiame(wb))
 
 
@@ -137,16 +134,15 @@ def test_resultado_e_na_moeda_do_ativo_e_o_leiame_diz_o_que_o_custo_nao_e(tmp_pa
     assert "câmbio de HOJE" in texto and "não é o valor em reais que saiu da sua conta" in texto
 
 
-def test_fila_de_aporte_zera_em_vez_de_ficar_negativa(tmp_path):
-    """O Sugerido desconta os gaps de quem está acima na fila; quando o aporte acaba a conta fica
-    negativa e o MAX(0,...) zera. Sem ele, um bloco de rank pior receberia valor negativo."""
+def test_a_fila_do_aporte_nao_mora_no_cockpit(tmp_path):
+    """Enquanto a aba Aporte existia havia DOIS números de aporte no produto, e o da planilha era
+    o que nenhum teste confrontava (openpyxl devolve None em célula de fórmula). A fila mora em
+    consultar_aporte.py; o cockpit é renderização de `valorar` e nada nele é editável."""
     _, wb = _abre(copia_exemplo(tmp_path))
-    ap = wb["Aporte"]
-    assert ap["F5"].value.startswith('=IF(E5="","",MAX(0,MIN(D5,$B$2-SUMIFS(')
-    assert ap["B2"].value == 0 and ap["C2"].value == "← única célula editável"
-    ultimo = ap.max_row
-    assert ap.cell(row=ultimo, column=1).value == "Sobra do aporte"
-    assert ap.cell(row=ultimo, column=6).value == f"=$B$2-F{ultimo - 1}"
+    assert "Aporte" not in wb.sheetnames
+    texto = " ".join(_leiame(wb))
+    assert "consultar_aporte.py" in texto
+    assert "célula editável" not in texto and "Aporte!" not in texto
 
 
 def test_regerar_sobrescreve_e_nao_acumula(tmp_path):
@@ -176,7 +172,8 @@ def test_cli_gera_e_sai_0(tmp_path):
     ws_raiz = copia_exemplo(tmp_path)
     r = _roda(str(ws_raiz))
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "Cockpit gerado:" in r.stdout and "Aporte!B2" in r.stdout
+    assert "Cockpit gerado:" in r.stdout and "consultar_aporte.py" in r.stdout
+    assert "Aporte!" not in r.stdout
     assert (ws_raiz / "planilhas" / "cockpit.xlsx").exists()
 
 

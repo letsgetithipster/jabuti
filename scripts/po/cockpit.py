@@ -1,15 +1,16 @@
 """Cockpit xlsx gerado a partir de dados/ (spec §2, decisão 4): visão, não fonte.
 
 Fonte de verdade continua sendo dados/ + política; o arquivo é regenerável e não
-versionado. Única célula editável: 'Aporte do mês' (Aporte!B2). O resto é valor
-gerado ou fórmula: Valor BRL = qty × cotação × câmbio; Blocos por SUMIFS; fila de
-aporte por bloco = ordem por gap decrescente consumindo o aporte (fórmulas RANK/SUMIFS).
+versionado. Nada nele é editável: é valor gerado ou fórmula (Valor BRL = qty × cotação ×
+câmbio; Blocos por SUMIFS). A fila do aporte NÃO mora aqui (spec, decisão 5): mora em
+scripts/consultar_aporte.py, onde um teste a confronta — célula de fórmula volta None em
+openpyxl, e número que ninguém confere é o segundo número que este desenho não tem.
 openpyxl é opcional: import lazy com erro acionável.
 
 O número é o de po.carteira.valorar — o mesmo do ESTADO.md, nada recalculado aqui.
 Os avisos da valoração (cotação ou câmbio velho, bloco sem banda) viajam com ele: vão
-listados no fim do LEIAME e anunciados em Aporte!A1. Tela de aporte construída sobre
-preço velho é exatamente o número plausível e errado que esta fase existe para caçar.
+listados no fim do LEIAME. Planilha construída sobre preço velho é exatamente o número
+plausível e errado que esta fase existe para caçar.
 """
 import datetime
 from pathlib import Path
@@ -19,7 +20,6 @@ from po.config import caminho_planilhas, carregar_config
 from po.ingestao.leitores import DependenciaAusente
 
 MSG_OPENPYXL = "o cockpit xlsx exige openpyxl: pip install -r requirements-xlsx.txt"
-COR_EDITAVEL = "FFF3D6"
 COR_CABECALHO = "EDE7DB"
 COR_AVISO = "9C2B00"
 FMT_NUM = "#,##0.00"
@@ -45,7 +45,6 @@ def gerar_cockpit(raiz: str | Path, agora: datetime.datetime | None = None) -> P
 
     negrito = Font(bold=True)
     fill_cab = PatternFill("solid", fgColor=COR_CABECALHO)
-    fill_edit = PatternFill("solid", fgColor=COR_EDITAVEL)
 
     def cabecalho(ws, titulos, larguras):
         for i, (t, w) in enumerate(zip(titulos, larguras), start=1):
@@ -63,12 +62,12 @@ def gerar_cockpit(raiz: str | Path, agora: datetime.datetime | None = None) -> P
         "jabuti — cockpit",
         f"Gerado em {agora:%d/%m/%Y %H:%M} por scripts/gerar_cockpit.py a partir de dados/ e da política declarada.",
         "Este arquivo é VISÃO, não fonte: regenerável, não versionado. A fonte de verdade é dados/ (CSVs) + politica/.",
-        "Única célula editável: 'Aporte do mês' na aba Aporte (amarela). Tudo o mais é gerado ou fórmula; edição à mão se perde na próxima geração.",
+        "Nada aqui é editável: tudo é gerado ou fórmula, e edição à mão se perde na próxima geração.",
         "Posições: Valor BRL = Qty × Cotação × Câmbio (fórmula). Cotação = última por data em cotacoes.csv; Câmbio = par {moeda}BRL mais recente (1 se BRL).",
         "'Result. moeda ativo' é o ganho na MOEDA DO ATIVO (Cotação ÷ PM − 1) e NÃO contém variação cambial: em posição USD, 8% aqui são 8% em dólar, não em reais.",
         "'Custo (câmbio hoje)' remarca o PM histórico pelo câmbio de HOJE, então não é o valor em reais que saiu da sua conta. Resultado em BRL exige o câmbio da data de cada compra, que esta fase ainda não guarda — por isso não existe coluna de resultado em BRL.",
         "Blocos: soma por classe (SUMIFS), % da carteira, banda declarada em politica/01-alocacao-alvo.md, desvio e gap até o alvo.",
-        "Aporte: fila por BLOCO — ordem por gap decrescente após o aporte entrar; Sugerido consome o aporte na ordem. Fila por ticker chega na Fase 4 (exige tese validada).",
+        "Aporte: a fila NÃO mora nesta planilha. Rode python <motor>/scripts/consultar_aporte.py <ws> VALOR: fila por BLOCO, por gap decrescente, com as três alternativas em --todos.",
         "Convenção de hora: hora da fonte; fonte diária sem hora (PTAX, manual sem hora) grava 00:00.",
         "Isto executa a política que você declarou; não é recomendação de investimento.",
     ]
@@ -132,44 +131,6 @@ def gerar_cockpit(raiz: str | Path, agora: datetime.datetime | None = None) -> P
     ws.cell(row=tb, column=1, value="Total").font = negrito
     ws.cell(row=tb, column=2, value=f"=SUM(B2:B{tb - 1})" if ordem else 0).number_format = FMT_NUM
     ws.cell(row=tb, column=5, value=f"=SUM(E2:E{tb - 1})" if ordem else 0)
-
-    # ---- Aporte
-    ws = wb.create_sheet("Aporte")
-    ws.column_dimensions["A"].width = 22
-    for col in "BCDEF":
-        ws.column_dimensions[col].width = 16
-    if c.avisos:
-        cel = ws.cell(row=1, column=1,
-                      value=f"ATENÇÃO: {len(c.avisos)} aviso(s) sobre os dados desta planilha — "
-                            "leia o fim da aba LEIAME antes de decidir o aporte.")
-        cel.font = Font(bold=True, color=COR_AVISO)
-    ws["A2"] = "Aporte do mês (R$)"
-    ws["A2"].font = negrito
-    ws["B2"] = 0
-    ws["B2"].fill = fill_edit
-    ws["B2"].number_format = FMT_NUM
-    ws["C2"] = "← única célula editável"
-    for i, t in enumerate(["Bloco", "Valor atual", "Alvo %", "Gap pós-aporte", "Ordem", "Sugerido"], start=1):
-        cel = ws.cell(row=4, column=i, value=t)
-        cel.font, cel.fill = negrito, fill_cab
-    com_banda = [bl for bl in ordem if bl in bandas]
-    ini, fim = 5, 5 + len(com_banda) - 1
-    for r, bloco in enumerate(com_banda, start=ini):
-        rb = ordem.index(bloco) + 2
-        ws.cell(row=r, column=1, value=bloco)
-        ws.cell(row=r, column=2, value=f"=Blocos!B{rb}").number_format = FMT_NUM
-        ws.cell(row=r, column=3, value=f"=Blocos!E{rb}")
-        ws.cell(row=r, column=4, value=f"=MAX(0,C{r}/100*(Blocos!$B${tb}+$B$2)-B{r})").number_format = FMT_NUM
-        ws.cell(row=r, column=5, value=f'=IF(D{r}>0,RANK(D{r},$D${ini}:$D${fim},0)+COUNTIF($D${ini}:D{r},D{r})-1,"")')
-        ws.cell(row=r, column=6, value=f'=IF(E{r}="","",MAX(0,MIN(D{r},$B$2-SUMIFS($D${ini}:$D${fim},$E${ini}:$E${fim},"<"&E{r}))))').number_format = FMT_NUM
-    if com_banda:
-        ws.cell(row=fim + 1, column=1, value="Total sugerido").font = negrito
-        ws.cell(row=fim + 1, column=6, value=f"=SUM(F{ini}:F{fim})").number_format = FMT_NUM
-        ws.cell(row=fim + 2, column=1, value="Sobra do aporte")
-        ws.cell(row=fim + 2, column=6, value=f"=$B$2-F{fim + 1}").number_format = FMT_NUM
-    else:
-        ws.cell(row=ini, column=1, value="Sem bandas declaradas: defina em politica/01-alocacao-alvo.md (/jabuti-estrategia).")
-    ws.freeze_panes = "A5"
 
     wb.save(destino)
     return destino

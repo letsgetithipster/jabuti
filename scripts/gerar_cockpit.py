@@ -1,4 +1,4 @@
-"""Gera o cockpit xlsx (LEIAME, Posições, Blocos, Aporte) a partir de dados/ e da política.
+"""Gera o cockpit xlsx (LEIAME, Posições, Blocos) a partir de dados/ e da política.
 
 Uso: python scripts/gerar_cockpit.py <raiz>
 
@@ -47,7 +47,8 @@ def main():
         print(mensagem_os(e, raiz))
         sys.exit(1)
     print(f"Cockpit gerado: {caminho}")
-    print("Única célula editável: Aporte!B2 (Aporte do mês). O resto regenera a cada execução.")
+    print("Nada nele é editável: tudo regenera a cada execução. A fila do aporte: "
+          "python scripts/consultar_aporte.py <raiz> VALOR")
 
 
 if __name__ == "__main__":

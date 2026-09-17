@@ -1,7 +1,7 @@
 """A fila do aporte: quanto vai para cada bloco, pela política que a pessoa declarou.
 
-Porta, linha a linha, as fórmulas que existiam SÓ como fórmula de Excel na aba Aporte do cockpit
-(célula editável Aporte!B2, RANK/SUMIFS):
+Porta, linha a linha, as fórmulas que existiam SÓ como fórmula de Excel na aba Aporte que o cockpit
+tinha (RANK/SUMIFS; a aba saiu quando este módulo nasceu, decisão 5 da spec):
 
     gap      = MAX(0, alvo/100 × (total + aporte) − atual)
     ordem    = gap decrescente

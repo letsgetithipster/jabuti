@@ -32,7 +32,7 @@ Frases típicas: "atualiza as cotações", "refresh de preços", "/jabuti-cotaco
    - **FALHA de ticker** (404, moeda diferente): conferir se o ticker mudou (fusão, troca de código) antes de qualquer coisa.
    - **Variação acima de 30%**: dizer ao usuário que o script vai gravar a cotação e propor um evento em `eventos.csv`; split, grupamento ou ticker trocado são as causas comuns. Quem confirma o evento (e o tipo real) é o usuário, editando `confirmado: sim` e o `tipo`.
 3. Rodar sem `--dry-run`. Relatar quantas cotações entraram, quantas manuais, quantas falhas.
-4. Sugerir `python <motor>/scripts/gerar_estado.py <raiz>` (ESTADO.md com o total novo) e, se o usuário usa o cockpit, `python <motor>/scripts/gerar_cockpit.py <raiz>` (exige openpyxl; a aba Aporte anuncia no topo quando a valoração trouxe avisos, e o detalhe fica no fim da aba LEIAME).
+4. Sugerir `python <motor>/scripts/gerar_estado.py <raiz>` (ESTADO.md com o total novo) e, se o usuário usa o cockpit, `python <motor>/scripts/gerar_cockpit.py <raiz>` (exige openpyxl; os avisos da valoração ficam listados no fim da aba LEIAME).
 5. Se houver falha remanescente, deixar claro: "N posição(ões) sem cotação; o validador vai acusar até resolver".
 
 ## Códigos de saída (é por eles que a LLM ramifica, não pelo texto)
