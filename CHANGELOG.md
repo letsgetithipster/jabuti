@@ -63,6 +63,11 @@ aconteceu.
 
 ### Novo
 
+- `/jabuti-sobra` e `/jabuti-vazamentos`, bônus de quem conecta a Finnest: quanto dá para
+  aportar este mês sem apertar a conta, e quais cobranças recorrentes cortar para aportar mais.
+  Só leitura; nenhuma das duas grava no perfil nem em `dados/`. Na instalação na pasta clonada,
+  chegam com o `git pull` (o hook reinstala as skills); numa pasta separada,
+  `python <motor>/scripts/criar_workspace.py <pasta> --so-skills`.
 - `scripts/registrar.py`: dizer "eu comprei" passa a ter caminho. Subcomandos `compra`,
   `venda`, `provento`, `estorno` (remove da linha do tempo o fill que casa exatamente),
   `evento` (split, grupamento, bonificação; o livro só aplica com `--confirmar`) e `ativo`.

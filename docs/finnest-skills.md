@@ -1,10 +1,11 @@
 # As skills Finnest — o que dá para fazer, e o que elas nunca fazem
 
 > O jabuti conhece a **sua carteira**. A Finnest conhece **o seu mês**: renda, despesa, cartão e
-> dívida. Quem a conecta ganha duas skills de bônus, que medem o que, sem ela, você calcula à
-> mão no app do banco: o custo de vida, quanto sobra por mês e quanto custa a dívida em aberto.
+> dívida. Quem a conecta ganha quatro skills de bônus, que medem o que, sem ela, você calcula à
+> mão no app do banco: o custo de vida, quanto sobra por mês, quanto dá para aportar este mês,
+> onde o dinheiro vaza e quanto custa a dívida em aberto.
 >
-> Duas skills, opcionais, somente leitura. Nenhuma escreve na sua carteira, e a rotina mensal
+> Quatro skills, opcionais, somente leitura. Nenhuma escreve na sua carteira, e a rotina mensal
 > (`/jabuti-mes`) funciona inteira sem elas.
 
 ## Em trinta segundos
@@ -42,7 +43,7 @@ O token da Finnest declara seis escopos. **O motor pede um.**
 
 | Escopo | Situação | Por quê |
 |---|---|---|
-| `read:financial` | **usado** | é tudo que as duas skills precisam |
+| `read:financial` | **usado** | é tudo que as quatro skills precisam |
 | `read:profile` | não usado | o motor não precisa saber o seu nome |
 | `manage:connections` | fora | o mesmo escopo que permite `remove_connection` e `revoke_data_consent` |
 | `manage:automations` | fora | muda configuração de movimentação de dinheiro |
@@ -81,11 +82,9 @@ operação conciliada contra documento — nenhum caminho liga a Finnest a ela, 
 Das 116 tools, só **2 leem investimento** (`get_investments` e `get_investment_summary`), e nenhuma
 das duas traz quantidade nem preço médio: por isso a Finnest não alimenta a carteira. As outras 114
 são o mês da pessoa: conta, cartão, dívida, fluxo de caixa, gasto, orçamento, assinatura, e a gestão
-da própria conexão. As duas skills acima usam cinco. O que mais caberia no método, e **não está
+da própria conexão. As quatro skills acima usam catorze. O que mais caberia no método, e **não está
 implementado**:
 
-- **Onde o dinheiro vaza**, para aumentar a capacidade de aporte: `detect_subscriptions` e
-  `get_category_spending`.
 - **O veredito do mês** ao lado do fechamento da carteira: `get_monthly_review`.
 - **Fôlego de liquidez e contas próximas**, para testar a reserva de emergência declarada no perfil:
   `get_financial_checkup` e `get_upcoming_bills`.

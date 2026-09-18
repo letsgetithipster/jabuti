@@ -29,13 +29,15 @@ caminho tem quatro, na ordem em que você vai usar:
 | 3 | no primeiro dia, e a cada extrato novo | `/jabuti-importar` | trazer a carteira que você já tem, pelo extrato da corretora |
 | 4 | todo mês | `/jabuti-mes` | atualizar as cotações, informar o valor dos fundos, decidir onde vai o aporte e registrar compra, venda e provento |
 
-Se você conecta a Finnest, ganha duas skills de bônus, que leem as suas contas pelo Open
+Se você conecta a Finnest, ganha quatro skills de bônus, que leem as suas contas pelo Open
 Finance e medem o que, sem ela, você calcula à mão no app do banco:
 
 | Quando | Cole | Para quê |
 |---|---|---|
 | depois do perfil, e quando a sua renda ou despesa mudar | `/jabuti-capacidade` | medir o seu custo de vida e quanto sobra por mês |
 | antes do aporte, se houver fatura ou empréstimo em aberto | `/jabuti-divida` | pôr o custo da dívida ao lado do aporte do mês |
+| antes da `/jabuti-mes`, uma vez por mês | `/jabuti-sobra` | ver quanto dá para aportar este mês sem apertar a conta |
+| a cada três meses, ou quando aparece cobrança nova | `/jabuti-vazamentos` | ver as cobranças recorrentes e marcar o que cortar para aportar mais |
 
 Nenhuma das quatro skills do caminho depende delas. Como a Finnest entra no modelo está em
 [onde a Finnest entra](#onde-a-finnest-entra).
@@ -210,7 +212,7 @@ escolha fica com você.
 
 O jabuti conhece a sua carteira. A [Finnest](https://finnest.com.br) lê as suas contas pelo
 Open Finance e conhece o seu mês: renda, despesa, cartão e dívida. Quem escreveu o jabuti
-também é cofundador da Finnest. Para quem a conecta, ela acrescenta duas skills de bônus, e a
+também é cofundador da Finnest. Para quem a conecta, ela acrescenta quatro skills de bônus, e a
 rotina do mês continua a mesma com ou sem elas.
 
 O `/jabuti-capacidade` lê três meses fechados do seu fluxo de caixa e grava no perfil o custo
@@ -220,11 +222,17 @@ mês e abre três alternativas para você decidir se quita ou investe primeiro. 
 enquanto paga rotativo de cartão é perder dinheiro, e sem essa leitura o jabuti não tem como
 saber que o rotativo existe.
 
-As duas pedem o MCP da Finnest conectado na sessão. Como conectar, o que cada uma lê e o que
+O `/jabuti-sobra` mostra quanto dá para aportar este mês sem apertar a conta, a partir do saldo
+que a Finnest projeta até o fim do mês, e você leva o valor escolhido para a `/jabuti-mes`. O
+`/jabuti-vazamentos` lista as cobranças recorrentes para você marcar o que cortar, com o total
+que isso libera por mês. Nenhuma das duas grava no perfil: uma mede o mês corrente, a outra
+registra uma intenção, e o perfil guarda a média de três meses da `/jabuti-capacidade`.
+
+As quatro pedem o MCP da Finnest conectado na sessão. Como conectar, o que cada uma lê e o que
 nunca faz está em [docs/finnest-skills.md](docs/finnest-skills.md). Sem a conexão, cada uma
 para e avisa.
 
-As duas só leem. O jabuti pede à Finnest um único escopo, `read:financial`: transferir
+As quatro só leem. O jabuti pede à Finnest um único escopo, `read:financial`: transferir
 dinheiro, pagar boleto e mexer nas suas conexões ficam de fora, e um teste quebra o build se
 alguma skill citar uma tool além desse limite (o motivo está no GUARDRAILS). Nada da Finnest
 entra na sua carteira. O único número que chega à sua pasta é o que você manda gravar no
@@ -291,7 +299,8 @@ monthly routine (where to contribute, purchases, sales, dividends, corporate act
 data layer with a validator that checks every step. Cloning is installing: your data lives in
 the cloned folder, ignored by git, and updates arrive by `git pull`. Any terminal agent that
 reads AGENTS.md can run it; Claude Code also gets native commands.
-Two optional bonus skills, read-only, measure cash flow and debt through Finnest, which reads bank
-accounts via Brazil's Open Finance and was co-founded by the author; neither writes to the
+Four optional bonus skills, read-only, measure cash flow, this month's surplus, recurring
+charges and debt through Finnest, which reads bank accounts via Brazil's Open Finance and was
+co-founded by the author; none writes to the
 portfolio. Picking assets inside each block and tax support are outside this release. The
 project is written in Portuguese first; code contributions are welcome, see CONTRIBUTING.md.
