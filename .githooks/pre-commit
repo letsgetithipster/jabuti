@@ -1,5 +1,14 @@
 #!/bin/sh
 # Pre-commit do motor: workspace-exemplo sempre verde + suite passando. Falha ALTO.
+#
+# Com vault.config.yaml na raiz, esta pasta e a instalacao de alguem (a pasta clonada virou a
+# dela): o jabuti ali so muda por git pull, e mudanca proposta vira issue ou PR. Commit
+# bloqueado. O repo oficial, sem instalacao na raiz, segue para o validador e a suite.
+# O git roda o hook na raiz da arvore de trabalho.
+if [ -f vault.config.yaml ]; then
+  echo "Esta pasta e a sua instalacao do jabuti: commit bloqueado. O jabuti so muda por git pull; para propor mudanca, abra uma issue em https://github.com/letsgetithipster/jabuti/issues" >&2
+  exit 1
+fi
 PY=""
 for c in python3 python py; do
   if command -v "$c" >/dev/null 2>&1 && "$c" -c "import sys;sys.exit(sys.version_info[0]!=3)" >/dev/null 2>&1; then

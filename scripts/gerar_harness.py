@@ -3,7 +3,9 @@
 Uso: python scripts/gerar_harness.py <raiz>
 
 Escreve CLAUDE.md e .claude/rules/00-voz.md (alvo claude-code) e reinstala as skills em
-.claude/skills/. Nunca edite esses arquivos à mão: o validador acusa divergência.
+.claude/skills/. Na instalação no lugar (a raiz é o próprio motor), o alvo é CLAUDE.local.md, e o
+hook post-merge roda este comando depois de cada git pull. Nunca edite esses arquivos à mão: o
+validador acusa divergência.
 
 Códigos de saída:
   0  harness gerado
@@ -39,7 +41,8 @@ def main():
         print(mensagem_os(e, raiz))
         sys.exit(1)
     if not escritos:
-        print("nenhum alvo compilável em vault.config.yaml (harness: só claude-code é gerado hoje); skills reinstaladas")
+        print("nenhum alvo compilável em vault.config.yaml (harness: só claude-code é gerado hoje; "
+              "os outros agentes leem AGENTS.md do motor)")
         return
     for p in escritos:
         print(f"{p.relative_to(raiz).as_posix()} gerado")

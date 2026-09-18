@@ -3,3 +3,24 @@ __pycache__/
 .venv/
 .pytest_cache/
 .claude/settings.local.json
+.DS_Store
+.env
+.env.*
+
+# Instalação no lugar: a pasta clonada é a da pessoa, e o remoto dela é o jabuti público. Tudo
+# que é dela fica fora deste git (e o check_publicacao confere). Ancorado na raiz com "/", para
+# não alcançar exemplos/workspace-exemplo/, que é versionado. A lista canônica é
+# CAMINHOS_PESSOAIS, em scripts/po/config.py; um teste cobra que este arquivo cubra cada entrada.
+/vault.config.yaml
+/dados/
+/politica/
+/estado/
+/logs/
+/inbox/
+/planilhas/
+/teses/
+/watchlist/
+/CLAUDE.local.md
+/.claude/rules/
+/.claude/skills/
+/mapeamentos/meu-*.yaml

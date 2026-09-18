@@ -1,4 +1,5 @@
 """Leitura e validação do vault.config.yaml de um workspace."""
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 import yaml
@@ -12,6 +13,32 @@ PROVIDERS_COTACOES = {"yahoo", "brapi", "manual"}
 PROVIDERS_CAMBIO = {"bcb-sgs", "yahoo", "manual"}
 CAMBIO_PADRAO = "bcb-sgs"
 PLANILHAS_PADRAO = "planilhas"
+
+# Instalação no lugar: a pasta clonada do jabuti é a pasta da pessoa, e o remoto dela é o jabuti
+# público. Estes são os caminhos pessoais na raiz, todos no .gitignore do motor; o
+# check_publicacao confere que nenhum está rastreado e que todos estão ignorados. Diretório
+# termina em "/"; o resto é arquivo ou padrão fnmatch.
+CAMINHOS_PESSOAIS = ("vault.config.yaml", "dados/", "politica/", "estado/", "logs/", "inbox/",
+                     "planilhas/", "teses/", "watchlist/", "CLAUDE.local.md", ".claude/rules/",
+                     ".claude/skills/", "mapeamentos/meu-*.yaml")
+
+
+def e_pessoal(rel: str) -> bool:
+    """True se o caminho relativo à raiz (com `/`) é de um dos CAMINHOS_PESSOAIS."""
+    rel = rel.replace("\\", "/").lstrip("/")
+    for padrao in CAMINHOS_PESSOAIS:
+        if padrao.endswith("/"):
+            if rel.startswith(padrao) or rel == padrao.rstrip("/"):
+                return True
+        elif fnmatchcase(rel, padrao):
+            return True
+    return False
+
+
+def raiz_e_motor(raiz: str | Path) -> bool:
+    """True se a raiz é o próprio motor: a instalação no lugar, em que a pasta clonada é a da
+    pessoa (ou o repositório do motor sem instalação, que não tem vault.config.yaml)."""
+    return (Path(raiz) / "scripts" / "criar_workspace.py").is_file()
 
 
 def validar_config(cfg: object) -> list[str]:

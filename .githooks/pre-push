@@ -1,0 +1,9 @@
+#!/bin/sh
+# Pre-push do motor. Com vault.config.yaml na raiz, esta pasta e a instalacao de alguem, e o
+# remoto dela e o jabuti publico: push bloqueado. Sem instalacao (o repo oficial), nada muda.
+# O git roda o hook na raiz da arvore de trabalho.
+if [ -f vault.config.yaml ]; then
+  echo "Esta pasta e a sua instalacao do jabuti: push bloqueado. O jabuti so muda por git pull; para propor mudanca, abra uma issue em https://github.com/letsgetithipster/jabuti/issues" >&2
+  exit 1
+fi
+exit 0

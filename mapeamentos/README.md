@@ -10,8 +10,9 @@ Esta pasta é superfície de contribuição, como `fiscal/`.
 2. `python scripts/inspecionar_extrato.py inbox/arquivo.xlsx` mostra abas,
    cabeçalhos candidatos e amostra. É o que a LLM lê para escrever o mapeamento.
 3. Se um mapeamento daqui casa com o cabeçalho, `importar_extrato.py` o detecta
-   sozinho. Senão, a LLM escreve um em `mapeamentos/` **do workspace**, mostra a
-   você, e só depois do seu "de acordo" o script roda.
+   sozinho. Senão, a LLM escreve `mapeamentos/meu-<corretora>.yaml` **do workspace**,
+   mostra a você, e só depois do seu "de acordo" o script roda. Na pasta clonada, o
+   workspace é esta mesma pasta, e o prefixo `meu-` deixa o arquivo fora do git do jabuti.
 4. `python scripts/importar_extrato.py <workspace> inbox/arquivo.xlsx --dry-run`
    executa e concilia sem gravar. Sem `--dry-run`, grava em `dados/` e deixa um
    log em `logs/importacoes/`.

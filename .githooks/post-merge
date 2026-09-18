@@ -1,0 +1,21 @@
+#!/bin/sh
+# Post-merge do motor: roda depois de cada git pull. Numa instalacao (vault.config.yaml na
+# raiz), o que foi gerado a partir do motor (CLAUDE.local.md, .claude/rules/, as copias das
+# skills em .claude/skills/) volta a bater com o motor novo: gerar_harness.py regenera e
+# reinstala as skills. Sem instalacao, nada. Falha aqui nao desfaz o pull; so avisa.
+# O git roda o hook na raiz da arvore de trabalho.
+[ -f vault.config.yaml ] || exit 0
+PY=""
+# A .venv do /jabuti-init (Python do sistema que recusa pip) vem antes do PATH.
+for c in .venv/bin/python .venv/Scripts/python.exe python3 python py; do
+  if command -v "$c" >/dev/null 2>&1 && "$c" -c "import sys;sys.exit(sys.version_info[0]!=3)" >/dev/null 2>&1; then
+    PY=$c
+    break
+  fi
+done
+if [ -z "$PY" ]; then
+  echo "post-merge: python3 nao encontrado no PATH; depois de instalar, rode: python scripts/gerar_harness.py ." >&2
+  exit 0
+fi
+"$PY" scripts/gerar_harness.py . || echo "post-merge: o harness nao foi regenerado; rode: python scripts/gerar_harness.py ." >&2
+exit 0

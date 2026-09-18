@@ -1,12 +1,12 @@
 # skills/ — o que cada skill faz, quando usar, e o que nunca faz
 
-O `criar_workspace.py` copia estas pastas para `.claude/skills/` do workspace (`--so-skills` reinstala). Toda skill declara "O que esta skill NÃO faz". As de onboarding têm linha em `estado/SETUP.md` e terminam com um bloco "Próximo passo" pronto para colar; as de rotina terminam em "feito".
+Qualquer agente lê as skills daqui: `/jabuti-<nome>`, ou o pedido equivalente, é ler e seguir `skills/jabuti-<nome>/SKILL.md`, como diz o `AGENTS.md` da raiz. Por isso nenhuma skill cita arquivo ou comando de um agente só. No Claude Code, o `criar_workspace.py` também as copia para `.claude/skills/`, para virarem comandos do menu (`--so-skills` reinstala; na pasta clonada, o `git pull` reinstala sozinho). Toda skill declara "O que esta skill NÃO faz". As de onboarding têm linha em `estado/SETUP.md` e terminam com um bloco "Próximo passo" pronto para colar; as de rotina terminam em "feito".
 
 ## Onboarding, na ordem (Fase 4)
 
 | Skill | Quando | Escreve | Nunca |
 |---|---|---|---|
-| `/jabuti-init` | primeira thread; ou revisar o perfil | `politica/00-perfil.md` | propõe banda, olha `dados/`, cria workspace |
+| `/jabuti-init` | na pasta recém-clonada (o passo 0 instala ali mesmo); primeira thread; ou revisar o perfil | a instalação na raiz (via `criar_workspace.py .`), `politica/00-perfil.md` | propõe banda, olha `dados/`, pergunta onde instalar |
 | `/jabuti-estrategia` | depois do perfil; ou revisar bandas | `politica/01-alocacao-alvo.md`, `logs/decisoes/` | escolhe ativo, recomenda, olha `dados/` |
 | `/jabuti-importar` (modo onboarding) | depois da política, para trazer a carteira que já existe | `vault.config.yaml` (contas), `dados/` via script, `estado/ESTADO.md` | digita número, roda mapeamento sem mostrar |
 

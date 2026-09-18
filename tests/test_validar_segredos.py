@@ -1,9 +1,12 @@
 """Segredo em arquivo versionado é o defeito mais caro de desfazer: uma vez commitado, ele
 está no histórico de todo mundo que clonou. O check roda no validador e no pre-commit."""
 import subprocess
+from pathlib import Path
 
 from po.validar.check_segredos import checar_segredos, parece_credencial
 from test_validar_dados import copia_exemplo
+
+RAIZ = Path(__file__).resolve().parent.parent
 
 
 def _repo(tmp_path):
@@ -116,3 +119,57 @@ def test_forma_conhecida_nao_passa_por_escotilha_de_placeholder(tmp_path):
     (ws / "dados" / "x.txt").write_text('api_key = "AKIAIOSFODNN7EXAMPLE"', encoding="utf-8")
     erros, _ = checar_segredos(ws)
     assert any("x.txt" in e for e in erros)
+
+
+# --- instalação no lugar: a raiz é o motor, e o que o motor versiona não é da pessoa ---
+
+SEGREDO = 'api_key: "9f2b7c1d4e6a8b3f"'
+
+
+def _motor_instalado(tmp_path, *, com_git=True):
+    """Motor mínimo com instalação na raiz: um teste do motor com credencial falsa de propósito
+    (versionado), o .gitignore do motor de verdade e os caminhos pessoais."""
+    raiz = tmp_path / "jabuti"
+    (raiz / "scripts").mkdir(parents=True)
+    (raiz / "scripts" / "criar_workspace.py").write_text("", encoding="utf-8", newline="\n")
+    (raiz / "tests").mkdir()
+    (raiz / "tests" / "test_x.py").write_text(f"SEGREDO = '{SEGREDO}'\n", encoding="utf-8",
+                                              newline="\n")
+    (raiz / ".gitignore").write_bytes((RAIZ / ".gitignore").read_bytes())
+    if com_git:
+        subprocess.run(["git", "init", "-q"], cwd=raiz, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=raiz, check=True)
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t.invalid", "-c",
+                        "commit.gpgsign=false", "-c", "core.hooksPath=.git/hooks", "commit", "-q",
+                        "-m", "motor"], cwd=raiz, check=True)
+    (raiz / "vault.config.yaml").write_text("versao: 1\n", encoding="utf-8", newline="\n")
+    (raiz / "dados").mkdir()
+    return raiz
+
+
+def test_no_lugar_o_teste_do_motor_nao_e_segredo_da_pessoa(tmp_path):
+    """Sem o recorte, o validador da instalação no lugar acusaria a credencial falsa que a suíte do
+    motor usa de propósito, e nenhuma instalação fecharia em zero erros."""
+    raiz = _motor_instalado(tmp_path)
+    (raiz / "dados" / "ignorado.txt").write_text(SEGREDO, encoding="utf-8", newline="\n")
+    assert checar_segredos(raiz) == ([], [])
+
+
+def test_no_lugar_arquivo_solto_ou_pessoal_forcado_e_conferido(tmp_path):
+    raiz = _motor_instalado(tmp_path)
+    (raiz / "notas.txt").write_text(SEGREDO, encoding="utf-8", newline="\n")   # solto: nem git, nem ignore
+    (raiz / "dados" / "forcado.txt").write_text(SEGREDO, encoding="utf-8", newline="\n")
+    subprocess.run(["git", "add", "-f", "dados/forcado.txt"], cwd=raiz, check=True)
+    erros, _ = checar_segredos(raiz)
+    assert any(e.startswith("notas.txt:") for e in erros), erros
+    assert any(e.startswith("dados/forcado.txt:") for e in erros), erros
+    assert not any("tests/" in e for e in erros), erros
+
+
+def test_no_lugar_sem_git_confere_so_os_caminhos_pessoais(tmp_path):
+    """Download em zip: sem git para dizer o que ele levaria, a varredura cobre o que é da
+    pessoa, inteiro, e nunca o motor."""
+    raiz = _motor_instalado(tmp_path, com_git=False)
+    (raiz / "dados" / "x.txt").write_text(SEGREDO, encoding="utf-8", newline="\n")
+    erros, _ = checar_segredos(raiz)
+    assert [e.split(":")[0] for e in erros] == ["dados/x.txt"], erros

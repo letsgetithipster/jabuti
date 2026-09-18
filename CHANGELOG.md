@@ -12,11 +12,22 @@ aconteceu.
 
 ### Mudou para quem já usa
 
-- **O primeiro dia começa na pasta do jabuti.** Aberto o Claude Code no motor, o `/jabuti-init`
-  de lá confere Python e git, instala as dependências, cria a sua pasta e entrega o `/cd` que
-  leva a sessão até ela, onde o `/jabuti-init` de sempre pergunta quem você é. O
-  `criar_workspace.py` passa a recusar pasta dentro do motor e a imprimir os comandos para
-  continuar.
+- **A pasta que você clona é a sua instalação.** Aberto o agente na pasta clonada, o
+  `/jabuti-init` confere Python e git, instala as dependências, faz uma pergunta (como você quer
+  ser chamado), roda `python scripts/criar_workspace.py .` e segue direto para o perfil, na
+  mesma conversa. Os seus arquivos nascem na raiz do clone e ficam no `.gitignore` do jabuti;
+  commit e push ficam bloqueados ali pelos hooks, e o jabuti se atualiza com `git pull` (o hook
+  `post-merge` regenera o harness depois de cada pull). O validador confere que nada pessoal
+  está rastreado. Pasta dentro do jabuti, sem ser a raiz, continua recusada.
+- **Qualquer agente de terminal roda o jabuti.** O `AGENTS.md` na raiz diz a Codex, Cursor e
+  outros por onde começar e como seguir uma skill; o `CLAUDE.md` do motor só o importa. Os
+  comandos no menu existem hoje só no Claude Code, que o instalador configura com
+  `CLAUDE.local.md` e cópias das skills. `criar_workspace.py --harness` escolhe o agente.
+- **Quem já tem workspace numa pasta separada não precisa fazer nada.** O modo separado
+  continua igual (`python <motor>/scripts/criar_workspace.py <pasta>`), com git próprio e o
+  `CLAUDE.md` gerado de sempre. Nada a migrar. Mapeamento que a LLM escrever para você passa a
+  se chamar `mapeamentos/meu-<corretora>.yaml`, nos dois modos; os que você já tem continuam
+  valendo com o nome que têm.
 - **O mês não avança para o aporte com posição sem valor novo.** `atualizar_cotacoes.py`
   termina nomeando o que não conseguiu atualizar sozinho (fundo, previdência, renda fixa,
   ticker que o provider não achou), com o último valor conhecido e o `--manual` pronto; a

@@ -1,1 +1,1 @@
-# templates/ — workspace/ é a árvore instanciada por scripts/criar_workspace.py; docs/ são esqueletos de documentos (tese, logs) usados pelas skills.
+# templates/ — workspace/ é a árvore instanciada por scripts/criar_workspace.py (na instalação no lugar, só as pastas pessoais e o vault.config.yaml vão para a raiz do clone; .githooks, .gitattributes, gitignore.template e mapeamentos/ o motor já tem); docs/ são esqueletos de documentos (tese, logs) usados pelas skills.

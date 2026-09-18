@@ -9,11 +9,18 @@ espelho de `.gitignore` diverge em silêncio, e este divergiu antes mesmo do có
 
 Workspace criado com `--sem-git` não tem `.gitignore` a honrar nem commit a bloquear: ali a
 varredura cobre tudo. O que ela nunca cobre é `.env*`, que existe para guardar segredo.
+
+Instalação no lugar (a raiz é o próprio motor): os arquivos que o motor versiona não são da
+pessoa, e os testes do motor têm credencial falsa de propósito. Ali a varredura cobre só o que é
+dela e o git levaria: caminho pessoal rastreado (o `git add -f` que o check_publicacao também
+acusa) e arquivo não rastreado e não ignorado. Sem git, cobre os caminhos pessoais inteiros.
 """
 import os
 import re
 import subprocess
 from pathlib import Path
+
+from po.config import CAMINHOS_PESSOAIS, e_pessoal, raiz_e_motor
 
 # Formas que só aparecem em credencial de verdade. NÃO passam por escotilha de placeholder: a
 # forma já é a prova, e `AKIAIOSFODNN7EXAMPLE` ser o exemplo da AWS não torna um AKIA real menos
@@ -90,13 +97,33 @@ def _rglob_sem_diretorios_de_ferramenta(raiz: Path):
             yield Path(dirpath) / nome
 
 
+def _ls_files(raiz: Path, *args: str) -> list[str] | None:
+    saida = subprocess.run(["git", "ls-files", *args, "-z"], cwd=raiz, capture_output=True,
+                           text=True, encoding="utf-8", errors="replace")
+    return [p for p in saida.stdout.split("\0") if p] if saida.returncode == 0 else None
+
+
+def _pessoais_no_disco(raiz: Path):
+    """Os arquivos dos CAMINHOS_PESSOAIS na raiz, sem git para dizer o que ele levaria."""
+    for padrao in CAMINHOS_PESSOAIS:
+        if padrao.endswith("/"):
+            if (raiz / padrao).is_dir():
+                yield from _rglob_sem_diretorios_de_ferramenta(raiz / padrao)
+        else:
+            yield from raiz.glob(padrao)
+
+
 def _versionaveis(raiz: Path):
     """Arquivos que o git versiona ou versionaria. `.env*` fica de fora sempre."""
-    saida = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
-                           cwd=raiz, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace")
-    if saida.returncode == 0:
-        candidatos = (raiz / p for p in saida.stdout.split("\0") if p)
+    no_lugar = raiz_e_motor(raiz)
+    todos = _ls_files(raiz, "--cached", "--others", "--exclude-standard")
+    if todos is not None and no_lugar:
+        soltos = set(_ls_files(raiz, "--others", "--exclude-standard") or [])
+        candidatos = (raiz / p for p in todos if e_pessoal(p) or p in soltos)
+    elif todos is not None:
+        candidatos = (raiz / p for p in todos)
+    elif no_lugar:
+        candidatos = _pessoais_no_disco(raiz)
     else:
         candidatos = _rglob_sem_diretorios_de_ferramenta(raiz)   # --sem-git: não há gitignore a honrar
     for caminho in candidatos:

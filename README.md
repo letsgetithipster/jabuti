@@ -24,7 +24,7 @@ caminho tem quatro, na ordem em que você vai usar:
 
 | | Quando | Cole | Para quê |
 |---|---|---|---|
-| 1 | no primeiro dia | `/jabuti-init` | instalar, criar a sua pasta e contar quem você é: idade, horizonte, custo de vida e quanto de queda você aguenta |
+| 1 | no primeiro dia | `/jabuti-init` | instalar o jabuti na pasta que você clonou e contar quem você é: idade, horizonte, custo de vida e quanto de queda você aguenta |
 | 2 | no primeiro dia | `/jabuti-estrategia` | escolher como dividir o dinheiro entre os tipos de investimento |
 | 3 | no primeiro dia, e a cada extrato novo | `/jabuti-importar` | trazer a carteira que você já tem, pelo extrato da corretora |
 | 4 | todo mês | `/jabuti-mes` | atualizar as cotações, informar o valor dos fundos, decidir onde vai o aporte e registrar compra, venda e provento |
@@ -83,8 +83,9 @@ paga.
 São quatro coisas, e você provavelmente já tem três.
 
 1. Um computador com Windows, macOS ou Linux, Python 3.11 ou mais novo e git.
-2. Uma assinatura de LLM que trabalhe no terminal. Por enquanto o jabuti vem configurado para
-   o Claude Code.
+2. Uma assinatura de LLM com um agente de terminal: o Claude Code, o Codex ou outro que leia o
+   [AGENTS.md](AGENTS.md). Por enquanto, os comandos aparecem no menu só no Claude Code; nos
+   outros, você cola o mesmo nome e o agente segue a skill pelo `AGENTS.md`.
 3. Uns 30 minutos, uma vez só, para as conversas do primeiro dia.
 4. Se você já investe, o extrato ou o relatório de posições da sua corretora, em CSV ou xlsx.
    Serve qualquer corretora, porque o motor lê o arquivo através de um mapeamento em YAML. Já
@@ -110,12 +111,12 @@ cd jabuti
 claude
 ```
 
-Com o Claude Code aberto na pasta do jabuti, cole `/jabuti-init`. Ele confere se o Python e o
-git estão instalados, instala o que o jabuti usa, pergunta onde criar a sua pasta e como você
-quer ser chamado, e cria a pasta. Ela fica separada deste repositório: os seus dados ficam nela,
-e o método fica aqui. No fim, ele mostra o `/cd` que leva a mesma sessão para a sua pasta.
+No lugar de `claude`, abra o agente que você usa (`codex`, por exemplo). Com ele aberto na pasta
+do jabuti, cole `/jabuti-init`. Ele confere se o Python e o git estão instalados, instala o que
+o jabuti usa, pergunta como você quer ser chamado e instala tudo aqui mesmo: a pasta que você
+clonou vira a sua. Os seus dados ficam nela, fora do git, e o jabuti se atualiza com `git pull`.
 
-Na sua pasta, o mesmo `/jabuti-init` passa a perguntar quem você é, e as conversas seguem nesta
+Na mesma conversa, o `/jabuti-init` passa a perguntar quem você é, e as conversas seguem nesta
 ordem, uma de cada vez:
 
 | Cole | O que acontece |
@@ -127,15 +128,15 @@ ordem, uma de cada vez:
 Cada conversa termina dizendo qual é a próxima, e `estado/SETUP.md` guarda onde você parou.
 No fim, `estado/ESTADO.md` mostra a sua carteira comparada com a política que você escolheu.
 
-Se preferir instalar sem a LLM, rode na pasta do jabuti e depois abra o Claude Code na pasta
-criada:
+Se preferir instalar sem a LLM, rode na pasta do jabuti e depois abra o seu agente nela:
 
 ```powershell
 python -m pip install -r requirements.txt -r requirements-xlsx.txt
-python scripts/criar_workspace.py C:\caminho\meu-jabuti
+python scripts/criar_workspace.py .
 ```
 
-No macOS e no Linux, use `python3` e um caminho como `~/meu-jabuti`.
+No macOS e no Linux, use `python3`. Quem usa outro agente que não o Claude Code acrescenta
+`--harness codex` (ou `cursor`) ao segundo comando.
 
 <!-- ensina: todo-mes -->
 ## O que eu faço todo mês
@@ -144,14 +145,17 @@ Você abre a LLM na sua pasta e cola `/jabuti-mes`. A conversa começa com uma p
 quer decidir onde aportar ou registrar o que já aconteceu?
 
 Para decidir, antes de comprar, a skill atualiza as cotações, refaz o `ESTADO.md` e calcula a
-fila de aporte com a política que você declarou. Nos comandos abaixo, `<motor>` é a pasta onde
-você clonou o jabuti e `.` é a sua pasta:
+fila de aporte com a política que você declarou. A sua pasta é a que você clonou, então os
+comandos rodam dela mesma, e o `.` é ela:
 
 ```powershell
-python <motor>\scripts\atualizar_cotacoes.py .
-python <motor>\scripts\gerar_estado.py .
-python <motor>\scripts\consultar_aporte.py . 1500 --todos
+python scripts\atualizar_cotacoes.py .
+python scripts\gerar_estado.py .
+python scripts\consultar_aporte.py . 1500 --todos
 ```
+
+Se você mantém os dados numa pasta separada do jabuti, rode da sua pasta com o caminho do
+jabuti na frente, que as skills chamam de `<motor>`: `python <motor>\scripts\gerar_estado.py .`.
 
 As cotações vêm do serviço configurado em `vault.config.yaml`; o padrão é o `yahoo`, que não
 pede cadastro nem token. Sem internet, o script para e avisa, e nunca usa preço de memória.
@@ -169,7 +173,7 @@ escolhe, e a escolha fica num log de decisão datado. A saída termina sempre co
 Para registrar uma compra, depois de feita:
 
 ```powershell
-python <motor>\scripts\registrar.py . compra PETR4 50 36,00 --taxa 2,90 --data 2026-09-05
+python scripts\registrar.py . compra PETR4 50 36,00 --taxa 2,90 --data 2026-09-05
 ```
 
 O comando repete o que entendeu, mostra como fica o saldo e pede confirmação. Com `--dry-run`
@@ -184,9 +188,9 @@ No mês em que você não aporta, a conversa é a mesma, com aporte zero: não s
 Use a mesma `/jabuti-mes` e o mesmo `registrar.py`, trocando o verbo:
 
 ```powershell
-python <motor>\scripts\registrar.py . venda PETR4 50 41,00 --data 2026-10-02
-python <motor>\scripts\registrar.py . provento HGLG11 45,30 --tipo rendimento --data 2026-09-10
-python <motor>\scripts\registrar.py . evento PETR4 split --razao 2:1 --data 2026-09-18 --confirmar
+python scripts\registrar.py . venda PETR4 50 41,00 --data 2026-10-02
+python scripts\registrar.py . provento HGLG11 45,30 --tipo rendimento --data 2026-09-10
+python scripts\registrar.py . evento PETR4 split --razao 2:1 --data 2026-09-18 --confirmar
 ```
 
 A venda baixa a posição pelo preço médio atual, mostra o resultado realizado e grava um
@@ -241,10 +245,10 @@ do servidor da Finnest, para quem for escrevê-lo, está em
 | `templates/` | a estrutura da sua pasta, que `criar_workspace.py` copia, e os esqueletos de documento |
 | `scripts/` | os comandos e o pacote `po/`: validador, criação da pasta, cotações, importação, registro e geradores |
 | `mapeamentos/` | como ler o arquivo de cada corretora, em YAML; é onde contribuir é mais fácil |
-| `skills/` | as conversas guiadas que a LLM executa, copiadas para a sua pasta; catálogo em `skills/README.md` |
+| `skills/` | as conversas guiadas, lidas por qualquer agente; catálogo em `skills/README.md` |
 | `exemplos/` | uma pasta fictícia completa, validada a cada commit |
 | `metodo/` | as regras do método, sem dado pessoal |
-| `rules/` | o texto de voz da LLM, que vira o `CLAUDE.md` da sua pasta |
+| `rules/` | o texto de voz da LLM, que o agente lê com os nomes do seu `vault.config.yaml` |
 | `tests/` | a suíte, rodada pelo pre-commit e pela CI em 12 combinações |
 | `docs/` | a documentação das skills da Finnest e a medição do servidor dela |
 | `fiscal/` | onde vão ficar os pacotes de imposto de cada ano, com validade declarada; hoje só tem o README com a regra |
@@ -253,14 +257,15 @@ O que mudou desde a sua última atualização está no [CHANGELOG.md](CHANGELOG.
 
 ## Privacidade
 
-A sua pasta é privada desde o início: nasce com git local, sem remoto. Os extratos ficam em
-`inbox/`, fora do versionamento, e o cockpit em xlsx pode ser gerado de novo a qualquer hora,
-então também não é versionado. Três coisas saem da sua máquina, e o
-[PRIVACIDADE.md](PRIVACIDADE.md) explica cada uma, inclusive a maior delas: o que você mostra à
-sua LLM.
+A pasta que você clonou tem remoto: o jabuti público, de onde vem o `git pull`. Por isso tudo o
+que é seu fica no `.gitignore` do jabuti (`dados/`, `politica/`, `estado/`, `logs/`, `inbox/`,
+`planilhas/` e o `vault.config.yaml`), e os hooks bloqueiam commit e push nesta pasta: nada seu
+sobe, nem por engano. O validador confere que nenhum desses caminhos entrou no git. Para mudar o
+jabuti, abra uma issue; a sua pasta só recebe mudança por `git pull`.
 
-Se você enviar a sua pasta para um repositório remoto, declare isso em `vault.config.yaml`. O
-validador cobra a declaração, porque um push para repositório público não se desfaz.
+Três coisas saem da sua máquina, e o [PRIVACIDADE.md](PRIVACIDADE.md) explica cada uma,
+inclusive a maior delas: o que você mostra à sua LLM. Ele também descreve a alternativa de
+manter os dados numa pasta separada, com git próprio.
 
 ## Contribuindo
 
@@ -283,7 +288,9 @@ statements are read through declarative YAML mappings and accepted only when the
 own arithmetic reconciles; and the allocation policy you declare is the only thing that makes
 decisions. It ships a guided onboarding (profile, allocation policy, portfolio import), a
 monthly routine (where to contribute, purchases, sales, dividends, corporate actions), a CSV
-data layer with a validator that runs on every commit, and a compiled Claude Code harness.
+data layer with a validator that checks every step. Cloning is installing: your data lives in
+the cloned folder, ignored by git, and updates arrive by `git pull`. Any terminal agent that
+reads AGENTS.md can run it; Claude Code also gets native commands.
 Two optional bonus skills, read-only, measure cash flow and debt through Finnest, which reads bank
 accounts via Brazil's Open Finance and was co-founded by the author; neither writes to the
 portfolio. Picking assets inside each block and tax support are outside this release. The

@@ -60,3 +60,42 @@ def test_alvo_reservado_nao_gera_arquivo(tmp_path):
     cfg.write_text(cfg.read_text(encoding="utf-8").replace("harness: [claude-code]", "harness: [codex]"),
                    encoding="utf-8")
     assert renderizar_harness(ws) == {}
+
+
+def _motor_com_instalacao(tmp_path, harness="claude-code"):
+    """As fontes do harness (rules/, skills/) e um config com `caminhos.motor: '.'`: a raiz é o
+    motor, como na pasta clonada depois do `criar_workspace.py .`."""
+    raiz = tmp_path / "jabuti"
+    shutil.copytree(MOTOR / "rules", raiz / "rules")
+    shutil.copytree(MOTOR / "skills", raiz / "skills")
+    texto = (EXEMPLO / "vault.config.yaml").read_text(encoding="utf-8")
+    for velho, novo in (("motor: '../..'", "motor: '.'"),
+                        ("harness: [claude-code]", f"harness: [{harness}]")):
+        assert texto.count(velho) == 1, velho
+        texto = texto.replace(velho, novo)
+    (raiz / "vault.config.yaml").write_text(texto, encoding="utf-8", newline="\n")
+    return raiz
+
+
+def test_no_lugar_o_alvo_e_claude_local_md_e_nunca_o_claude_md_do_motor(tmp_path):
+    """Na pasta clonada, o CLAUDE.md é do motor, versionado, e importa o AGENTS.md. O harness da
+    pessoa vai para CLAUDE.local.md, que o Claude Code carrega sozinho e o .gitignore ignora."""
+    raiz = _motor_com_instalacao(tmp_path)
+    arquivos = renderizar_harness(raiz)
+    assert set(arquivos) == {"CLAUDE.local.md", ".claude/rules/00-voz.md"}
+    local = arquivos["CLAUDE.local.md"]
+    assert local.startswith("# CLAUDE.local.md — Casa Exemplo") and "Ana" in local
+    assert "git pull" in local and "<motor>/scripts" not in local and "este CLAUDE.local.md" in local
+    escrever_harness(raiz)
+    assert not (raiz / "CLAUDE.md").exists()
+    assert (raiz / "CLAUDE.local.md").read_text(encoding="utf-8") == local
+    copiadas = {p.parent.name for p in (raiz / ".claude" / "skills").glob("*/SKILL.md")}
+    assert copiadas == {p.parent.name for p in (MOTOR / "skills").glob("*/SKILL.md")}
+
+
+def test_no_lugar_sem_claude_code_nada_e_compilado_nem_copiado(tmp_path):
+    """Codex, Cursor e outros leem AGENTS.md e skills/ direto: nem harness nem cópia de skill."""
+    raiz = _motor_com_instalacao(tmp_path, harness="codex")
+    assert renderizar_harness(raiz) == {}
+    assert escrever_harness(raiz) == []
+    assert not (raiz / ".claude").exists()

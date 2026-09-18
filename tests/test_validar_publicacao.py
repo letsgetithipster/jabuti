@@ -113,3 +113,55 @@ def test_privacidade_md_nomeia_as_tres_saidas():
             f"PRIVACIDADE.md não enumera a saída {saida!r}. As três são o conteúdo do documento: "
             "o ticker que vai ao provider de cotação, o que você mostra à LLM, e o que você mesmo "
             "empurra para um remoto git. Omitir uma delas é a única forma de o documento mentir.")
+
+
+# --- instalação no lugar: a pasta clonada é a da pessoa, e o remoto dela é o motor público ---
+
+MOTOR_PUBLICO = "https://github.com/letsgetithipster/jabuti.git"
+RAIZ = Path(__file__).resolve().parent.parent
+
+
+def _no_lugar(tmp_path, *, gitignore=None, hooks=True):
+    """Motor mínimo com instalação na raiz: o marcador do motor, o .gitignore dele (ou outro), o
+    remoto público e os caminhos pessoais."""
+    raiz = tmp_path / "jabuti"
+    (raiz / "scripts").mkdir(parents=True)
+    (raiz / "scripts" / "criar_workspace.py").write_text("", encoding="utf-8", newline="\n")
+    texto = (RAIZ / ".gitignore").read_text(encoding="utf-8") if gitignore is None else gitignore
+    (raiz / ".gitignore").write_text(texto, encoding="utf-8", newline="\n")
+    subprocess.run(["git", "init", "-q"], cwd=raiz, check=True, capture_output=True)
+    subprocess.run(["git", "remote", "add", "origin", MOTOR_PUBLICO], cwd=raiz, check=True)
+    if hooks:
+        subprocess.run(["git", "config", "core.hooksPath", ".githooks"], cwd=raiz, check=True)
+    (raiz / "vault.config.yaml").write_text("versao: 1\n", encoding="utf-8", newline="\n")
+    (raiz / "dados").mkdir()
+    (raiz / "dados" / "fills.csv").write_text("x\n", encoding="utf-8", newline="\n")
+    return raiz
+
+
+def test_no_lugar_o_remoto_do_motor_nao_e_erro(tmp_path):
+    """No lugar, o remoto é o jabuti público por construção. Cobrar declaração dele seria cobrar
+    de todo usuário, e a proteção ali é outra: nada pessoal rastreado, tudo ignorado."""
+    assert checar_publicacao(_no_lugar(tmp_path)) == ([], [])
+
+
+def test_no_lugar_caminho_pessoal_rastreado_e_erro_com_o_comando(tmp_path):
+    raiz = _no_lugar(tmp_path)
+    subprocess.run(["git", "add", "-f", "dados/fills.csv", "vault.config.yaml"], cwd=raiz, check=True)
+    erros, _ = checar_publicacao(raiz)
+    assert len(erros) == 1, erros
+    assert "dados/fills.csv" in erros[0] and "vault.config.yaml" in erros[0]
+    assert 'git rm --cached -- "dados/fills.csv" "vault.config.yaml"' in erros[0]
+
+
+def test_no_lugar_caminho_pessoal_fora_do_gitignore_e_erro(tmp_path):
+    texto = (RAIZ / ".gitignore").read_text(encoding="utf-8")
+    assert texto.count("/dados/\n") == 1
+    erros, _ = checar_publicacao(_no_lugar(tmp_path, gitignore=texto.replace("/dados/\n", "")))
+    assert len(erros) == 1 and "dados/" in erros[0] and "git checkout -- .gitignore" in erros[0], erros
+
+
+def test_no_lugar_sem_hooks_e_aviso_com_o_comando(tmp_path):
+    erros, avisos = checar_publicacao(_no_lugar(tmp_path, hooks=False))
+    assert erros == []
+    assert len(avisos) == 1 and "git config core.hooksPath .githooks" in avisos[0], avisos

@@ -97,6 +97,22 @@ def test_setup_do_template_nasce_com_tudo_aberto_e_aponta_a_primeira_etapa():
     assert fechada.search(SETUP_EXEMPLO), "SETUP.md do exemplo devia mostrar etapas ja cumpridas"
 
 
+ESPECIFICO_DE_AGENTE = re.compile(r"\.claude/|CLAUDE\.md|CLAUDE\.local\.md|Claude Code", re.I)
+
+
+def test_skill_e_agnostica_ao_agente():
+    """A mesma SKILL.md roda no Claude Code, no Codex, no Cursor ou em qualquer agente que leia o
+    AGENTS.md. O que é de um agente só (onde ele guarda comando, qual arquivo de instrução ele
+    carrega, o /cd de uma sessão) mora no instalador, que compila o harness, e no AGENTS.md; na
+    skill, vira instrução que os outros agentes não têm como cumprir."""
+    achados = []
+    for p in sorted(SKILLS.glob("*/SKILL.md")):
+        for n, linha in enumerate(p.read_text(encoding="utf-8").splitlines(), start=1):
+            for m in ESPECIFICO_DE_AGENTE.finditer(linha):
+                achados.append(f"{p.parent.name}:{n}: {m.group(0)!r}")
+    assert achados == [], "skill cita o que é de um agente só:\n  " + "\n  ".join(achados)
+
+
 TETO_ROTINA = 8192
 
 

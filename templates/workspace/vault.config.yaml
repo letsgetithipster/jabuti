@@ -2,9 +2,9 @@
 versao: 1
 idioma: pt-BR
 moeda_base: BRL
-harness: [claude-code]        # alvos de compilação: claude-code hoje; codex, cursor, app-web reservados
+harness: [claude-code]        # o seu agente: claude-code recebe harness compilado; codex, cursor e app-web leem AGENTS.md do motor
 casa:
-  nome: __CASA__              # como você chama a sua casa de gestão; aparece no CLAUDE.md gerado
+  nome: __CASA__              # como você chama a sua casa de gestão; aparece nas instruções geradas para o seu agente
 usuario:
   nome: __USUARIO__           # como o coordenador se dirige a você
 coordenador:

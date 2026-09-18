@@ -43,6 +43,10 @@ python scripts/validar_workspace.py exemplos/workspace-exemplo
 O `requirements-xlsx.txt` é opcional para **usar** e obrigatório para **contribuir**: sem
 openpyxl, 15 testes aparecem como `skipped` e você não exercita o caminho de xlsx.
 
+Contribua de um clone só para isso. Não rode o `/jabuti-init` nele: a instalação põe os seus
+dados na raiz, e com `vault.config.yaml` ali os hooks bloqueiam commit e push, de propósito.
+Quem usa e contribui tem dois clones, o de uso e o de contribuição.
+
 Dois verdes fecham qualquer mudança: `python -m pytest -q` e o validador do exemplo em
 `0 erro(s), 0 aviso(s)`. O pre-commit roda os dois. **Nunca `--no-verify`:** se o hook
 reclama, ele está certo ou o hook é o bug — nas duas hipóteses, passar por cima esconde a

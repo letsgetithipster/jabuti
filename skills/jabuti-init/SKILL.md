@@ -1,12 +1,13 @@
 ---
 name: jabuti-init
-description: "Use quando o usuário pedir '/jabuti-init', 'começar o onboarding', 'montar meu perfil', 'primeira vez no jabuti' ou abrir uma sessão num workspace cujo estado/SETUP.md tem a linha do jabuti-init aberta. Etapa 1 de 5: uma conversa de 15 a 17 perguntas, uma por vez, que produz politica/00-perfil.md — quem a pessoa é, para onde vai, quanto aguenta. Só fatos e uma conta aritmética; zero conversa sobre alocação. Não cria workspace (criar_workspace.py), não propõe banda (/jabuti-estrategia), não olha dados/."
+description: "Use quando o usuário pedir '/jabuti-init', 'começar', 'instalar o jabuti', 'começar o onboarding', 'montar meu perfil', 'primeira vez no jabuti' ou abrir uma sessão numa pasta cujo estado/SETUP.md tem a linha do jabuti-init aberta. Na pasta clonada ainda sem vault.config.yaml, o passo 0 instala o jabuti ali mesmo (ambiente, dependências, uma pergunta, criar_workspace.py .) e segue na mesma conversa. Etapa 1 de 5: uma conversa de 15 a 17 perguntas, uma por vez, que produz politica/00-perfil.md — quem a pessoa é, para onde vai, quanto aguenta. Só fatos e uma conta aritmética; zero conversa sobre alocação. Não pergunta onde instalar, não propõe banda (/jabuti-estrategia), não olha dados/."
 ---
 
 # jabuti-init — quem você é
 
 ## Quando usar
 
+- Na pasta recém-clonada do jabuti, ainda sem `vault.config.yaml`: o passo 0 instala ali mesmo, e a conversa segue para o perfil
 - Primeira thread de um workspace recém-criado (`estado/SETUP.md` com `/jabuti-init` aberto)
 - Para revisar o perfil depois de uma mudança de vida (renda, dependente, meta), com o histórico de revisões registrando o que mudou
 
@@ -22,9 +23,21 @@ Frases típicas: "/jabuti-init", "vamos começar", "monta meu perfil".
 
 ## Contexto canônico a ler antes
 
+- A raiz tem `vault.config.yaml`? Sem ele, e com `scripts/criar_workspace.py` na raiz, é a pasta clonada ainda sem instalação: começar pelo passo 0.
 - `estado/SETUP.md`: a linha do `/jabuti-init` está aberta? Se está fechada e o perfil tem frontmatter preenchido, é revisão, não criação.
-- `politica/00-perfil.md`: existe (o `criar_workspace.py` cria)? Sem ele, parar: "rode `python <motor>/scripts/criar_workspace.py <pasta>` primeiro".
-- `metodo/bandas.yaml` do motor (caminho em `vault.config.yaml`, `caminhos.motor`): `parametros.taxa-retirada-real` para a função objetivo e `parametros.risco-testado` para classificar os cenários.
+- `politica/00-perfil.md`: existe (o `criar_workspace.py` cria)? Sem ele e com `vault.config.yaml`, a instalação está pela metade: rodar `python <motor>/scripts/validar_workspace.py .` e seguir a frase.
+- `metodo/bandas.yaml` do motor (caminho em `vault.config.yaml`, `caminhos.motor`; `.` quando a instalação está na pasta clonada): `parametros.taxa-retirada-real` para a função objetivo e `parametros.risco-testado` para classificar os cenários.
+
+## Passo 0 — instalar aqui, se ainda não está
+
+Condição: a pasta atual tem `scripts/criar_workspace.py` e não tem `vault.config.yaml`. É o jabuti recém-clonado, e a pasta clonada vira a da pessoa. Não perguntar onde instalar.
+
+1. Conferir o ambiente: `python --version` (no macOS e no Linux, `python3 --version`). Ausente ou abaixo de 3.11: parar e mandar instalar por https://www.python.org/downloads/. Depois `git --version`; ausente: https://git-scm.com/downloads.
+2. Instalar as dependências: `python -m pip install -r requirements.txt -r requirements-xlsx.txt`. Recusa por "externally-managed-environment" (Python do sistema no Linux ou no macOS): `python3 -m venv .venv`, instalar com `.venv/bin/python -m pip install -r requirements.txt -r requirements-xlsx.txt` e usar `.venv/bin/python` no lugar de `python` daqui em diante (a `.venv` fica fora do git).
+3. Identificar em que agente esta conversa roda e escolher o id: `claude-code`, `codex` ou `cursor`. Em dúvida, perguntar.
+4. Uma pergunta: como a pessoa quer ser chamada nas conversas. Sem preferência, não passar `--usuario`.
+5. Rodar `python scripts/criar_workspace.py . --harness <id> --usuario "<nome>"`. Ele copia as pastas pessoais para esta raiz, fora do git do jabuti, e liga os hooks que bloqueiam commit e push aqui. Frase de erro: ler, corrigir a causa e rodar de novo, nunca contornar.
+6. Com código 0, dizer em duas linhas o que mudou: o jabuti está instalado nesta pasta, os dados dela ficam fora do git, e o jabuti se atualiza com `git pull`. Seguir direto para o passo 1 do Fluxo, nesta mesma conversa, sem mandar abrir outra pasta nem outra sessão.
 
 ## Fluxo
 
@@ -50,12 +63,13 @@ Frases típicas: "/jabuti-init", "vamos começar", "monta meu perfil".
 
 ## O que esta skill NÃO faz
 
-- **Não cria workspace** (→ `python <motor>/scripts/criar_workspace.py`)
+- **Não pergunta onde instalar** nem cria pasta separada: na pasta clonada, o passo 0 instala ali mesmo
 - **Não propõe banda nem fala de alocação** (→ `/jabuti-estrategia`)
 - **Não olha `dados/`** nem pergunta corretora (→ `/jabuti-importar`)
-- **Não escolhe LLM** (é o campo `harness` do config)
+- **Não escolhe LLM**: grava no `harness` do config o agente em que a conversa já roda
+- **Não edita arquivo do motor** (`scripts/`, `skills/`, `rules/`, `metodo/`): ele só muda por `git pull`
 - **Não aplica taxa de memória**: a taxa vem de `metodo/bandas.yaml`, e o validador recalcula
-- **Não commita** (o usuário decide quando)
+- **Não commita** (na pasta clonada, commit e push ficam bloqueados; numa pasta separada, o usuário decide quando)
 
 ## Próximo passo
 

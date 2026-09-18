@@ -123,10 +123,9 @@ def test_texto_embarcado_nao_cita_caminho_nem_comando_inexistente():
     templates/ entra INTEIRO, não só templates/workspace/: a auditoria do PRONTO v1 achou em
     templates/docs/ um esqueleto que citava /jabuti-micro sem ressalva, fora do escopo de toda
     guarda. Esqueleto de documento é texto que a LLM copia para o workspace da pessoa."""
-    escopo = [RAIZ / "GUARDRAILS.md", RAIZ / "CLAUDE.md"]
+    escopo = [RAIZ / "GUARDRAILS.md", RAIZ / "AGENTS.md", RAIZ / "CLAUDE.md"]
     escopo += sorted(RAIZ.glob("rules/*.md"))
     escopo += sorted(RAIZ.glob("skills/*/SKILL.md"))
-    escopo += sorted(RAIZ.glob(".claude/skills/*/SKILL.md"))   # a porta do motor
     escopo += sorted((RAIZ / "templates").rglob("*.md"))
 
     instaladas = {p.parent.name for p in RAIZ.glob("skills/*/SKILL.md")}
@@ -146,6 +145,48 @@ def test_texto_embarcado_nao_cita_caminho_nem_comando_inexistente():
             if not (RAIZ / caminho).exists() and not (RAIZ / "templates" / "workspace" / caminho).exists():
                 faltando.append(f"{rel}: caminho {caminho} não existe")
     assert faltando == [], "texto embarcado cita o que não existe:\n  " + "\n  ".join(faltando)
+
+
+def _caminho_do_agents_existe(palavra: str) -> bool:
+    """Caminho citado no AGENTS.md: do motor, da instalação (o template) ou pessoal. Marcador
+    `<nome>` vira curinga e tem que casar algo; `<corretora>` é o nome que a pessoa escolhe."""
+    from po.config import e_pessoal
+    if "<nome>" in palavra:
+        return bool(list(RAIZ.glob(re.sub(r"<nome>", "*", palavra))))
+    concreto = re.sub(r"<[a-z]+>", "x", palavra)
+    return ((RAIZ / concreto).exists() or (RAIZ / "templates" / "workspace" / concreto).exists()
+            or e_pessoal(concreto))
+
+
+def test_agents_md_e_o_shim_so_citam_o_que_existe():
+    """O AGENTS.md é a porta de todo agente (Codex, Cursor e outros o leem sozinhos; o Claude Code,
+    pelo import do CLAUDE.md). Caminho que ele cita e não existe é a primeira instrução da sessão
+    mandando o agente procurar pelo disco, que é o defeito que a instalação no lugar nasceu para
+    fechar. Os marcadores da voz são os do compilador (`PLACEHOLDERS`): o agente sem harness
+    compilado os troca sozinho, e marcador que o compilador não usa ficaria na voz."""
+    from po.harness import PLACEHOLDERS
+
+    agents = (RAIZ / "AGENTS.md").read_text(encoding="utf-8")
+    shim = (RAIZ / "CLAUDE.md").read_text(encoding="utf-8")
+    assert re.search(r"^@AGENTS\.md[ \t]*$", shim, re.M), "o CLAUDE.md da raiz não importa o AGENTS.md"
+    assert len([l for l in shim.splitlines() if l.strip()]) <= 4, (
+        "o CLAUDE.md da raiz é só o import: instrução escrita nele é uma segunda fonte, que os "
+        "outros agentes não leem")
+    instaladas = {p.parent.name for p in RAIZ.glob("skills/*/SKILL.md")}
+    fora = sorted(set(re.findall(r"/(jabuti-[a-z]+)", agents)) - instaladas)
+    assert fora == [], f"AGENTS.md cita skill não instalada: {fora}"
+    quebrados = []
+    for trecho in re.findall(r"`([^`]+)`", agents):
+        for palavra in trecho.split():
+            if palavra.startswith(("/", "http", "-")) or not re.search(r"/|\.(md|yaml|py)$", palavra):
+                continue
+            if not _caminho_do_agents_existe(palavra):
+                quebrados.append(palavra)
+    assert quebrados == [], f"AGENTS.md cita caminho que não existe: {quebrados}"
+    for marca in PLACEHOLDERS:
+        assert f"`{marca}`" in agents, f"AGENTS.md não manda trocar {marca} na voz"
+    assert "skills/jabuti-init/SKILL.md" in agents and "estado/SETUP.md" in agents
+    assert "Sem `vault.config.yaml`" in agents and "Com `vault.config.yaml`" in agents
 
 
 def test_guardrails_declara_a_garantia_menor_do_dado_de_api():
