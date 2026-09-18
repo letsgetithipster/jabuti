@@ -20,7 +20,8 @@ raiz tem ou não um `vault.config.yaml`.
 2. Se o onboarding está fechado, `estado/ESTADO.md` é a primeira leitura para qualquer
    pergunta de alocação.
 3. Voz e método: `rules/00-voz.md`, trocando `__CASA__`, `__USUARIO__` e `__COORDENADOR__`
-   pelos nomes em `casa`, `usuario` e `coordenador` do `vault.config.yaml`. O contrato é o
+   pelos nomes em `casa.nome`, `usuario.nome` e `coordenador.nome` do
+   `vault.config.yaml`. O contrato é o
    `GUARDRAILS.md`: leia antes de operar.
 
 Regras da instalação:
