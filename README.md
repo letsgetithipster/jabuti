@@ -1,5 +1,7 @@
 # jabuti
 
+[![ci](https://github.com/letsgetithipster/jabuti/actions/workflows/ci.yml/badge.svg)](https://github.com/letsgetithipster/jabuti/actions/workflows/ci.yml)
+
 Suas finanças em texto simples, operadas pela LLM que você já usa, sob guardrails
 que não deixam número inventado entrar. **Ele zela, não decide:** a decisão continua sua.
 

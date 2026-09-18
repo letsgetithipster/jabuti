@@ -169,7 +169,12 @@ def test_checar_ambiente_sem_git_diz_onde_baixar_e_o_sem_git(monkeypatch):
     with pytest.raises(SystemExit, match="git-scm.com") as exc:
         criar_workspace._checar_ambiente()
     assert "--sem-git" in str(exc.value)
-    assert criar_workspace._checar_ambiente(com_git=False) == []   # --sem-git é caminho suportado
+    # --sem-git é caminho suportado: nenhum SystemExit e nenhum aviso sobre git. O aviso de
+    # openpyxl é do ambiente, não deste teste: sem ele instalado (o job "minimo" da CI, e o README
+    # manda instalar só requirements.txt) a lista não é vazia, e foi assim que este teste ficou
+    # vermelho no primeiro clone limpo.
+    avisos = criar_workspace._checar_ambiente(com_git=False)
+    assert [a for a in avisos if "openpyxl" not in a] == [], avisos
 
 
 def test_checar_ambiente_sem_openpyxl_e_aviso_nao_erro(monkeypatch):

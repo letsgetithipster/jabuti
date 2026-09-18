@@ -1,0 +1,72 @@
+# A suite numa maquina que o autor nunca tocou. Duas plataformas x tres Pythons x dois
+# conjuntos de dependencia = 12 combinacoes, todas rodando a suite, o validador do exemplo e o
+# invariante de que a demo do README nao suja o clone.
+#
+# PYTHONIOENCODING NAO e definido aqui, de proposito: a variavel e ferramenta de quem
+# desenvolve, nao configuracao do produto. Defini-la esconderia a classe de defeito que esta CI
+# existe para achar (o console cp1252 do Windows), que po/cli.py::preparar_console ja trata e
+# que tres testes ja cobram.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    name: ${{ matrix.os }} py${{ matrix.python }} ${{ matrix.extras }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12", "3.13"]
+        extras: [minimo, xlsx]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: dependencias minimas
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: openpyxl
+        if: matrix.extras == 'xlsx'
+        run: python -m pip install -r requirements-xlsx.txt
+
+      - name: suite
+        run: python -m pytest -q
+
+      - name: validador do exemplo
+        run: python scripts/validar_workspace.py exemplos/workspace-exemplo
+
+      # O primeiro comando do README, rodado como o leitor roda. git status vazio e o
+      # invariante: um gerador que escreve com fim de linha da plataforma deixa o clone sujo
+      # com git diff VAZIO, e foi assim que o defeito passou meses sem ser visto.
+      - name: a demo do README nao suja o clone
+        shell: bash
+        run: |
+          python scripts/gerar_estado.py exemplos/workspace-exemplo --data 2026-09-08
+          sujo=$(git status --porcelain)
+          if [ -n "$sujo" ]; then
+            echo "a demo do README sujou o clone:"
+            echo "$sujo"
+            git diff --stat
+            exit 1
+          fi
+
+      - name: criar workspace do zero
+        shell: bash
+        run: |
+          python scripts/criar_workspace.py "$RUNNER_TEMP/ws-novo" --data 2026-09-08
+          python scripts/validar_workspace.py "$RUNNER_TEMP/ws-novo"

@@ -1,0 +1,58 @@
+# Defeito que so o calendario dispara nao tem commit que o acione, e CI de push nunca o pega.
+# O exemplo do repo e datado e o motor trata dado velho como alerta de primeira classe: este
+# workflow e o produto aplicado em si mesmo.
+name: relogio
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"      # segunda-feira, 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  relogio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-xlsx.txt
+
+      - name: suite
+        run: python -m pytest -q
+
+      - name: validador do exemplo
+        run: python scripts/validar_workspace.py exemplos/workspace-exemplo
+
+      - name: a demo do README continua reproduzindo
+        shell: bash
+        run: |
+          python scripts/gerar_estado.py exemplos/workspace-exemplo --data 2026-09-08
+          sujo=$(git status --porcelain)
+          if [ -n "$sujo" ]; then echo "$sujo"; exit 1; fi
+
+      # Uma issue aberta por vez: o relogio roda toda semana e sem esta checagem abriria uma
+      # issue por semana sobre o mesmo defeito, que e o jeito mais rapido de ensinar todo mundo
+      # a ignorar as issues deste repo.
+      - name: abre issue se o relogio virou vermelho
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          abertas=$(gh issue list --state open --search "relogio semanal vermelho in:title" --json number --jq 'length')
+          if [ "$abertas" = "0" ]; then
+            gh issue create \
+              --title "relogio semanal vermelho" \
+              --body "A suite semanal quebrou sem nenhum commit novo, o que aponta para defeito disparado pelo calendario (cotacao do exemplo envelhecendo, data fixa em teste, dependencia que subiu de versao). Execucao: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
