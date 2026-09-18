@@ -41,6 +41,7 @@ e o método em `.claude/rules/00-voz.md`. O contrato que torna tudo isto confiá
 - `/jabuti-init`
 - `/jabuti-mes`
 - `/jabuti-sobra`
+- `/jabuti-vazamentos`
 
 Catálogo, com quando usar e o que cada uma nunca faz: `skills/README.md` do motor. O caminho
 do motor está em `vault.config.yaml`, `caminhos.motor`.

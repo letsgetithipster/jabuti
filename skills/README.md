@@ -30,3 +30,4 @@ Nenhuma skill do onboarding nem da rotina depende destas. Exigem o MCP da Finnes
 | `/jabuti-divida` | antes do aporte, com fatura ou empréstimo em aberto | `logs/decisoes/` | move dinheiro, sincroniza conexão, escreve em `dados/` |
 | `/jabuti-capacidade` | para medir custo de vida e capacidade de aporte em vez de declarar de cabeça | `politica/00-perfil.md`, `logs/decisoes/` | decide o aporte, escolhe ativo, escreve em `dados/` |
 | `/jabuti-sobra` | antes da `/jabuti-mes`, para levar o valor do aporte medido | `logs/decisoes/` | decide o aporte, grava no perfil, escreve em `dados/`, move dinheiro |
+| `/jabuti-vazamentos` | a cada três meses, ou quando aparece cobrança nova | `logs/decisoes/` | cancela assinatura, julga gasto, grava no perfil, escreve em `dados/` |

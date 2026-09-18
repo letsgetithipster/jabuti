@@ -160,7 +160,7 @@ def test_guardrails_declara_o_teto_de_escopo_e_a_fronteira_de_escrita():
 # Skills de bônus que medem o mês corrente ou uma intenção: o perfil guarda a média de três meses
 # medida pela /jabuti-capacidade, e gravar ali a sobra de um mês ou um corte que ainda não
 # aconteceu trocaria medição por desejo. A /jabuti-capacidade fica FORA de propósito: ela grava.
-BONUS_QUE_NAO_GRAVAM_PERFIL = ("jabuti-sobra",)
+BONUS_QUE_NAO_GRAVAM_PERFIL = ("jabuti-sobra", "jabuti-vazamentos")
 
 
 def test_bonus_de_aporte_nao_grava_no_perfil():
