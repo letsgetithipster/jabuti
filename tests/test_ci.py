@@ -86,10 +86,16 @@ def test_todo_workflow_roda_a_suite_e_o_validador_do_exemplo(arquivo):
     assert "pytest" in corrido, f"{arquivo} não roda a suíte"
     assert "validar_workspace.py exemplos/workspace-exemplo" in corrido, (
         f"{arquivo} não valida o exemplo — e o exemplo é o que o README manda o leitor rodar")
-    assert "PYTHONIOENCODING" not in doc.get("env", {}), (
-        "a CI define PYTHONIOENCODING e com isso esconde a classe de defeito que ela existe para "
-        "achar: o console cp1252 do Windows. A variável é ferramenta de quem desenvolve, não "
-        "configuração do produto")
+    # Nos três níveis em que o Actions aceita `env:`: workflow, job e passo. A sonda de mutação
+    # provou que checar só o topo deixava `env:` no job ou no passo da suíte passar em silêncio.
+    envs = [("workflow", doc.get("env") or {})]
+    envs += [(f"job {nome}", job.get("env") or {}) for nome, job in doc["jobs"].items()]
+    envs += [(f"passo {p.get('name')!r}", p.get("env") or {}) for _, p in _passos(doc)]
+    definido = [onde for onde, env in envs if "PYTHONIOENCODING" in env]
+    assert definido == [], (
+        f"{arquivo} define PYTHONIOENCODING em {definido} e com isso esconde a classe de defeito "
+        "que ela existe para achar: o console cp1252 do Windows. A variável é ferramenta de quem "
+        "desenvolve, não configuração do produto")
 
 
 def test_o_relogio_e_agendado_e_abre_issue_em_falha():

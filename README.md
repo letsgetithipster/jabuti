@@ -89,7 +89,7 @@ banco nenhum, pagar qualquer coisa para este projeto.
 Quatro comandos de terminal e três conversas.
 
 ```powershell
-git clone git@github.com:letsgetithipster/jabuti.git
+git clone https://github.com/letsgetithipster/jabuti.git
 cd jabuti
 python -m pip install -r requirements.txt
 python scripts/criar_workspace.py C:\caminho\meu-vault

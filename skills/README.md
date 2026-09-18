@@ -9,8 +9,6 @@ O `criar_workspace.py` copia estas pastas para `.claude/skills/` do workspace (`
 | `/jabuti-init` | primeira thread; ou revisar o perfil | `politica/00-perfil.md` | propõe banda, olha `dados/`, cria workspace |
 | `/jabuti-estrategia` | depois do perfil; ou revisar bandas | `politica/01-alocacao-alvo.md`, `logs/decisoes/` | escolhe ativo, recomenda, olha `dados/` |
 | `/jabuti-importar` (modo onboarding) | depois da política, para trazer a carteira que já existe | `vault.config.yaml` (contas), `dados/` via script, `estado/ESTADO.md` | digita número, roda mapeamento sem mostrar |
-| `/jabuti-micro <bloco>` | um por bloco com alvo | `teses/<bloco>/` (semente) | **Fase 4b, ainda não instalada** |
-| `/jabuti-tese <ticker>` | um por ativo escolhido | tese validada com nota | **Fase 4b, ainda não instalada** |
 
 ## Rotina (Fase 2)
 
@@ -21,7 +19,7 @@ O `criar_workspace.py` copia estas pastas para `.claude/skills/` do workspace (`
 
 **Critério:** skill existe quando há decisão a tomar no meio do procedimento. Sequência fixa de comandos é regra do harness; comando só é um comando — por isso `registrar.py`, `consultar_aporte.py` e `atualizar_cotacoes.py` são CLIs chamados de dentro do `/jabuti-mes`, e não skills.
 
-A rotina da Fase 5 é uma skill só. Não há skill separada de fechamento: o mês sem aporte é a mesma decisão rodada com valor zero. `/preparar-ir` é da Fase 6 e ainda não está instalada.
+A rotina da Fase 5 é uma skill só. Não há skill separada de fechamento: o mês sem aporte é a mesma decisão rodada com valor zero. Este catálogo lista só o que está instalado.
 
 ## Finnest, opcional e só leitura
 

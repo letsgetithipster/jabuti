@@ -173,5 +173,5 @@ def checar_dados(raiz: str | Path) -> tuple[list[str], list[str]]:
                              "ao confirmar, troque o tipo pelo evento real (split, grupamento, bonificacao…)")
             if ev["confirmado"] == "sim" and ev["tipo"] in ("split", "grupamento", "bonificacao") and not ev["razao"]:
                 avisos.append(f"eventos.csv:{i}: {ev['ticker']} {ev['tipo']} confirmado sem razão "
-                              "(ex.: 2:1) — o preparar-ir precisa dela")
+                              "(ex.: 2:1) — sem ela o livro não aplica o evento ao saldo")
     return erros, avisos

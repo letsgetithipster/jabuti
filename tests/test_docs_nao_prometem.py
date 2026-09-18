@@ -118,11 +118,15 @@ def test_texto_embarcado_nao_cita_caminho_nem_comando_inexistente():
 
     exemplos/ fica FORA do escopo de propósito: o exemplo é uma fotografia de workspace no meio
     do onboarding, e citar a próxima etapa ali é o comportamento correto do artefato.
-    README.md também fica fora: o teste por bloco que já existe cobre."""
+    README.md também fica fora: o teste por bloco que já existe cobre.
+
+    templates/ entra INTEIRO, não só templates/workspace/: a auditoria do PRONTO v1 achou em
+    templates/docs/ um esqueleto que citava /jabuti-micro sem ressalva, fora do escopo de toda
+    guarda. Esqueleto de documento é texto que a LLM copia para o workspace da pessoa."""
     escopo = [RAIZ / "GUARDRAILS.md"]
     escopo += sorted(RAIZ.glob("rules/*.md"))
     escopo += sorted(RAIZ.glob("skills/*/SKILL.md"))
-    escopo += sorted((RAIZ / "templates" / "workspace").rglob("*.md"))
+    escopo += sorted((RAIZ / "templates").rglob("*.md"))
 
     instaladas = {p.parent.name for p in RAIZ.glob("skills/*/SKILL.md")}
     ressalva = re.compile(r"ainda não (está|estão) instalad|ainda não instalad|não existe ainda")
