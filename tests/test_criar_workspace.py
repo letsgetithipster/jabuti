@@ -204,3 +204,37 @@ def test_template_nasce_com_provider_que_funciona_sem_configurar():
     config é 'manual'` em todo ticker no primeiro cotar. Yahoo funciona sem token."""
     cfg = yaml.safe_load((TEMPLATE / "vault.config.yaml").read_text(encoding="utf-8"))
     assert cfg["cotacoes"]["provider"] == "yahoo"
+
+
+def test_pasta_dentro_do_motor_e_recusada_antes_de_copiar():
+    """Com a instalação feita pela LLM, "aqui mesmo" é a resposta mais provável de quem nunca usou
+    terminal. Dentro do motor, o dado pessoal entraria no git do método, e a skill de instalação do
+    motor passaria a carregar junto com a da pasta (o Claude Code lê .claude/skills/ dos pais)."""
+    alvo = MOTOR / "meu-jabuti-teste-recusa"
+    with pytest.raises(SystemExit, match="dentro do motor"):
+        criar(alvo, com_git=False)
+    assert not alvo.exists()
+
+
+@pytest.mark.slow
+def test_a_porta_do_motor_entrega_o_cd_que_o_criador_imprime(tmp_path):
+    """Quem clona e abre o Claude Code no motor digita /jabuti-init ali. Sem skill com esse nome no
+    motor, a sessão procurava a skill pelo disco e terminava mandando rodar um script (primeira
+    iteração de uso real, 18/09/2026). A porta existe, roda o criador, e o /cd do handoff dela é o
+    mesmo que o criador imprime com o caminho real."""
+    porta = (MOTOR / ".claude" / "skills" / "jabuti-init" / "SKILL.md").read_text(encoding="utf-8")
+    assert "name: jabuti-init" in porta
+    for citado in ("scripts/criar_workspace.py", "requirements.txt", "requirements-xlsx.txt"):
+        assert citado in porta and (MOTOR / citado).exists(), citado
+    handoff = porta.split("## Handoff", 1)[1].split("\n## ", 1)[0]
+    assert "/cd <pasta>" in handoff and "/jabuti-init" in handoff
+    assert "/jabuti-init" in (MOTOR / "CLAUDE.md").read_text(encoding="utf-8")
+
+    import os
+    import sys
+    destino = tmp_path / "meu-jabuti"
+    r = subprocess.run([sys.executable, str(MOTOR / "scripts" / "criar_workspace.py"), str(destino),
+                        "--sem-git"], capture_output=True, text=True, encoding="utf-8",
+                       env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert f"/cd {destino.resolve()} e depois /jabuti-init" in r.stdout

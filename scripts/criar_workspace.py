@@ -68,6 +68,13 @@ def criar(destino: str | Path, com_git: bool = True, data: str | None = None,
     é limpo — nunca sobra workspace pela metade.
     """
     destino = Path(destino).resolve()
+    # A pasta da pessoa guarda dado pessoal; dentro do motor, ela entraria no git do método e num
+    # push. Com a instalação feita pela LLM (o /jabuti-init do motor), "aqui mesmo" é a resposta
+    # mais provável de quem nunca usou terminal.
+    if destino == MOTOR or MOTOR in destino.parents:
+        raise SystemExit(
+            f"erro: {destino} fica dentro do motor ({MOTOR}). A sua pasta guarda dado pessoal e "
+            f"mora fora do repositório do método; use, por exemplo, {MOTOR.parent / 'meu-jabuti'}")
     for aviso in _checar_ambiente(com_git=com_git):   # antes de qualquer cópia
         print(aviso)
     if harness not in HARNESSES:
@@ -140,7 +147,9 @@ def main():
     destino = criar(args.destino, com_git=not args.sem_git, data=args.data, motor=args.motor,
                     harness=args.harness, casa=args.casa, usuario=args.usuario)
     print(f"Workspace criado em {destino}")
-    print("Próximo passo: abra o Claude Code na pasta e cole /jabuti-init")
+    print("Próximo passo: abra o Claude Code na pasta nova e cole /jabuti-init.")
+    print(f"  Já está numa sessão do Claude Code? Cole /cd {destino} e depois /jabuti-init.")
+    print(f'  No terminal: cd "{destino}" e depois claude.')
     print("Este workspace é PRIVADO por desenho: não publique este repositório.")
 
 

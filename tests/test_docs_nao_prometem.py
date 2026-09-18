@@ -123,9 +123,10 @@ def test_texto_embarcado_nao_cita_caminho_nem_comando_inexistente():
     templates/ entra INTEIRO, não só templates/workspace/: a auditoria do PRONTO v1 achou em
     templates/docs/ um esqueleto que citava /jabuti-micro sem ressalva, fora do escopo de toda
     guarda. Esqueleto de documento é texto que a LLM copia para o workspace da pessoa."""
-    escopo = [RAIZ / "GUARDRAILS.md"]
+    escopo = [RAIZ / "GUARDRAILS.md", RAIZ / "CLAUDE.md"]
     escopo += sorted(RAIZ.glob("rules/*.md"))
     escopo += sorted(RAIZ.glob("skills/*/SKILL.md"))
+    escopo += sorted(RAIZ.glob(".claude/skills/*/SKILL.md"))   # a porta do motor
     escopo += sorted((RAIZ / "templates").rglob("*.md"))
 
     instaladas = {p.parent.name for p in RAIZ.glob("skills/*/SKILL.md")}

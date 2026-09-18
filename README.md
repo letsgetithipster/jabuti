@@ -24,7 +24,7 @@ caminho tem quatro, na ordem em que você vai usar:
 
 | | Quando | Cole | Para quê |
 |---|---|---|---|
-| 1 | no primeiro dia | `/jabuti-init` | contar quem você é: idade, horizonte, custo de vida e quanto de queda você aguenta |
+| 1 | no primeiro dia | `/jabuti-init` | instalar, criar a sua pasta e contar quem você é: idade, horizonte, custo de vida e quanto de queda você aguenta |
 | 2 | no primeiro dia | `/jabuti-estrategia` | escolher como dividir o dinheiro entre os tipos de investimento |
 | 3 | no primeiro dia, e a cada extrato novo | `/jabuti-importar` | trazer a carteira que você já tem, pelo extrato da corretora |
 | 4 | todo mês | `/jabuti-mes` | atualizar as cotações, informar o valor dos fundos, decidir onde vai o aporte e registrar compra, venda e provento |
@@ -102,21 +102,21 @@ banco ou pagar nada a este projeto.
 <!-- ensina: primeiro-dia -->
 ## O que eu faço no primeiro dia
 
-Quatro comandos de terminal e três conversas.
+Três comandos no terminal; depois, tudo é conversa.
 
 ```powershell
 git clone https://github.com/letsgetithipster/jabuti.git
 cd jabuti
-python -m pip install -r requirements.txt
-python scripts/criar_workspace.py C:\caminho\meu-vault
+claude
 ```
 
-No macOS e no Linux, troque os caminhos: `python3 scripts/criar_workspace.py ~/meu-vault`.
-Para ler extrato em xlsx e gerar o cockpit em planilha, rode também
-`python -m pip install -r requirements-xlsx.txt`.
+Com o Claude Code aberto na pasta do jabuti, cole `/jabuti-init`. Ele confere se o Python e o
+git estão instalados, instala o que o jabuti usa, pergunta onde criar a sua pasta e como você
+quer ser chamado, e cria a pasta. Ela fica separada deste repositório: os seus dados ficam nela,
+e o método fica aqui. No fim, ele mostra o `/cd` que leva a mesma sessão para a sua pasta.
 
-O último comando cria a sua pasta, separada deste repositório: os seus dados ficam nela, e o
-método fica aqui. Abra a LLM dentro da sua pasta e cole uma conversa de cada vez:
+Na sua pasta, o mesmo `/jabuti-init` passa a perguntar quem você é, e as conversas seguem nesta
+ordem, uma de cada vez:
 
 | Cole | O que acontece |
 |---|---|
@@ -126,6 +126,16 @@ método fica aqui. Abra a LLM dentro da sua pasta e cole uma conversa de cada ve
 
 Cada conversa termina dizendo qual é a próxima, e `estado/SETUP.md` guarda onde você parou.
 No fim, `estado/ESTADO.md` mostra a sua carteira comparada com a política que você escolheu.
+
+Se preferir instalar sem a LLM, rode na pasta do jabuti e depois abra o Claude Code na pasta
+criada:
+
+```powershell
+python -m pip install -r requirements.txt -r requirements-xlsx.txt
+python scripts/criar_workspace.py C:\caminho\meu-jabuti
+```
+
+No macOS e no Linux, use `python3` e um caminho como `~/meu-jabuti`.
 
 <!-- ensina: todo-mes -->
 ## O que eu faço todo mês

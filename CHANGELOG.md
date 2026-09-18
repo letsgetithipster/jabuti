@@ -12,6 +12,11 @@ aconteceu.
 
 ### Mudou para quem já usa
 
+- **O primeiro dia começa na pasta do jabuti.** Aberto o Claude Code no motor, o `/jabuti-init`
+  de lá confere Python e git, instala as dependências, cria a sua pasta e entrega o `/cd` que
+  leva a sessão até ela, onde o `/jabuti-init` de sempre pergunta quem você é. O
+  `criar_workspace.py` passa a recusar pasta dentro do motor e a imprimir os comandos para
+  continuar.
 - **O mês não avança para o aporte com posição sem valor novo.** `atualizar_cotacoes.py`
   termina nomeando o que não conseguiu atualizar sozinho (fundo, previdência, renda fixa,
   ticker que o provider não achou), com o último valor conhecido e o `--manual` pronto; a
