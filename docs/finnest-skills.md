@@ -13,6 +13,7 @@
 |---|---|---|---|
 | `/jabuti-capacidade` | quanto eu gasto e quanto sobra por mês, medido em vez de estimado | `get_data_freshness_status`, `get_loan_summary`, `get_cashflow_period_summary` (três meses fechados) | `politica/00-perfil.md` (custo de vida, capacidade, degrau) e um log de decisão |
 | `/jabuti-divida` | tenho fatura ou empréstimo em aberto: aporto ou quito primeiro? | `get_data_freshness_status`, `get_loan_summary`, `get_cards`, `get_card_interest` | um log de decisão em `logs/decisoes/` |
+| `/jabuti-sobra` | quanto dá para aportar este mês sem apertar a conta? | `get_data_freshness_status`, `get_account_balance_summary`, `get_daily_forecast`, `get_upcoming_bills`, `get_card_bill_snapshot` | um log de decisão em `logs/decisoes/` |
 
 `custo-vida-mensal` e `capacidade-aporte-mensal` são campos que o `/jabuti-init` exige **medidos,
 não chutados** — e, sem a Finnest, o jabuti não tem como medi-los: você abre o app do banco e faz a
