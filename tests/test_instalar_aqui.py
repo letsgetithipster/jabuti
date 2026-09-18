@@ -226,7 +226,7 @@ def test_harness_codex_nao_cria_nada_do_claude(tmp_path):
     r = _instalar(motor, "codex")
     assert r.returncode == 0, r.stdout + r.stderr
     assert not (motor / "CLAUDE.local.md").exists()
-    assert not (motor / ".claude").exists()
+    assert _nada_do_claude(motor)
     assert "AGENTS.md" in r.stdout
     cfg = yaml.safe_load((motor / "vault.config.yaml").read_text(encoding="utf-8"))
     assert cfg["harness"] == ["codex"]
@@ -234,7 +234,7 @@ def test_harness_codex_nao_cria_nada_do_claude(tmp_path):
     v = _py(motor, "scripts/validar_workspace.py", ".")
     assert v.returncode == 0 and "0 erro(s)" in v.stdout, v.stdout + v.stderr
     s = _py(motor, "scripts/criar_workspace.py", ".", "--so-skills")
-    assert s.returncode == 0 and not (motor / ".claude").exists(), s.stdout + s.stderr
+    assert s.returncode == 0 and _nada_do_claude(motor), s.stdout + s.stderr
 
 
 @pytest.mark.slow
@@ -271,7 +271,7 @@ def test_post_merge_sem_instalacao_nao_faz_nada(tmp_path):
     r = subprocess.run([_sh(), ".githooks/post-merge", "0"], cwd=motor,
                        capture_output=True, text=True, encoding="utf-8", errors="replace", env=ENV)
     assert r.returncode == 0 and r.stdout == "" and r.stderr == "", r.stdout + r.stderr
-    assert not (motor / "CLAUDE.local.md").exists() and not (motor / ".claude").exists()
+    assert not (motor / "CLAUDE.local.md").exists() and _nada_do_claude(motor)
 
 
 def test_o_passo_0_so_usa_harness_que_o_instalador_aceita():
@@ -318,7 +318,29 @@ def test_o_gitignore_do_motor_cobre_todo_caminho_pessoal_e_so_na_raiz():
     assert r.stdout.strip() == "", f"o .gitignore do motor alcança o que é versionado: {r.stdout}"
 
 
+
+def _nada_do_claude(motor) -> bool:
+    """Nenhuma ligação do Claude além do marcador versionado (.claude/skills/.gitkeep)."""
+    claude = motor / ".claude"
+    return (not (claude / "rules").exists()
+            and not list((claude / "skills").glob("*/SKILL.md"))
+            and sorted(p.relative_to(claude).as_posix() for p in claude.rglob("*") if p.is_file())
+            == ["skills/.gitkeep"])
+
+
 def test_detectar_harness_pelo_ambiente():
     from criar_workspace import detectar_harness
     assert detectar_harness({"CLAUDECODE": "1"}) == "claude-code"
     assert detectar_harness({}) == "claude-code"
+
+
+def test_a_pasta_de_skills_do_claude_ja_existe_no_clone_e_so_com_o_marcador():
+    """Primeiro uso real (18/09/2026): o /jabuti-init instalou as seis skills em .claude/skills/ no
+    meio da sessão e o menu não as mostrou. Documentado no Claude Code: diretório de skills criado
+    depois de a sessão abrir só é observado depois de reiniciar. O clone traz a pasta com um
+    marcador vazio; as skills continuam fora do git, em skills/, agnósticas."""
+    rastreados = _git(RAIZ, "ls-files", ".claude").stdout.split()
+    assert rastreados == [".claude/skills/.gitkeep"], rastreados
+    assert (RAIZ / ".claude" / "skills" / ".gitkeep").read_bytes() == b""
+    from po.config import e_pessoal
+    assert not e_pessoal(".claude/skills/.gitkeep") and e_pessoal(".claude/skills/jabuti-mes/SKILL.md")

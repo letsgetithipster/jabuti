@@ -21,11 +21,17 @@ PLANILHAS_PADRAO = "planilhas"
 CAMINHOS_PESSOAIS = ("vault.config.yaml", "dados/", "politica/", "estado/", "logs/", "inbox/",
                      "planilhas/", "teses/", "watchlist/", "CLAUDE.local.md", ".claude/rules/",
                      ".claude/skills/", "mapeamentos/meu-*.yaml")
+# Arquivos do motor que moram dentro de um caminho pessoal. Hoje só o marcador que mantém
+# .claude/skills/ no clone: sem a pasta ao abrir a sessão, o Claude Code não vê as skills que o
+# /jabuti-init instala no meio dela (primeiro uso real, 18/09/2026).
+MARCADORES_DO_MOTOR = (".claude/skills/.gitkeep",)
 
 
 def e_pessoal(rel: str) -> bool:
     """True se o caminho relativo à raiz (com `/`) é de um dos CAMINHOS_PESSOAIS."""
     rel = rel.replace("\\", "/").lstrip("/")
+    if rel in MARCADORES_DO_MOTOR:
+        return False
     for padrao in CAMINHOS_PESSOAIS:
         if padrao.endswith("/"):
             if rel.startswith(padrao) or rel == padrao.rstrip("/"):

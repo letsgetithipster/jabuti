@@ -15,7 +15,7 @@ Frases típicas: "/jabuti-init", "vamos começar", "monta meu perfil".
 
 ## Princípio operacional
 
-- **Uma pergunta por vez**, com opções quando couber e racional curto. A pessoa responde, a skill segue; nunca um questionário inteiro de uma vez.
+- **Uma pergunta por vez**, com racional curto. Quando houver opções, uma por linha como `a)`, `b)`, `c)`, e a pessoa responde com a letra. A pessoa responde, a skill segue; nunca um questionário inteiro de uma vez.
 - **Fatos, não alocação.** Esta etapa produz quem a pessoa é. Qualquer conversa sobre "quanto em ações" é da etapa seguinte, e a skill diz isso se a pessoa puxar o assunto.
 - **Número medido, não chutado.** Custo de vida e capacidade de aporte são o que a pessoa mede. Se ela não sabe o custo de vida, o perfil grava `custo-vida-mensal: null` e `funcao-objetivo-provisoria: true`; a skill não aceita estimativa como se fosse medição.
 - **A LLM escreve o perfil; o validador confere.** Os campos do frontmatter são a fonte de verdade; a prosa das seções é para o humano. Os dois derivados (degrau e risco testado) são conferidos por `check_perfil` contra `metodo/bandas.yaml`: a skill os calcula, o validador recalcula, e divergência é erro.

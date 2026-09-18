@@ -15,7 +15,7 @@ Frases típicas: "/jabuti-mes", "onde aporto", "comprei 50 PETR4 a 36", "vendi",
 
 ## Princípio operacional
 
-- **Uma pergunta, dois ramos.** Abrir com: *"decidir onde aportar, ou registrar o que já aconteceu?"* Nada antes dela.
+- **Uma pergunta, dois ramos.** Abrir com *"a) decidir onde aportar; b) registrar o que já aconteceu"*, uma opção por linha, e a pessoa responde com a letra. Nada antes dela.
 - **O modelo não divide dinheiro.** A fila sai de `consultar_aporte.py`, que executa a política declarada. A LLM traduz; não calcula gap, não ranqueia ativo, não escolhe ticker.
 - **O modelo não digita preço.** Cotação entra por script, com fonte, data e hora.
 - **Operação da pessoa entra por `registrar.py`**, com eco de confirmação e log datado. É a fronteira inteira: preço de mercado por script, fato seu por comando com eco.

@@ -176,3 +176,14 @@ def test_a_rotina_para_no_que_o_cotador_nao_alcanca():
         assert FALTA_VOCE in texto, f"{nome}: não cita a frase com que o cotador nomeia o que falta"
         assert "seguir, declarando o que faltou" not in texto, f"{nome}: ainda manda seguir no parcial"
         assert "a posição do mês não está atualizada" in texto, f"{nome}: sem a trava antes do aporte"
+
+
+def test_escolha_se_responde_com_a_letra():
+    """Primeiro uso real (18/09/2026): o perfil listava opções em prosa e a pessoa tinha de digitar
+    a resposta inteira. A regra mora na voz, que toda conversa lê depois da instalação; o init
+    (primeiro contato) e a abertura da rotina repetem porque o modelo copia o texto delas."""
+    voz = (RAIZ / "rules" / "00-voz.md").read_text(encoding="utf-8")
+    assert "`a)`, `b)`, `c)`" in voz, "a voz não manda listar as opções com letra"
+    for nome in ("jabuti-init", "jabuti-mes"):
+        texto = (SKILLS / nome / "SKILL.md").read_text(encoding="utf-8")
+        assert "a)" in texto and "com a letra" in texto, f"{nome}: opções sem letra"

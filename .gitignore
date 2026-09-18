@@ -22,5 +22,8 @@ __pycache__/
 /watchlist/
 /CLAUDE.local.md
 /.claude/rules/
-/.claude/skills/
+# O marcador mantém a pasta no clone: o Claude Code só observa diretório de skills que já
+# existia ao abrir a sessão, e o /jabuti-init instala as cópias no meio dela.
+/.claude/skills/*
+!/.claude/skills/.gitkeep
 /mapeamentos/meu-*.yaml
