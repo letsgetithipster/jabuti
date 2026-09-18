@@ -72,6 +72,12 @@ def main():
             print("\nNenhuma banda declarada em politica/01-alocacao-alvo.md — sem política não há "
                   "fila. Rode /jabuti-estrategia para declarar as suas.")
             sys.exit(1)
+        # ANTES da fila, não depois: fila calculada sobre valor velho (o fundo que ninguém
+        # atualizou) é lida como resposta, e o aviso no rodapé chega tarde.
+        if c.avisos:
+            print("\nAntes de decidir:")
+            for a in c.avisos:
+                print(f"  - {a}")
         for modo in (MODOS if args.todos else (args.modo,)):
             _fila(c, aporte, modo)
     except ValueError as e:
@@ -84,10 +90,6 @@ def main():
     except OSError as e:
         print(mensagem_os(e, raiz))
         sys.exit(1)
-    if c.avisos:
-        print("\nAntes de decidir:")
-        for a in c.avisos:
-            print(f"  - {a}")
     print(f"\n{RODAPE}")
 
 

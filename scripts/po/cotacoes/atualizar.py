@@ -40,6 +40,11 @@ class Relatorio:
     propostas_nao_gravadas: tuple[str, list[dict]] | None = None       # (motivo, linhas) — cole à mão
     sinteticas: list[str] = field(default_factory=list)                # tickers precificados por definição (saldo)
     ja_atualizadas: list[str] = field(default_factory=list)            # já tinham cotação de hoje: nada a buscar
+    # Terminou a rodada sem valor novo: (ticker, última cotação vencedora ou None). Fundo, previdência,
+    # RF privada — o que nenhum provider alcança. É a lista que a rotina do mês pergunta à pessoa
+    # ANTES de avaliar aporte; derivada do resultado, não de uma lista de classes, para valer
+    # também para o ativo que o provider simplesmente não achou.
+    pendentes: list[tuple[str, dict | None]] = field(default_factory=list)
     pedidos: int = 0                                                   # quantos ativos a carteira pediu
     gravadas: int = 0
     dry_run: bool = False
@@ -143,6 +148,9 @@ def atualizar(raiz: str | Path, *, manual: dict[str, float] | None = None, dry_r
             obtidas, falhas = prov_fx.cotar(fx)
             rel.obtidas.extend(obtidas)
             rel.falhas.extend(falhas)
+
+    resolvidos = {c.ticker for c in rel.obtidas} | set(rel.ja_atualizadas)
+    rel.pendentes = [(p.ticker, ultimas.get(p.ticker)) for p in pedidos if p.ticker not in resolvidos]
 
     abertas = {e["ticker"] for e in eventos if e["tipo"] == "variacao-anomala" and e["confirmado"] == "nao"}
     for c in rel.obtidas:

@@ -101,12 +101,12 @@ Posição importada sem cotação é ERRO esperado no validador. Rode `python <m
 | 0 | tudo obtido e gravado | seguir para `gerar_estado.py` |
 | 1 | rodada abortada — **nada gravado** | ler a frase, corrigir a causa, rodar de novo |
 | 2 | sem rede — nada gravado | parar e declarar; nunca preço de memória |
-| 3 | parcial: parte obtida, parte falhou | seguir, declarando o que faltou |
+| 3 | parcial: parte obtida, parte falhou | **não seguir**: perguntar o que falta (abaixo) |
 
 **Código 1 não é "quase deu certo"**: é o oposto de 3. Tratar 1 como sucesso parcial faz a carteira ser lida com preço velho sem ninguém avisar.
 
 - **`--manual TICKER=PRECO` só com valor que a pessoa colou nesta conversa.** A fonte fica gravada como `manual`.
-- **Classe sem mercado** (`rf-br`): falha esperada; pedir o valor atual e rodar com `--manual`. Saldo em conta (`caixa`) não é falha: vale 1,00 na própria moeda, com fonte `definicao`.
+- **O que o cotador não alcança** (fundo, previdência, renda fixa, ticker que o provider não acha): a saída fecha com `Falta você informar (não consegui atualizar sozinho):`, o último valor de cada um e o `--manual` pronto. Dizer: *"já atualizei o que tem cotação; não consegui atualizar sozinho X e Y. Qual o valor atual de cada um?"*, uma pergunta por vez, e rodar o `--manual`. **Enquanto a lista existir, a posição do mês não está atualizada: nada de `gerar_estado.py` nem `consultar_aporte.py`.** Sem o valor agora, quem decide seguir é a pessoa, e o log da decisão registra qual ativo ficou com valor de qual data. Saldo em conta (`caixa`) não entra: vale 1,00 na própria moeda, fonte `definicao`.
 - **Variação acima de 30%**: o script grava a cotação e propõe um evento em `dados/eventos.csv`; quem confirma é a pessoa, pelo `registrar.py evento` do `/jabuti-mes`.
 
 ## O que esta skill NÃO faz

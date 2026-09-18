@@ -136,7 +136,9 @@ def _avisos_de_idade(linhas, usados_cambio, hoje: datetime.date) -> list[str]:
     if velhas:
         quais = ", ".join(f"{t} ({d}, {idade(d)} dias)" for t, d in velhas)
         avisos.append(f"cotação com mais de {DIAS_COTACAO_VELHA} dias em {len(velhas)} ativo(s): {quais} "
-                      "— rode scripts/atualizar_cotacoes.py antes de decidir aporte")
+                      "— rode scripts/atualizar_cotacoes.py antes de decidir aporte; o que ele não "
+                      "alcança sozinho (fundo, previdência, renda fixa), ele lista para você informar "
+                      "com --manual")
     for par, c in sorted(usados_cambio.items()):
         if idade(c["data"]) > DIAS_COTACAO_VELHA:
             avisos.append(f"câmbio {par} de {c['data']} ({idade(c['data'])} dias) convertendo preço de "

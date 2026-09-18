@@ -113,3 +113,14 @@ def test_cli_com_todos_imprime_as_tres_alternativas(tmp_path):
     for modo in ("cascata", "concentrar", "proporcional"):
         assert modo in r.stdout
     assert "2.300,00" in r.stdout      # a sobra que concentrar deixa, e cascata não
+
+
+@pytest.mark.slow
+def test_cli_avisa_de_valor_velho_antes_da_fila_e_nao_depois(tmp_path):
+    """Fila calculada sobre o fundo que ninguém atualizou é lida como resposta: o aviso vem antes
+    dela, e aponta o --manual, que é a única saída de quem não tem cotação automática."""
+    ws = copia_exemplo(tmp_path)
+    r = roda(ws, "1500", "--data", "2026-10-08")             # cotações do exemplo são de 08/09
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "Antes de decidir:" in r.stdout and "--manual" in r.stdout
+    assert r.stdout.index("Antes de decidir:") < r.stdout.index("modo:")

@@ -670,3 +670,44 @@ def test_ciclo_registrar_split_confirmado_e_recotar_nao_propoe_segundo_split(tmp
     assert rel.propostas == [] and rel.anomalias == [], rel.anomalias
     eventos, _ = ler_csv("eventos", ws / "dados" / "eventos.csv")
     assert [e["tipo"] for e in eventos] == ["split"]
+
+
+def _ws_com_fundo_e_cdb(tmp_path):
+    """FUNDO-X mora numa classe DE MERCADO (acoes-br): é o caso que uma lista de classes sem
+    mercado nunca cobriria, e por isso `pendentes` deriva do resultado da rodada."""
+    ws = _ws_yahoo(tmp_path)
+    _anexa(ws, "dados/ativos.csv", "CDB-X,rf-br")
+    _anexa(ws, "dados/ativos.csv", "FUNDO-X,acoes-br")
+    _anexa(ws, "dados/fills.csv", "2026-08-01,CDB-X,saldo-inicial,1,1000.00,0,corretora-br,BRL")
+    _anexa(ws, "dados/fills.csv", "2026-08-01,FUNDO-X,saldo-inicial,1,5000.00,0,corretora-br,BRL")
+    _anexa(ws, "dados/cotacoes.csv", "2026-08-01,18:00,CDB-X,1000.00,BRL,manual")
+    return ws
+
+
+def test_o_que_o_cotador_nao_alcanca_vira_pendente_com_o_ultimo_valor(tmp_path):
+    ws = _ws_com_fundo_e_cdb(tmp_path)
+    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0}))
+    assert [t for t, _ in rel.pendentes] == ["CDB-X", "FUNDO-X"]
+    ultimas = dict(rel.pendentes)
+    assert ultimas["CDB-X"]["preco"] == 1000.0 and ultimas["CDB-X"]["data"] == "2026-08-01"
+    assert ultimas["FUNDO-X"] is None                      # nunca teve valor: a lista diz isso
+    rel = atualizar(ws, provider=ProviderFalso({"PETR4": 40.0, "HGLG11": 160.0}),
+                    manual={"CDB-X": 1010.0, "FUNDO-X": 5100.0})
+    assert rel.pendentes == [] and rel.falhas == []         # informado, a lista some
+
+
+@pytest.mark.slow
+def test_cli_nomeia_o_que_falta_informar_e_cala_quando_nada_falta(tmp_path):
+    ws = copia_exemplo(tmp_path)   # provider: manual — HGLG11 fica sem valor novo
+    r = subprocess.run([sys.executable, str(CLI), str(ws), "--manual", "PETR4=41,00"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode == 3, r.stdout + r.stderr
+    bloco = r.stdout.split(cli_mod.FALTA_VOCE, 1)
+    assert len(bloco) == 2, r.stdout
+    assert "Gravado" in bloco[0]                            # a lista é a ÚLTIMA coisa lida
+    assert "HGLG11" in bloco[1] and "último valor: 160,00 BRL em 2026-09-08 (manual)" in bloco[1]
+    assert "--manual HGLG11=VALOR" in bloco[1] and "PETR4=VALOR" not in bloco[1]
+    assert "não avalie aporte antes" in bloco[1]
+    r = subprocess.run([sys.executable, str(CLI), str(ws), "--manual", "PETR4=41,00", "HGLG11=161,00"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode == 0 and cli_mod.FALTA_VOCE not in r.stdout, r.stdout

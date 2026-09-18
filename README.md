@@ -131,6 +131,11 @@ e sem cadastro. Para o que não tem mercado (renda fixa) ou quando você prefere
 pela rede, `--manual TICKER=PRECO` grava o preço que você colou, com a fonte `manual`. Sem
 rede, o script para e declara: nunca preço de memória.
 
+Fundo, previdência e renda fixa não têm cotação que um script alcance. O cotador termina
+nomeando o que ficou sem valor novo, com o último valor conhecido e o `--manual` pronto, e a
+`/jabuti-mes` pergunta esses valores a você antes de seguir: a posição do mês só está
+atualizada, e o aporte só é avaliado, depois disso.
+
 O número da fila não sai da cabeça do modelo: sai de uma função testada, que ordena os
 blocos pela distância até o alvo, nas três alternativas de distribuição. A LLM traduz o
 resultado, e a sua escolha vira um log de decisão datado. A fila termina sempre com a mesma

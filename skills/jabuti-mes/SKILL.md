@@ -30,7 +30,7 @@ Frases típicas: "/jabuti-mes", "onde aporto", "comprei 50 PETR4 a 36", "vendi",
 
 ## Fluxo — ramo A, decidir (antes de comprar)
 
-1. `python <motor>/scripts/atualizar_cotacoes.py .` — ver a seção Cotações abaixo.
+1. `python <motor>/scripts/atualizar_cotacoes.py .` — ver a seção Cotações abaixo. Só passa ao 2 quando a saída não trouxer `Falta você informar`.
 2. `python <motor>/scripts/gerar_estado.py .` — ESTADO derivado do ledger.
 3. `python <motor>/scripts/consultar_aporte.py . <valor> --todos` — a fila por bloco, com gap e sugerido, nas **três alternativas**: cascata pura por gap, concentrar tudo no bloco mais fora da banda, espalhar proporcionalmente ao gap.
 4. Traduzir a saída, com o racional de cada alternativa, e dizer o que a política aponta. Nunca "recomendo comprar X": esta skill decide **bloco**, nunca ticker.
@@ -54,13 +54,13 @@ Ramificar pelo **código de saída**, nunca pelo texto:
 | 0 | tudo obtido e gravado | seguir |
 | 1 | rodada abortada — **nada gravado** | ler a frase, corrigir a causa, rodar de novo |
 | 2 | sem rede — nada gravado | parar e declarar; nunca preço de memória |
-| 3 | parcial: parte obtida, parte falhou | seguir, declarando o que faltou |
+| 3 | parcial: parte obtida, parte falhou | **não seguir**: perguntar o que falta (abaixo) |
 
 **Código 1 não é "quase deu certo"**: é o oposto de 3. Tratar 1 como sucesso parcial faz a carteira ser lida com preço velho sem ninguém avisar.
 
 - **Sem rede: parar e declarar.** Não repetir preço de memória, não estimar, não usar "o último conhecido" como se fosse novo.
 - **`--manual TICKER=PRECO` só com valor que a pessoa colou nesta conversa.** A fonte fica gravada como `manual`.
-- **Classe sem mercado** (`rf-br`): falha esperada; pedir o valor atual e rodar com `--manual`. Saldo em conta (`caixa`) não é falha: vale 1,00 na própria moeda, com fonte `definicao`.
+- **O que o cotador não alcança** (fundo, previdência, renda fixa, ticker que o provider não acha): a saída fecha com `Falta você informar (não consegui atualizar sozinho):`, o último valor de cada um e o `--manual` pronto. Dizer: *"já atualizei o que tem cotação; não consegui atualizar sozinho X e Y. Qual o valor atual de cada um?"*, uma pergunta por vez, e rodar o `--manual`. **Enquanto a lista existir, a posição do mês não está atualizada: nada de `gerar_estado.py` nem `consultar_aporte.py`.** Sem o valor agora, quem decide seguir é a pessoa, e o log da decisão registra qual ativo ficou com valor de qual data. Saldo em conta (`caixa`) não entra: vale 1,00 na própria moeda, fonte `definicao`.
 - **Variação acima de 30%**: o script grava a cotação e propõe um evento em `dados/eventos.csv`. Split, grupamento ou ticker trocado são as causas comuns; quem confirma é a pessoa, pelo `registrar.py evento`. Evento já confirmado entre a última cotação e a nova ajusta a base da comparação: recotar depois de confirmar não propõe o mesmo evento de novo.
 
 ## Casos especiais

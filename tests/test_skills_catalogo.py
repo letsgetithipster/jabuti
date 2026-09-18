@@ -146,3 +146,17 @@ def test_quem_manda_cotar_traduz_os_quatro_codigos_de_saida():
         faltando = [c for c in CODIGOS_DO_COTAR if c not in secao]
         assert faltando == [], f"{nome}: códigos de saída do cotar não traduzidos: {faltando}"
         assert "nunca preço de memória" in texto, f"{nome}: sem a regra de sem-rede"
+
+
+def test_a_rotina_para_no_que_o_cotador_nao_alcanca():
+    """Fundo, previdência e renda fixa não têm cotação automática. Enquanto a skill mandava
+    'seguir, declarando o que faltou' no código 3, a fila de aporte saía sobre o valor do mês
+    passado. A frase é a do CLI, importada: se uma ponta mudar, a outra cai aqui."""
+    import sys
+    sys.path.insert(0, str(RAIZ / "scripts"))
+    from atualizar_cotacoes import FALTA_VOCE
+    for nome in ("jabuti-mes", "jabuti-importar"):
+        texto = (SKILLS / nome / "SKILL.md").read_text(encoding="utf-8")
+        assert FALTA_VOCE in texto, f"{nome}: não cita a frase com que o cotador nomeia o que falta"
+        assert "seguir, declarando o que faltou" not in texto, f"{nome}: ainda manda seguir no parcial"
+        assert "a posição do mês não está atualizada" in texto, f"{nome}: sem a trava antes do aporte"

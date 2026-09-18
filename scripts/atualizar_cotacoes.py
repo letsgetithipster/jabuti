@@ -10,6 +10,10 @@ Variação > 30% contra a última cotação grava a cotação E propõe linha em
 Códigos de saída: 0 tudo obtido e gravado · 1 erro que impediu a rodada (nada gravado)
 · 2 sem rede (nada gravado)
 · 3 resultado parcial: parte obtida e parte falhou (inclui --dry-run com falha; o texto diz o que foi gravado)
+
+O que a rodada não alcançou sozinha (fundo, previdência, renda fixa, ticker que o provider não
+achou) sai nomeado no fim, com o último valor conhecido e o comando --manual pronto. Enquanto essa
+lista existir, a posição do mês não está atualizada.
 """
 import argparse
 import csv
@@ -30,6 +34,10 @@ from po.cotacoes.tipos import SemRede  # noqa: E402
 from po.csvs import SCHEMAS  # noqa: E402
 from po.numeros import formatar_brl, formatar_canonico  # noqa: E402
 
+
+ESTE = Path(__file__).resolve()
+# A skill /jabuti-mes ramifica por esta frase; tests/test_skills_catalogo.py cobra que ela a cite.
+FALTA_VOCE = "Falta você informar (não consegui atualizar sozinho):"
 
 _ESPACO = re.compile(r"\s+")
 _COM_MOEDA = re.compile(r"^([+-]?)(?:r\$|us\$|\$)?(.*)$", re.IGNORECASE)
@@ -163,6 +171,21 @@ def main():
             print("\nNada gravado: nada novo a buscar.")
     else:
         print("\nNada gravado: nenhuma cotação obtida.")
+    if rel.pendentes:
+        print(f"\n{FALTA_VOCE}")
+        for ticker, ultima in rel.pendentes:
+            if ultima:
+                print(f"  {ticker:<10} último valor: {formatar_brl(ultima['preco'])} {ultima['moeda']} "
+                      f"em {ultima['data']} ({ultima['fonte']})")
+            else:
+                print(f"  {ticker:<10} nenhum valor ainda")
+        print("Pegue o valor atual na corretora ou no banco e rode:")
+        print(f"  python {ESTE} {args.raiz} --manual "
+              + " ".join(f"{ticker}=VALOR" for ticker, _ in rel.pendentes))
+        print("VALOR é o preço de UMA unidade, na base em que a quantidade foi registrada "
+              "(posição lançada com quantidade 1: o saldo atual).")
+        print("Enquanto esta lista existir, a posição do mês NÃO está atualizada: "
+              "não avalie aporte antes.")
     parcial = bool(rel.falhas or rel.propostas_nao_gravadas) and bool(rel.gravadas or (rel.dry_run and rel.obtidas))
     sys.exit(3 if parcial else (1 if rel.falhas else 0))
 

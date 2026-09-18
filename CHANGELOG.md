@@ -12,6 +12,12 @@ aconteceu.
 
 ### Mudou para quem já usa
 
+- **O mês não avança para o aporte com posição sem valor novo.** `atualizar_cotacoes.py`
+  termina nomeando o que não conseguiu atualizar sozinho (fundo, previdência, renda fixa,
+  ticker que o provider não achou), com o último valor conhecido e o `--manual` pronto; a
+  `/jabuti-mes` e a `/jabuti-importar` deixam de "seguir" no código 3 e perguntam esses
+  valores antes do ESTADO e da fila. Em `consultar_aporte.py`, o aviso de valor velho passa
+  a sair antes da fila, não depois. Códigos de saída não mudam.
 - **Saem três tabelas de `dados/`**: `posicoes.csv`, `indices.csv` e `movimentacoes.csv`.
   A posição passa a ser derivada do livro (`fills.csv` + `eventos.csv` + a classe declarada
   em `ativos.csv`), e o workspace nasce com cinco CSVs em vez de sete. **Não há migrador,
