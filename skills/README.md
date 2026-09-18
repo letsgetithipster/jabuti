@@ -25,7 +25,7 @@ A rotina da Fase 5 é uma skill só. Não há skill separada de fechamento: o m�
 
 ## Finnest, opcional e só leitura
 
-Exigem o MCP da Finnest conectado na sessão (`docs/provider-finnest.md`). Sem ele, cada uma para e declara. Nenhuma escreve em `dados/`: a carteira canônica só recebe operação conciliada contra documento.
+Exigem o MCP da Finnest conectado na sessão (`docs/provider-finnest.md`). Sem ele, cada uma para e declara. Nenhuma escreve em `dados/`: a carteira canônica só recebe operação conciliada contra documento. O que dá para fazer com elas, o teto de escopo e como conectar: `docs/finnest-skills.md`.
 
 | Skill | Quando | Escreve | Nunca |
 |---|---|---|---|

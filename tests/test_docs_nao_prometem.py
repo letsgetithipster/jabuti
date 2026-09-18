@@ -636,3 +636,66 @@ def test_o_changelog_comeca_por_uma_secao_de_versao():
     assert re.match(r"^## (Não lançado|\d{4}-\d{2}-\d{2}|v?\d+\.\d+\.\d+)", secoes[0]), (
         f"a primeira seção do CHANGELOG é {secoes[0]!r}; esperava `## Não lançado`, `## AAAA-MM-DD` "
         "ou `## vX.Y.Z`")
+
+
+# As sete perguntas de quem nunca investiu, na ordem em que ele as faz. Sentinela em comentário
+# HTML e não título em português, pela mesma razão das duas sentinelas que o repo já tem: ninguém
+# parafraseia um comentário HTML, ele sobrevive a qualquer reescrita da prosa ao redor e não
+# aparece no markdown renderizado. Título seria reescrito na primeira revisão de texto e a guarda
+# passaria a policiar redação em vez de cobertura.
+ENSINA = ("o-que-e", "por-que", "antes-de-comecar", "primeiro-dia", "todo-mes",
+          "vendi-ou-recebi", "onde-a-finnest-entra")
+SENTINELA_ENSINA = re.compile(r"<!-- ensina: ([a-z-]+) -->")
+# Casa `python scripts/x.py` e `python <motor>\scripts\x.py`, as duas formas que o README usa:
+# a primeira quando o leitor está na pasta do motor, a segunda quando está no workspace dele.
+COMANDO_PY = re.compile(r"(?:<motor>[\\/])?((?:scripts|tests)[\\/][\w.-]+\.py)")
+
+
+def _secoes_do_readme():
+    """(ordem das sentinelas, {sentinela: corpo até a próxima})."""
+    marcas = list(SENTINELA_ENSINA.finditer(README))
+    secoes = {}
+    for i, m in enumerate(marcas):
+        fim = marcas[i + 1].start() if i + 1 < len(marcas) else len(README)
+        secoes[m.group(1)] = README[m.end():fim]
+    return [m.group(1) for m in marcas], secoes
+
+
+def test_o_readme_ensina_as_sete_coisas_na_ordem():
+    """O README deixou de ser status de projeto e virou porta de entrada. Sem guarda, ele volta ao
+    gênero antigo no terceiro commit: descrever fase é o reflexo natural de quem escreve de
+    dentro, e foi assim que este repo acumulou promessa em tempo presente.
+
+    Limite declarado, porque guarda que finge medir o que não mede é pior que guarda ausente:
+    isto cobra que as sete seções EXISTAM, estejam na ordem e não sejam vazias. Não mede se a
+    prosa ensina. Nenhuma regra mecânica honesta mede isso, e construir detector de didática
+    seria a sobre-engenharia que este repo já tem demais.
+    """
+    ordem, secoes = _secoes_do_readme()
+    assert ordem == list(ENSINA), (
+        f"as sentinelas do README são {ordem} e deviam ser {list(ENSINA)}. A ordem é a ordem em "
+        "que quem nunca investiu faz as perguntas: o que é, por que eu usaria, o que preciso, o "
+        "que faço hoje, o que faço todo mês, o que faço quando vendo, onde a Finnest entra.")
+    curtas = [k for k in ENSINA
+              if len([l for l in secoes[k].splitlines() if l.strip()]) < 4]
+    assert curtas == [], (
+        f"estas seções têm menos de quatro linhas com conteúdo: {curtas}. Sentinela sobre seção "
+        "vazia é a forma mais barata de fazer a guarda passar sem responder a pergunta.")
+
+
+def test_as_secoes_de_comando_do_readme_rodam_comandos_que_existem():
+    """As três seções que mandam a pessoa digitar coisa são as que doem quando mentem: o leitor
+    cola, o comando não existe, e ele fecha a aba. A guarda de caminho da raiz já cobre prosa;
+    esta cobre o que está DENTRO de bloco de código, onde a forma `<motor>\\scripts\\x.py`
+    escapava do padrão ancorado em pasta de topo."""
+    _, secoes = _secoes_do_readme()
+    faltando = []
+    for chave in ("primeiro-dia", "todo-mes", "vendi-ou-recebi"):
+        blocos = re.findall(r"```[a-z]*\n(.*?)```", secoes[chave], re.S)
+        assert blocos, f"a seção {chave} não mostra nenhum comando, e ela existe para mostrar"
+        for bloco in blocos:
+            for alvo in COMANDO_PY.findall(bloco):
+                if not (RAIZ / alvo.replace("\\", "/")).exists():
+                    faltando.append(f"{chave}: {alvo}")
+    assert faltando == [], (
+        "o README manda rodar o que não existe:\n  " + "\n  ".join(faltando))
