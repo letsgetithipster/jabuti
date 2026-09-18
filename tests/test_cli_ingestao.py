@@ -266,11 +266,15 @@ def test_gravacao_parcial_nomeia_o_que_entrou_e_a_rodada_seguinte_completa(tmp_p
     ws, doc = prepara(tmp_path, POSICOES_NOVAS, MAPA_POSICOES, "pos.csv")
     conferencia = ["--data", "2026-09-08", "--total-declarado", "600,00"]
     alvo = ws / "dados" / "fills.csv"
+    modo = alvo.stat().st_mode
     os.chmod(alvo, stat.S_IREAD)
     try:
         r = roda(ws, doc, *conferencia)
     finally:
-        os.chmod(alvo, stat.S_IWRITE)   # sem devolver a escrita o tmp_path não consegue limpar
+        # Devolve o modo ORIGINAL. `S_IWRITE` sozinho só funciona no Windows, onde chmod mexe no
+        # atributo somente-leitura; no Linux vira 0o200, sem leitura, e a rodada de recuperação
+        # morria com Permission denied (primeira execução da CI, 18/09/2026).
+        os.chmod(alvo, modo)
     assert r.returncode == 1, r.stdout + r.stderr
     assert "A gravação falhou no meio" in r.stdout
     # a causa vira a MESMA frase acionável do resto do CLI, não o repr cru do OSError
