@@ -21,9 +21,9 @@ O `criar_workspace.py` copia estas pastas para `.claude/skills/` do workspace (`
 
 A rotina da Fase 5 é uma skill só. Não há skill separada de fechamento: o mês sem aporte é a mesma decisão rodada com valor zero. Este catálogo lista só o que está instalado.
 
-## Finnest, opcional e só leitura
+## Bônus com a Finnest, opcional e só leitura
 
-Exigem o MCP da Finnest conectado na sessão (`docs/provider-finnest.md`). Sem ele, cada uma para e declara. Nenhuma escreve em `dados/`: a carteira canônica só recebe operação conciliada contra documento. O que dá para fazer com elas, o teto de escopo e como conectar: `docs/finnest-skills.md`.
+Nenhuma skill do onboarding nem da rotina depende destas. Exigem o MCP da Finnest conectado na sessão (`docs/provider-finnest.md`). Sem ele, cada uma para e declara. Nenhuma escreve em `dados/`: a carteira canônica só recebe operação conciliada contra documento. O que dá para fazer com elas, o teto de escopo e como conectar: `docs/finnest-skills.md`.
 
 | Skill | Quando | Escreve | Nunca |
 |---|---|---|---|

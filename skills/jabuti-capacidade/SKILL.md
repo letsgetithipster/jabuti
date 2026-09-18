@@ -1,17 +1,19 @@
 ---
 name: jabuti-capacidade
-description: "Use quando o usuário pedir '/jabuti-capacidade', 'quanto posso aportar este mês', 'qual é o meu custo de vida', 'medir minha capacidade de aporte' ou variação sobre quanto sobra por mês. Lê três meses fechados de fluxo de caixa pelo MCP da Finnest (get_cashflow_period_summary), depois de conferir a atualidade do dado (get_data_freshness_status) e a dívida em aberto (get_loan_summary), e grava custo-vida-mensal e capacidade-aporte-mensal medidos em politica/00-perfil.md, com log de decisão. Somente leitura na Finnest: não escreve em dados/, não decide o aporte, não escolhe ativo. Sem a Finnest conectada nesta sessão: para e declara."
+description: "Use quando o usuário pedir '/jabuti-capacidade', 'qual é o meu custo de vida', 'medir minha capacidade de aporte' ou variação sobre quanto sobra por mês nas contas. Bônus de quem conecta a Finnest: decidir o aporte do mês é da /jabuti-mes, que não depende dela. Lê três meses fechados de fluxo de caixa pelo MCP da Finnest (get_cashflow_period_summary), depois de conferir a atualidade do dado (get_data_freshness_status) e a dívida em aberto (get_loan_summary), e grava custo-vida-mensal e capacidade-aporte-mensal medidos em politica/00-perfil.md, com log de decisão. Somente leitura na Finnest: não escreve em dados/, não decide o aporte, não escolhe ativo. Sem a Finnest conectada nesta sessão: para e declara."
 ---
 
 # jabuti-capacidade — o número que o perfil exigia, medido
 
 ## Quando usar
 
-- Antes do primeiro aporte, para trocar um `custo-vida-mensal` chutado por um medido
+- Com a Finnest conectada, para trocar um `custo-vida-mensal` declarado à mão por um medido
 - Uma vez por semestre, ou quando renda ou despesa mudarem de patamar
 - Quando o `/jabuti-init` gravou `custo-vida-mensal: null` e a função objetivo ficou provisória
 
-Frases típicas: "/jabuti-capacidade", "quanto eu posso aportar?", "quanto eu gasto por mês de verdade?".
+Frases típicas: "/jabuti-capacidade", "quanto sobra por mês nas minhas contas?", "quanto eu gasto por mês de verdade?".
+
+Decidir o aporte do mês é da `/jabuti-mes`, que funciona sem a Finnest. Esta skill só mede o que o perfil guarda.
 
 ## Princípio operacional
 

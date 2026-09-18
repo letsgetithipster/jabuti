@@ -18,6 +18,10 @@ aconteceu.
   `/jabuti-mes` e a `/jabuti-importar` deixam de "seguir" no código 3 e perguntam esses
   valores antes do ESTADO e da fila. Em `consultar_aporte.py`, o aviso de valor velho passa
   a sair antes da fila, não depois. Códigos de saída não mudam.
+- **`/jabuti-capacidade` deixa de responder a "quanto posso aportar este mês".** Essa pergunta
+  é da `/jabuti-mes`, que não depende da Finnest; a capacidade e a `/jabuti-divida` passam a
+  ser apresentadas como bônus de quem conecta a Finnest. Para receber a skill nova no seu
+  workspace: `python <motor>/scripts/criar_workspace.py <pasta> --so-skills`.
 - **Saem três tabelas de `dados/`**: `posicoes.csv`, `indices.csv` e `movimentacoes.csv`.
   A posição passa a ser derivada do livro (`fills.csv` + `eventos.csv` + a classe declarada
   em `ativos.csv`), e o workspace nasce com cinco CSVs em vez de sete. **Não há migrador,

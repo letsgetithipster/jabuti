@@ -1,24 +1,26 @@
 # As skills Finnest — o que dá para fazer, e o que elas nunca fazem
 
 > O jabuti conhece a **sua carteira**. A Finnest conhece **o seu mês**: renda, despesa, cartão e
-> dívida. Juntos respondem a pergunta que abre toda rotina mensal e que o jabuti sozinho manda
-> você responder de cabeça: **"quanto eu posso aportar este mês?"**
+> dívida. Quem a conecta ganha duas skills de bônus, que medem o que, sem ela, você calcula à
+> mão no app do banco: o custo de vida, quanto sobra por mês e quanto custa a dívida em aberto.
 >
-> Duas skills, opcionais, somente leitura. Nenhuma escreve na sua carteira.
+> Duas skills, opcionais, somente leitura. Nenhuma escreve na sua carteira, e a rotina mensal
+> (`/jabuti-mes`) funciona inteira sem elas.
 
 ## Em trinta segundos
 
 | Skill | A pergunta que responde | O que lê na Finnest | O que escreve no seu workspace |
 |---|---|---|---|
-| `/jabuti-capacidade` | quanto eu posso aportar, medido em vez de chutado | `get_data_freshness_status`, `get_loan_summary`, `get_cashflow_period_summary` (três meses fechados) | `politica/00-perfil.md` (custo de vida, capacidade, degrau) e um log de decisão |
+| `/jabuti-capacidade` | quanto eu gasto e quanto sobra por mês, medido em vez de estimado | `get_data_freshness_status`, `get_loan_summary`, `get_cashflow_period_summary` (três meses fechados) | `politica/00-perfil.md` (custo de vida, capacidade, degrau) e um log de decisão |
 | `/jabuti-divida` | tenho fatura ou empréstimo em aberto: aporto ou quito primeiro? | `get_data_freshness_status`, `get_loan_summary`, `get_cards`, `get_card_interest` | um log de decisão em `logs/decisoes/` |
 
 `custo-vida-mensal` e `capacidade-aporte-mensal` são campos que o `/jabuti-init` exige **medidos,
 não chutados** — e, sem a Finnest, o jabuti não tem como medi-los: você abre o app do banco e faz a
-conta. É essa lacuna que as duas fecham. E há uma ordem que o método brasileiro exige e o motor
+conta. É essa conta que a `/jabuti-capacidade` faz por você. E há uma ordem que o método
+brasileiro exige e o motor
 sozinho não consegue cumprir: **dívida cara antes de aportar**. Quem tem rotativo de cartão e compra
-ação está perdendo dinheiro, e só a Finnest sabe que o rotativo existe. Com o número medido, o
-`/jabuti-mes` decide onde ele entra.
+ação está perdendo dinheiro, e só a Finnest sabe que o rotativo existe. Onde o aporte do
+mês entra continua sendo decidido pelo `/jabuti-mes`, com ou sem esses números.
 
 ## Conectar leva dois minutos
 

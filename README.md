@@ -19,20 +19,25 @@ contrato que a LLM segue, e ele a proíbe de inventar número.
 O jabuti não é corretora nem aplicativo, não movimenta dinheiro e não vende nada. Para usar,
 você conversa com a LLM no terminal e ela roda os comandos; não é preciso saber programar.
 
-Cada etapa é uma skill, uma conversa guiada que você começa colando o nome dela na LLM. São
-seis, na ordem em que você vai usar:
+Cada etapa é uma skill, uma conversa guiada que você começa colando o nome dela na LLM. O
+caminho tem quatro, na ordem em que você vai usar:
 
 | | Quando | Cole | Para quê |
 |---|---|---|---|
 | 1 | no primeiro dia | `/jabuti-init` | contar quem você é: idade, horizonte, custo de vida e quanto de queda você aguenta |
-| 2 | no primeiro dia, com a Finnest | `/jabuti-capacidade` | medir o seu custo de vida e quanto sobra por mês nas suas contas |
-| 3 | no primeiro dia | `/jabuti-estrategia` | escolher como dividir o dinheiro entre os tipos de investimento |
-| 4 | no primeiro dia, e a cada extrato novo | `/jabuti-importar` | trazer a carteira que você já tem, pelo extrato da corretora |
-| 5 | todo mês, com a Finnest, se houver dívida | `/jabuti-divida` | comparar a fatura ou o empréstimo em aberto com o aporte do mês |
-| 6 | todo mês | `/jabuti-mes` | decidir onde vai o dinheiro do mês e registrar compra, venda e provento |
+| 2 | no primeiro dia | `/jabuti-estrategia` | escolher como dividir o dinheiro entre os tipos de investimento |
+| 3 | no primeiro dia, e a cada extrato novo | `/jabuti-importar` | trazer a carteira que você já tem, pelo extrato da corretora |
+| 4 | todo mês | `/jabuti-mes` | atualizar as cotações, informar o valor dos fundos, decidir onde vai o aporte e registrar compra, venda e provento |
 
-As duas que usam a Finnest leem as suas contas pelo Open Finance e medem o que, sem ela, você
-calcula à mão no app do banco. Como ela entra no modelo está em
+Se você conecta a Finnest, ganha duas skills de bônus, que leem as suas contas pelo Open
+Finance e medem o que, sem ela, você calcula à mão no app do banco:
+
+| Quando | Cole | Para quê |
+|---|---|---|
+| depois do perfil, e quando a sua renda ou despesa mudar | `/jabuti-capacidade` | medir o seu custo de vida e quanto sobra por mês |
+| antes do aporte, se houver fatura ou empréstimo em aberto | `/jabuti-divida` | pôr o custo da dívida ao lado do aporte do mês |
+
+Nenhuma das quatro skills do caminho depende delas. Como a Finnest entra no modelo está em
 [onde a Finnest entra](#onde-a-finnest-entra).
 
 Com os dados de exemplo que vêm no repositório, sem configurar nada, o resumo sai assim:
@@ -97,7 +102,7 @@ banco ou pagar nada a este projeto.
 <!-- ensina: primeiro-dia -->
 ## O que eu faço no primeiro dia
 
-Quatro comandos de terminal e três conversas, mais uma se você usa a Finnest.
+Quatro comandos de terminal e três conversas.
 
 ```powershell
 git clone https://github.com/letsgetithipster/jabuti.git
@@ -116,23 +121,17 @@ método fica aqui. Abra a LLM dentro da sua pasta e cole uma conversa de cada ve
 | Cole | O que acontece |
 |---|---|
 | `/jabuti-init` | você responde, uma pergunta por vez, quem é: idade, horizonte, custo de vida, como reagiria a uma queda de 30%. As respostas viram `politica/00-perfil.md`, e o validador refaz as contas que saem delas. A taxa usada nessas contas vem do método, nunca da memória do modelo |
-| `/jabuti-capacidade` | se você usa a Finnest, cole esta depois do perfil. Ela lê três meses fechados das suas contas e mostra quanto você gastou e quanto sobrou em cada um; você escolhe o número que vale, e ele vai para o perfil com um registro da decisão |
 | `/jabuti-estrategia` | você escolhe como dividir o dinheiro entre três alternativas explicadas, ou declara a divisão que já usa. O resultado é uma tabela de faixas por tipo de investimento (as bandas) e um registro datado da sua decisão |
 | `/jabuti-importar` | você traz a carteira que já tem, pelo extrato da corretora. Se ainda não tem nada, responde isso e o primeiro dia termina aí |
 
-As três conversas obrigatórias terminam dizendo qual é a próxima, e `estado/SETUP.md` guarda
-onde você parou. No fim, `estado/ESTADO.md` mostra a sua carteira comparada com a política
-que você escolheu.
+Cada conversa termina dizendo qual é a próxima, e `estado/SETUP.md` guarda onde você parou.
+No fim, `estado/ESTADO.md` mostra a sua carteira comparada com a política que você escolheu.
 
 <!-- ensina: todo-mes -->
 ## O que eu faço todo mês
 
 Você abre a LLM na sua pasta e cola `/jabuti-mes`. A conversa começa com uma pergunta: você
 quer decidir onde aportar ou registrar o que já aconteceu?
-
-Se você usa a Finnest e tem fatura ou empréstimo em aberto, cole antes o `/jabuti-divida`. Ela
-mostra o custo da dívida ao lado do aporte do mês, com três alternativas, e você decide se
-quita ou investe primeiro.
 
 Para decidir, antes de comprar, a skill atualiza as cotações, refaz o `ESTADO.md` e calcula a
 fila de aporte com a política que você declarou. Nos comandos abaixo, `<motor>` é a pasta onde
@@ -197,13 +196,15 @@ escolha fica com você.
 
 O jabuti conhece a sua carteira. A [Finnest](https://finnest.com.br) lê as suas contas pelo
 Open Finance e conhece o seu mês: renda, despesa, cartão e dívida. Quem escreveu o jabuti
-também é cofundador da Finnest. Com ela, o método ganha duas respostas que a carteira sozinha
-não dá: quanto você pode investir por mês, e se alguma dívida deve ser paga antes.
+também é cofundador da Finnest. Para quem a conecta, ela acrescenta duas skills de bônus, e a
+rotina do mês continua a mesma com ou sem elas.
 
 O `/jabuti-capacidade` lê três meses fechados do seu fluxo de caixa e grava no perfil o custo
-de vida e a capacidade de aporte que você escolher entre os três. O `/jabuti-divida` põe a
-fatura e os empréstimos em aberto ao lado do aporte do mês. Comprar ação enquanto paga rotativo de cartão é perder dinheiro, e sem essa
-leitura o jabuti não tem como saber que o rotativo existe.
+de vida e a capacidade de aporte que você escolher entre os três, no lugar da conta que você
+faria à mão. O `/jabuti-divida` põe a fatura e os empréstimos em aberto ao lado do aporte do
+mês e abre três alternativas para você decidir se quita ou investe primeiro. Comprar ação
+enquanto paga rotativo de cartão é perder dinheiro, e sem essa leitura o jabuti não tem como
+saber que o rotativo existe.
 
 As duas pedem o MCP da Finnest conectado na sessão. Como conectar, o que cada uma lê e o que
 nunca faz está em [docs/finnest-skills.md](docs/finnest-skills.md). Sem a conexão, cada uma
@@ -273,7 +274,7 @@ own arithmetic reconciles; and the allocation policy you declare is the only thi
 decisions. It ships a guided onboarding (profile, allocation policy, portfolio import), a
 monthly routine (where to contribute, purchases, sales, dividends, corporate actions), a CSV
 data layer with a validator that runs on every commit, and a compiled Claude Code harness.
-Two optional read-only skills measure cash flow and debt through Finnest, which reads bank
+Two optional bonus skills, read-only, measure cash flow and debt through Finnest, which reads bank
 accounts via Brazil's Open Finance and was co-founded by the author; neither writes to the
 portfolio. Picking assets inside each block and tax support are outside this release. The
 project is written in Portuguese first; code contributions are welcome, see CONTRIBUTING.md.
